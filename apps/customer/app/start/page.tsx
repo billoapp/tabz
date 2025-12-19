@@ -14,6 +14,7 @@ function ConsentContent() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [barSlug, setBarSlug] = useState<string | null>(null);
   const [barId, setBarId] = useState<string | null>(null);
   const [barName, setBarName] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -22,41 +23,46 @@ function ConsentContent() {
   useEffect(() => {
     console.log('🔍 Start page loaded');
     
-    // Try to get bar_id from multiple sources
-    let barIdParam = searchParams?.get('bar_id');
+    // Try to get bar slug from multiple sources
+    let slug = searchParams?.get('bar') || searchParams?.get('slug');
     
     // Fallback to sessionStorage if not in URL
-    if (!barIdParam) {
-      barIdParam = sessionStorage.getItem('scanned_bar_id');
-      console.log('📦 Retrieved bar_id from sessionStorage:', barIdParam);
+    if (!slug) {
+      slug = sessionStorage.getItem('scanned_bar_slug');
+      console.log('📦 Retrieved bar slug from sessionStorage:', slug);
     } else {
-      console.log('🔗 Retrieved bar_id from URL:', barIdParam);
+      console.log('🔗 Retrieved bar slug from URL:', slug);
       // Store it for later use
-      sessionStorage.setItem('scanned_bar_id', barIdParam);
+      sessionStorage.setItem('scanned_bar_slug', slug);
     }
 
-    if (!barIdParam) {
+    if (!slug) {
       setError('No bar specified. Please scan a valid QR code.');
       setLoading(false);
       return;
     }
 
-    setBarId(barIdParam);
-    loadBarInfo(barIdParam);
+    setBarSlug(slug);
+    loadBarInfo(slug);
   }, [searchParams]);
 
-  const loadBarInfo = async (barId: string) => {
+  const loadBarInfo = async (slug: string) => {
     try {
-      console.log('🔍 Loading bar info for ID:', barId);
+      console.log('🔍 Loading bar info for slug:', slug);
       
-      // Get bar info by ID from QR code
+      // Get bar info by slug from QR code
       const { data: bar, error: barError } = await supabase
         .from('bars')
-        .select('id, name, active, location')
-        .eq('id', barId)
+        .select('id, name, active, location, slug')
+        .eq('slug', slug)
         .single();
 
       console.log('🔍 Bar query result:', { bar, barError });
+      console.log('🔍 Query details:', {
+        queriedSlug: slug,
+        foundBar: bar ? 'Yes' : 'No',
+        error: barError ? barError.message : 'None'
+      });
 
       if (barError) {
         console.error('❌ Supabase error:', barError);
@@ -200,7 +206,7 @@ function ConsentContent() {
         <div className="text-center text-white">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
           <p>Loading bar information...</p>
-          {barId && <p className="text-sm mt-2 font-mono">Bar ID: {barId.substring(0, 8)}...</p>}
+          {barSlug && <p className="text-sm mt-2 font-mono">{barSlug}</p>}
         </div>
       </div>
     );
@@ -220,9 +226,9 @@ function ConsentContent() {
             <div className="bg-gray-50 p-3 rounded-lg text-left mb-4">
               <p className="text-sm font-mono text-gray-600 break-all">
                 <strong>Debug Info:</strong><br/>
-                Bar ID from QR: {barId || 'None found'}<br/>
-                SessionStorage: {sessionStorage.getItem('scanned_bar_id') || 'None'}<br/>
-                URL Param: {searchParams?.get('bar_id') || 'None'}
+                Bar Slug from QR: {barSlug || 'None found'}<br/>
+                SessionStorage: {sessionStorage.getItem('scanned_bar_slug') || 'None'}<br/>
+                URL Param: {searchParams?.get('bar') || searchParams?.get('slug') || 'None'}
               </p>
             </div>
           </div>

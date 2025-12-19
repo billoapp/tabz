@@ -14,7 +14,8 @@ export default function SettingsPage() {
     location: '',
     city: '',
     phone: '',
-    email: ''
+    email: '',
+    slug: ''
   });
   const [originalBarInfo, setOriginalBarInfo] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -58,7 +59,8 @@ export default function SettingsPage() {
           location: locationParts[0]?.trim() || '',
           city: locationParts[1]?.trim() || '',
           phone: data.phone || '',
-          email: data.email || ''
+          email: data.email || '',
+          slug: data.slug || ''
         };
         setBarInfo(info);
         setOriginalBarInfo(info);
@@ -127,8 +129,8 @@ export default function SettingsPage() {
   };
 
   const handleCopyQRUrl = () => {
-    if (barInfo.id) {
-      const url = `https://mteja.vercel.app?bar_id=${barInfo.id}`;
+    if (barInfo.slug) {
+      const url = `https://mteja.vercel.app/?bar=${barInfo.slug}`;
       navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -138,7 +140,7 @@ export default function SettingsPage() {
 
   const handleDownloadQR = async () => {
     try {
-      const { data: bars } = await supabase.from('bars').select('id, name, active').limit(1);
+      const { data: bars } = await supabase.from('bars').select('id, name, slug, active').limit(1);
       
       if (!bars || bars.length === 0) {
         alert('No bar found in database. Please save bar information first.');
@@ -147,6 +149,11 @@ export default function SettingsPage() {
 
       const bar = bars[0];
       
+      if (!bar.slug) {
+        alert('⚠️ No slug found for your bar. Please contact support.');
+        return;
+      }
+      
       // Check if bar is active
       const isActive = bar.active !== false;
       
@@ -154,11 +161,12 @@ export default function SettingsPage() {
         alert('⚠️ Warning: Your bar is not marked as active. Please save your settings to activate it.');
       }
 
-      const qrData = `https://mteja.vercel.app?bar_id=${bar.id}`;
+      const qrData = `https://mteja.vercel.app/?bar=${bar.slug}`;
       
       console.log('🔍 Generating QR code:', {
         barId: bar.id,
         barName: bar.name,
+        barSlug: bar.slug,
         isActive: isActive,
         url: qrData
       });
@@ -167,12 +175,12 @@ export default function SettingsPage() {
       
       const link = document.createElement('a');
       link.href = qrUrl;
-      link.download = `${bar.name.replace(/\s+/g, '-').toLowerCase()}-order-qr.png`;
+      link.download = `${bar.slug}-qr-code.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
-      alert(`✅ QR code downloaded!\n\nBar: ${bar.name}\nBar ID: ${bar.id}\n\nTest the QR code by scanning it with your phone.`);
+      alert(`✅ QR code downloaded!\n\nBar: ${bar.name}\nSlug: ${bar.slug}\nURL: ${qrData}\n\nTest the QR code by scanning it with your phone.`);
     } catch (error) {
       console.error('Error generating QR code:', error);
       alert('Failed to generate QR code. Please try again.');
@@ -190,7 +198,7 @@ export default function SettingsPage() {
     );
   }
 
-  const qrUrl = barInfo.id ? `https://mteja.vercel.app?bar_id=${barInfo.id}` : '';
+  const qrUrl = barInfo.slug ? `https://mteja.vercel.app/?bar=${barInfo.slug}` : '';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -278,12 +286,15 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bar ID (Important!)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bar Slug (URL)</label>
               <div className="px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50">
-                <code className="text-sm text-gray-600 break-all">{barInfo.id || 'No bar ID found. Save first.'}</code>
+                <code className="text-sm text-gray-600 break-all">{barInfo.slug || 'No slug found'}</code>
               </div>
               <p className="text-xs text-orange-600 mt-1 font-medium">
-                💡 This ID is included in your QR code. Customers will see "{barInfo.name}".
+                💡 This slug is used in your QR code: mteja.vercel.app/?bar={barInfo.slug}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Customers will see "{barInfo.name}" when they scan.
               </p>
             </div>
 
@@ -327,9 +338,9 @@ export default function SettingsPage() {
               <div className="text-center mt-4">
                 <p className="font-bold text-gray-800">{barInfo.name || 'Your Restaurant'}</p>
                 <p className="text-sm text-gray-500">Scan to order digitally</p>
-                {barInfo.id && (
+                {barInfo.slug && (
                   <p className="text-xs text-orange-600 mt-1 font-mono">
-                    ID: {barInfo.id.substring(0, 8)}...
+                    {barInfo.slug}
                   </p>
                 )}
               </div>
@@ -337,7 +348,7 @@ export default function SettingsPage() {
           </div>
 
           {/* QR Code URL with Copy Button */}
-          {barInfo.id && (
+          {barInfo.slug && (
             <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs text-gray-500">QR Code URL:</p>
@@ -358,9 +369,9 @@ export default function SettingsPage() {
           {/* Download Button */}
           <button
             onClick={handleDownloadQR}
-            disabled={!barInfo.id}
+            disabled={!barInfo.slug}
             className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${
-              barInfo.id 
+              barInfo.slug 
                 ? 'bg-orange-500 text-white hover:bg-orange-600' 
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}

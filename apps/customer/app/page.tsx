@@ -11,28 +11,30 @@ function LandingContent() {
   const searchParams = useSearchParams();
   
   useEffect(() => {
-    // Check if there's a bar_id in the URL (from QR code scan)
-    const barId = searchParams.get('bar_id');
+    // Check if there's a slug in the URL (from QR code scan)
+    const slug = searchParams.get('bar') || searchParams.get('slug');
     
-    console.log('🔍 Landing page - bar_id from URL:', barId);
+    console.log('🔍 Landing page - Full URL:', window.location.href);
+    console.log('🔍 Landing page - Search params:', window.location.search);
+    console.log('🔍 Landing page - bar slug from URL:', slug);
     
-    if (barId) {
-      // Store bar_id in sessionStorage for persistence
-      sessionStorage.setItem('scanned_bar_id', barId);
-      console.log('✅ Stored bar_id in sessionStorage:', barId);
+    if (slug) {
+      // Store slug in sessionStorage for persistence
+      sessionStorage.setItem('scanned_bar_slug', slug);
+      console.log('✅ Stored bar slug in sessionStorage:', slug);
     }
   }, [searchParams]);
 
   const handleStart = () => {
-    const barId = searchParams.get('bar_id') || sessionStorage.getItem('scanned_bar_id');
+    const slug = searchParams.get('bar') || searchParams.get('slug') || sessionStorage.getItem('scanned_bar_slug');
     
-    console.log('🚀 Start button clicked, bar_id:', barId);
+    console.log('🚀 Start button clicked, bar slug:', slug);
     
-    if (barId) {
-      // Navigate to start page WITH bar_id parameter
-      router.push(`/start?bar_id=${barId}`);
+    if (slug) {
+      // Navigate to start page WITH slug parameter
+      router.push(`/start?bar=${slug}`);
     } else {
-      // No bar_id - go to start page anyway (will show error)
+      // No slug - go to start page anyway (will show error)
       router.push('/start');
     }
   };
@@ -60,7 +62,7 @@ function LandingContent() {
     }
   ];
 
-  const barId = searchParams.get('bar_id');
+  const slug = searchParams.get('bar') || searchParams.get('slug');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex flex-col items-center justify-center p-6">
@@ -91,11 +93,11 @@ function LandingContent() {
         </div>
         
         {/* Debug info (remove in production) */}
-        {barId && (
+        {slug && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-xs text-green-700 font-mono">
               ✅ QR Code Scanned<br/>
-              Bar ID: {barId.substring(0, 8)}...
+              Bar: {slug}
             </p>
           </div>
         )}
