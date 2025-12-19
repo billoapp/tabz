@@ -1,4 +1,4 @@
-// app/start/page.tsx
+// app/start/page.tsx - FIXED: Better bar_id handling
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
@@ -22,9 +22,18 @@ function ConsentContent() {
   useEffect(() => {
     console.log('🔍 Start page loaded');
     
-    // Get bar_id from URL parameters (from QR code)
-    const barIdParam = searchParams?.get('bar_id');
-    console.log('🔍 URL bar_id parameter:', barIdParam);
+    // Try to get bar_id from multiple sources
+    let barIdParam = searchParams?.get('bar_id');
+    
+    // Fallback to sessionStorage if not in URL
+    if (!barIdParam) {
+      barIdParam = sessionStorage.getItem('scanned_bar_id');
+      console.log('📦 Retrieved bar_id from sessionStorage:', barIdParam);
+    } else {
+      console.log('🔗 Retrieved bar_id from URL:', barIdParam);
+      // Store it for later use
+      sessionStorage.setItem('scanned_bar_id', barIdParam);
+    }
 
     if (!barIdParam) {
       setError('No bar specified. Please scan a valid QR code.');
@@ -43,7 +52,7 @@ function ConsentContent() {
       // Get bar info by ID from QR code
       const { data: bar, error: barError } = await supabase
         .from('bars')
-        .select('id, name, is_active, location')
+        .select('id, name, active, location')
         .eq('id', barId)
         .single();
 
@@ -51,7 +60,7 @@ function ConsentContent() {
 
       if (barError) {
         console.error('❌ Supabase error:', barError);
-        setError(`Bar not found. Please scan a valid QR code.`);
+        setError(`Bar not found in database. Please scan a valid QR code.`);
         setLoading(false);
         return;
       }
@@ -62,14 +71,17 @@ function ConsentContent() {
         return;
       }
 
-      if (!bar.is_active) {
+      // Check both 'active' and 'is_active' fields
+      const isActive = bar.active !== false;
+      
+      if (!isActive) {
         setError('This bar is currently unavailable. Please contact staff.');
         setLoading(false);
         return;
       }
 
       setBarName(bar.name || 'Bar');
-      console.log('✅ Bar loaded:', bar.name);
+      console.log('✅ Bar loaded successfully:', bar.name);
       
       // Check for existing open tab at this bar
       const tabData = sessionStorage.getItem('currentTab');
@@ -84,7 +96,7 @@ function ConsentContent() {
             }
           }
         } catch (e) {
-          console.log('No existing tab found');
+          console.log('No valid existing tab found');
         }
       }
 
@@ -116,7 +128,7 @@ function ConsentContent() {
       
       if (nickname.trim()) {
         // User provided nickname
-        displayName = `Tab ${nickname.trim()}`;
+        displayName = nickname.trim();
         tabNumber = null;
       } else {
         // Auto-generate Tab number
@@ -124,6 +136,7 @@ function ConsentContent() {
           .from('tabs')
           .select('tab_number')
           .eq('bar_id', barId)
+          .not('tab_number', 'is', null)
           .order('tab_number', { ascending: false })
           .limit(1);
 
@@ -151,7 +164,7 @@ function ConsentContent() {
             notifications_enabled: notificationsEnabled,
             terms_accepted: termsAccepted,
             accepted_at: new Date().toISOString(),
-            bar_name: barName // Store bar name for reference
+            bar_name: barName
           })
         })
         .select()
@@ -162,7 +175,7 @@ function ConsentContent() {
         throw tabError;
       }
 
-      console.log('✅ Tab created:', tab);
+      console.log('✅ Tab created successfully:', tab);
 
       // Store in session
       sessionStorage.setItem('currentTab', JSON.stringify(tab));
@@ -187,7 +200,7 @@ function ConsentContent() {
         <div className="text-center text-white">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
           <p>Loading bar information...</p>
-          {barId && <p className="text-sm mt-2">Bar ID: {barId.substring(0, 8)}...</p>}
+          {barId && <p className="text-sm mt-2 font-mono">Bar ID: {barId.substring(0, 8)}...</p>}
         </div>
       </div>
     );
@@ -205,15 +218,20 @@ function ConsentContent() {
             <p className="text-gray-700 mb-4">{error}</p>
             
             <div className="bg-gray-50 p-3 rounded-lg text-left mb-4">
-              <p className="text-sm font-mono text-gray-600">
+              <p className="text-sm font-mono text-gray-600 break-all">
+                <strong>Debug Info:</strong><br/>
                 Bar ID from QR: {barId || 'None found'}<br/>
-                Problem: QR code might be missing bar information
+                SessionStorage: {sessionStorage.getItem('scanned_bar_id') || 'None'}<br/>
+                URL Param: {searchParams?.get('bar_id') || 'None'}
               </p>
             </div>
           </div>
           
           <button
-            onClick={() => router.push('/')}
+            onClick={() => {
+              sessionStorage.clear();
+              router.push('/');
+            }}
             className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600"
           >
             Go Back Home
@@ -238,6 +256,11 @@ function ConsentContent() {
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">{barName}</h2>
           <p className="text-sm text-gray-600">Ready to start your tab</p>
+          {barId && (
+            <p className="text-xs text-gray-400 mt-2 font-mono">
+              Bar ID: {barId.substring(0, 8)}...
+            </p>
+          )}
         </div>
 
         {/* Trust Statement */}
@@ -268,7 +291,7 @@ function ConsentContent() {
             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
           />
           <p className="text-xs text-gray-500 mt-1">
-            If left blank, will use Tab 1, Tab 2, etc.
+            If left blank, we'll assign you a tab number
           </p>
         </div>
 
@@ -328,7 +351,6 @@ function ConsentContent() {
                 >
                   Privacy Policy
                 </button>
-                {' '}of {barName}
               </p>
               <p className="text-xs text-gray-500 mt-1">
                 We don't sell or store personal data.
@@ -346,7 +368,7 @@ function ConsentContent() {
           {creating ? (
             <>
               <span className="animate-spin inline-block mr-2">⟳</span>
-              Creating Your Tab at {barName}...
+              Creating Your Tab...
             </>
           ) : (
             `Start My Tab at ${barName}`
@@ -356,7 +378,7 @@ function ConsentContent() {
         {/* Footer */}
         <div className="text-center mt-6 pt-4 border-t border-gray-100">
           <p className="text-xs text-gray-500">
-            🔒 Your privacy is protected at {barName}
+            🔒 Your privacy is protected
           </p>
           <p className="text-xs text-gray-400 mt-1">
             Your tab is only accessible at this location

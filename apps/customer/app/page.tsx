@@ -1,4 +1,4 @@
-// app/page.tsx
+// app/page.tsx - FIXED: Preserves bar_id through navigation
 'use client';
 
 import React, { useEffect, Suspense } from 'react';
@@ -11,14 +11,31 @@ function LandingContent() {
   const searchParams = useSearchParams();
   
   useEffect(() => {
-    // Check if there's a bar_id in the URL
+    // Check if there's a bar_id in the URL (from QR code scan)
     const barId = searchParams.get('bar_id');
     
+    console.log('🔍 Landing page - bar_id from URL:', barId);
+    
     if (barId) {
-      // If bar_id exists, redirect to start page with the bar_id
-      router.push(`/start?bar_id=${barId}`);
+      // Store bar_id in sessionStorage for persistence
+      sessionStorage.setItem('scanned_bar_id', barId);
+      console.log('✅ Stored bar_id in sessionStorage:', barId);
     }
-  }, [searchParams, router]);
+  }, [searchParams]);
+
+  const handleStart = () => {
+    const barId = searchParams.get('bar_id') || sessionStorage.getItem('scanned_bar_id');
+    
+    console.log('🚀 Start button clicked, bar_id:', barId);
+    
+    if (barId) {
+      // Navigate to start page WITH bar_id parameter
+      router.push(`/start?bar_id=${barId}`);
+    } else {
+      // No bar_id - go to start page anyway (will show error)
+      router.push('/start');
+    }
+  };
 
   const benefits = [
     {
@@ -42,6 +59,8 @@ function LandingContent() {
       description: 'No signup required. Your privacy is protected.'
     }
   ];
+
+  const barId = searchParams.get('bar_id');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex flex-col items-center justify-center p-6">
@@ -71,9 +90,19 @@ function LandingContent() {
           ))}
         </div>
         
+        {/* Debug info (remove in production) */}
+        {barId && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-xs text-green-700 font-mono">
+              ✅ QR Code Scanned<br/>
+              Bar ID: {barId.substring(0, 8)}...
+            </p>
+          </div>
+        )}
+        
         {/* CTA */}
         <button
-          onClick={() => router.push('/start')}
+          onClick={handleStart}
           className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-red-700 transition shadow-lg"
         >
           Start
