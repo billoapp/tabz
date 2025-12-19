@@ -1,11 +1,13 @@
+// app/start/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Bell, Store, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-export default function ConsentPage() {
+// Create a separate component that uses useSearchParams
+function ConsentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [nickname, setNickname] = useState('');
@@ -362,5 +364,21 @@ export default function ConsentPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Main component with Suspense boundary
+export default function ConsentPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
+        <div className="text-center text-white">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    }>
+      <ConsentContent />
+    </Suspense>
   );
 }

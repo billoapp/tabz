@@ -1,11 +1,12 @@
 // app/page.tsx
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Zap, DollarSign, Bell, Shield } from 'lucide-react';
 
-export default function LandingPage() {
+// Create a separate component that uses useSearchParams
+function LandingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -84,5 +85,21 @@ export default function LandingPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+// Main component with Suspense boundary
+export default function LandingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white">Loading...</p>
+        </div>
+      </div>
+    }>
+      <LandingContent />
+    </Suspense>
   );
 }
