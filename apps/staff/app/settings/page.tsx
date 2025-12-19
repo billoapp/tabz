@@ -62,6 +62,7 @@ export default function SettingsPage() {
         };
         setBarInfo(info);
         setOriginalBarInfo(info);
+        console.log('✅ Bar info loaded:', info);
       }
     } catch (error) {
       console.error('Error loading bar info:', error);
@@ -86,7 +87,8 @@ export default function SettingsPage() {
             name: barInfo.name,
             location: fullLocation,
             phone: barInfo.phone,
-            email: barInfo.email
+            email: barInfo.email,
+            is_active: true  // IMPORTANT: Ensure bar is active
           })
           .eq('id', bars[0].id);
 
@@ -123,20 +125,19 @@ export default function SettingsPage() {
     setShowProModal(true);
   };
 
-  // UPDATED: Changed from direct /start URL to main app URL
   const handleCopyQRUrl = () => {
     if (barInfo.id) {
       const url = `https://mteja.vercel.app?bar_id=${barInfo.id}`;
       navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      console.log('📋 Copied URL:', url);
     }
   };
 
-  // UPDATED: Changed from direct /start URL to main app URL
   const handleDownloadQR = async () => {
     try {
-      const { data: bars } = await supabase.from('bars').select('id, name').limit(1);
+      const { data: bars } = await supabase.from('bars').select('id, name, is_active').limit(1);
       
       if (!bars || bars.length === 0) {
         alert('No bar found in database. Please save bar information first.');
@@ -144,9 +145,20 @@ export default function SettingsPage() {
       }
 
       const bar = bars[0];
+      
+      // Check if bar is active
+      if (!bar.is_active) {
+        alert('⚠️ Warning: Your bar is not marked as active. Please save your settings to activate it.');
+      }
+
       const qrData = `https://mteja.vercel.app?bar_id=${bar.id}`;
       
-      console.log('🔍 Generating QR code with bar ID:', bar.id);
+      console.log('🔍 Generating QR code:', {
+        barId: bar.id,
+        barName: bar.name,
+        isActive: bar.is_active,
+        url: qrData
+      });
       
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(qrData)}&bgcolor=ffffff&color=f97316&qzone=2&format=png`;
       
@@ -157,7 +169,7 @@ export default function SettingsPage() {
       link.click();
       document.body.removeChild(link);
 
-      alert(`✅ QR code downloaded!\n\nURL: ${qrData}\n\nCustomers will scan this QR and be taken to the app, then redirected to start ordering.`);
+      alert(`✅ QR code downloaded!\n\nBar: ${bar.name}\nBar ID: ${bar.id}\n\nTest the QR code by scanning it with your phone.`);
     } catch (error) {
       console.error('Error generating QR code:', error);
       alert('Failed to generate QR code. Please try again.');
@@ -175,8 +187,8 @@ export default function SettingsPage() {
     );
   }
 
-  // UPDATED: Changed from direct /start URL to main app URL
   const qrUrl = barInfo.id ? `https://mteja.vercel.app?bar_id=${barInfo.id}` : '';
+  console.log('🔍 Current QR URL:', qrUrl);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -264,12 +276,22 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bar ID</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bar ID (Important!)</label>
               <div className="px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50">
                 <code className="text-sm text-gray-600 break-all">{barInfo.id || 'No bar ID found. Save first.'}</code>
               </div>
+              <p className="text-xs text-orange-600 mt-1 font-medium">
+                💡 This ID is included in your QR code. Make sure this matches the database.
+              </p>
               <p className="text-xs text-gray-500 mt-1">
-                💡 This ID is included in your QR code. Customers will see "{barInfo.name}" when they scan.
+                Customers will see "{barInfo.name}" when they scan.
+              </p>
+            </div>
+
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm font-medium text-blue-700 mb-1">⚠️ Important Step</p>
+              <p className="text-xs text-blue-600">
+                After saving changes, <strong>refresh this page</strong> to ensure the bar ID is loaded correctly.
               </p>
             </div>
 
@@ -313,6 +335,11 @@ export default function SettingsPage() {
               <div className="text-center mt-4">
                 <p className="font-bold text-gray-800">{barInfo.name || 'Your Restaurant'}</p>
                 <p className="text-sm text-gray-500">Scan to order digitally</p>
+                {barInfo.id && (
+                  <p className="text-xs text-orange-600 mt-1 font-mono">
+                    ID: {barInfo.id.substring(0, 8)}...
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -333,9 +360,36 @@ export default function SettingsPage() {
               <code className="text-sm text-gray-800 break-all">
                 {qrUrl}
               </code>
-              <p className="text-xs text-gray-500 mt-1">
-                This URL will redirect to the start page with your bar ID
-              </p>
+              <div className="mt-2 p-2 bg-orange-50 rounded">
+                <p className="text-xs text-orange-700">
+                  <strong>Testing Instructions:</strong><br/>
+                  1. Save your settings first<br/>
+                  2. Copy this URL<br/>
+                  3. Open in browser to test
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Debug Information */}
+          {barInfo.id && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm font-medium text-yellow-700 mb-2">Debug Information</p>
+              <div className="text-xs font-mono text-yellow-600 space-y-1">
+                <div>Bar ID: {barInfo.id}</div>
+                <div>Bar Name: {barInfo.name}</div>
+                <div>QR URL: {qrUrl}</div>
+                <div>Full URL: https://mteja.vercel.app?bar_id={barInfo.id}</div>
+              </div>
+              <button
+                onClick={() => {
+                  const testUrl = `https://mteja.vercel.app?bar_id=${barInfo.id}`;
+                  window.open(testUrl, '_blank');
+                }}
+                className="mt-2 text-xs text-blue-600 hover:text-blue-700 underline"
+              >
+                Test URL in new tab →
+              </button>
             </div>
           )}
 
@@ -361,6 +415,7 @@ export default function SettingsPage() {
           </p>
         </div>
 
+        {/* Rest of the file remains the same */}
         {/* Notifications */}
         <div className="bg-white rounded-xl shadow-sm p-4">
           <div className="flex items-center gap-3 mb-4">
