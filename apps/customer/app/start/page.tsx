@@ -126,12 +126,12 @@ export default function ConsentPage() {
             type="text"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            placeholder="Table 4 or John"
+            placeholder="Mary or John"
             maxLength={20}
             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Leave blank to use Tab 1, Tab 2, etc.
+            If left blank, will use Tab 1, Tab 2, etc.
           </p>
         </div>
 
