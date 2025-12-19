@@ -1,16 +1,13 @@
 {
   "name": "kwikoda-customer",
-  "version": 2,
+  "buildCommand": "cd ../.. && npm run build --workspace=apps/customer",
+  "outputDirectory": ".next",
+  "installCommand": "cd ../.. && npm install",
   "routes": [
     {
       "src": "/api/(.*)",
       "dest": "/api/$1"
     }
   ],
-  "env": {
-    "PUBLIC_DB_URL": "",
-    "PUBLIC_DB_KEY": "",
-    "PUBLIC_BOT_USERNAME": ""
-  },
   "regions": ["cdg1"]
 }

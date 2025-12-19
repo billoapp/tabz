@@ -23,9 +23,11 @@ export default function ReportsPage() {
 
   const stats = {
     totalTabs: tabs.length,
-    openTabs: tabs.filter(t => t.status === 'open').length,
-    totalRevenue: tabs.reduce((sum, tab) => sum + tab.orders.reduce((s, o) => s + o.total, 0), 0),
-    outstandingBalance: tabs.filter(t => t.status === 'open').reduce((sum, tab) => sum + getTabBalance(tab), 0)
+    openTabs: tabs.filter((t: any) => t.status === 'open').length,
+    totalRevenue: tabs.reduce((sum: number, tab: any) => {
+      return sum + tab.orders.reduce((s: number, o: any) => s + parseFloat(o.total), 0);
+    }, 0),
+    outstandingBalance: tabs.filter((t: any) => t.status === 'open').reduce((sum: number, tab: any) => sum + getTabBalance(tab), 0)
   };
 
   const handlePrintDaily = () => {

@@ -1,5 +1,7 @@
 {
   "name": "kwikoda-staff",
-  "version": 2,
+  "buildCommand": "cd ../.. && npm run build --workspace=apps/staff",
+  "outputDirectory": ".next",
+  "installCommand": "cd ../.. && npm install",
   "regions": ["cdg1"]
 }
