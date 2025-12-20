@@ -5,13 +5,30 @@ import { useRouter } from 'next/navigation';
 import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
+interface Product {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  image_url?: string;
+}
+
+interface BarProduct {
+  id: string;
+  bar_id: string;
+  product_id: string;
+  sale_price: number;
+  active: boolean;
+  products: Product[]; // Array of products from Supabase join
+}
+
 export default function MenuPage() {
   const router = useRouter();
   const [tab, setTab] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState('Your Tab');
   const [barName, setBarName] = useState('Loading...');
-  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
   const [cart, setCart] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
@@ -114,16 +131,29 @@ export default function MenuPage() {
       setDisplayName(name);
 
       // Load menu items for this bar
+      // Load bar products with product details
       if (fullTab.bar?.id) {
-        const { data: menuData, error: menuError } = await supabase
-          .from('menu_items')
-          .select('*')
+        const { data: productsData, error: productsError } = await supabase
+          .from('bar_products')
+          .select(`
+            id,
+            bar_id,
+            product_id,
+            sale_price,
+            active,
+            products (
+              id,
+              name,
+              description,
+              category,
+              image_url
+            )
+          `)
           .eq('bar_id', fullTab.bar.id)
-          .eq('available', true)
-          .order('category', { ascending: true });
+          .eq('active', true);
 
-        if (!menuError && menuData) {
-          setMenuItems(menuData);
+        if (!productsError && productsData) {
+          setBarProducts(productsData || []);
         }
       }
 
@@ -185,23 +215,36 @@ export default function MenuPage() {
     }
   };
 
-  const categories = ['All', ...new Set(menuItems.map(item => item.category))];
+  const categories = ['All', ...new Set(
+  barProducts
+    .map(bp => bp.products[0]?.category)
+    .filter(Boolean)
+)];  
+  let filteredProducts = selectedCategory === 'All' 
+    ? barProducts 
+    : barProducts.filter(bp => bp.products[0]?.category === selectedCategory);
   
-  let filteredMenu = selectedCategory === 'All' 
-    ? menuItems 
-    : menuItems.filter(item => item.category === selectedCategory);
-  
-  if (searchQuery.trim()) {
-    filteredMenu = filteredMenu.filter(item => 
-      item.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }
+    // Search filter
+    if (searchQuery.trim()) {
+      filteredProducts = filteredProducts.filter(bp => 
+        bp.products[0]?.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
 
-  const addToCart = (item: any) => {
-    const existing = cart.find(c => c.id === item.id);
+  const addToCart = (barProduct: BarProduct) => {
+    const product = barProduct.products[0]; // Get first product from array
+    const existing = cart.find(c => c.bar_product_id === barProduct.id);
     const newCart = existing
-      ? cart.map(c => c.id === item.id ? {...c, quantity: c.quantity + 1} : c)
-      : [...cart, {...item, quantity: 1}];
+      ? cart.map(c => c.bar_product_id === barProduct.id ? {...c, quantity: c.quantity + 1} : c)
+      : [...cart, {
+          bar_product_id: barProduct.id,
+          product_id: barProduct.product_id,
+          name: product.name,
+          price: barProduct.sale_price, // ← Bar-specific price!
+          category: product.category,
+          image_url: product.image_url,
+          quantity: 1
+        }];
     setCart(newCart);
     sessionStorage.setItem('cart', JSON.stringify(newCart));
   };
@@ -409,7 +452,7 @@ export default function MenuPage() {
       <div ref={menuRef} className="bg-white p-4">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">Menu</h2>
         
-        {menuItems.length === 0 ? (
+        {barProducts.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 mb-2">No menu items available</p>
             <p className="text-sm text-gray-400">Please contact staff</p>
@@ -440,19 +483,36 @@ export default function MenuPage() {
             </div>
             
             <div className="grid grid-cols-2 gap-3 mb-20">
-              {filteredMenu.map(item => (
-                <div key={item.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
-                  <div className="text-center mb-2">
-                    <div className="text-5xl mb-2">{item.emoji || '🍽️'}</div>
-                    <h3 className="font-semibold text-gray-800 text-sm mb-1">{item.name}</h3>
-                    {item.description && (
-                      <p className="text-xs text-gray-500 mb-1">{item.description}</p>
+              {filteredProducts.map(barProduct => (
+                <div key={barProduct.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
+                  {barProduct.products[0]?.image_url ? (
+                    <img 
+                      src={barProduct.products[0].image_url} 
+                      alt={barProduct.products[0].name}
+                      className="w-full h-32 object-cover rounded-lg mb-2"
+                    />
+                  ) : (
+                    <div className="w-full h-32 bg-gray-200 rounded-lg mb-2 flex items-center justify-center">
+                      <span className="text-5xl">🍺</span>
+                    </div>
+                  )}
+                  <div className="text-center">
+                    <h3 className="font-semibold text-gray-800 text-sm mb-1">
+                      {barProduct.products[0]?.name}
+                    </h3>
+                    {barProduct.products[0]?.description && (
+                      <p className="text-xs text-gray-500 mb-1 line-clamp-2">
+                        {barProduct.products[0].description}
+                      </p>
                     )}
-                    <p className="text-orange-600 font-bold text-lg">KSh {item.price}</p>
+                    <p className="text-xs text-gray-400 mb-1">{barProduct.products[0]?.category}</p>
+                    <p className="text-orange-600 font-bold text-lg">
+                      KSh {barProduct.sale_price.toFixed(2)}
+                    </p>
                   </div>
                   <button 
-                    onClick={() => addToCart(item)} 
-                    className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-1"
+                    onClick={() => addToCart(barProduct)} 
+                    className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-1 mt-2"
                   >
                     <Plus size={18} />
                     <span className="text-sm font-medium">Add</span>
