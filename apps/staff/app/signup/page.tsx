@@ -1,4 +1,4 @@
-// app/signup/page.tsx
+// apps/staff/app/signup/page.tsx - FIXED: Direct to settings after signup
 'use client';
 
 import React, { useState } from 'react';
@@ -88,52 +88,56 @@ export default function SignupPage() {
     }
   };
 
- const handleSignup = async () => {
-  if (!validateStep3()) return;
+   const handleSignup = async () => {
+    if (!validateStep3()) return;
 
-  setLoading(true);
-  setError('');
+    setLoading(true);
+    setError('');
 
-  try {
-    // Step 1: Create auth user
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: formData.email,
-      password: formData.password,
-    });
+    try {
+      // Step 1: Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+      });
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error('Failed to create user');
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create user');
 
-    console.log('✅ User created:', authData.user.id);
+      console.log('✅ User created:', authData.user.id);
 
-    // Step 2: Use database function to create bar and link user
-    const { data: barId, error: barError } = await supabase.rpc('signup_new_bar', {
-      p_user_id: authData.user.id,
-      p_bar_name: formData.barName,
-      p_location: formData.location,
-      p_phone: formData.phone,
-      p_email: formData.email,
-    });
+      // Step 2: Use database function to create bar and link user
+      const { data: barId, error: barError } = await supabase.rpc('signup_new_bar', {
+        p_user_id: authData.user.id,
+        p_bar_name: formData.barName,
+        p_location: formData.location,
+        p_phone: formData.phone,
+        p_email: formData.email,
+      });
 
-    if (barError) throw barError;
+      if (barError) throw barError;
 
-    console.log('✅ Bar created and linked:', barId);
+      console.log('✅ Bar created and linked:', barId);
 
-    // Step 3: Update user metadata
-    await supabase.auth.updateUser({
-      data: { bar_id: barId }
-    });
+      // Step 3: Update user metadata
+      await supabase.auth.updateUser({
+        data: { bar_id: barId }
+      });
 
-    alert('🎉 Account created successfully! You can now sign in.');
-    router.push('/login');
+      console.log('✅ User metadata updated with bar_id');
 
-  } catch (err: any) {
-    console.error('❌ Signup error:', err);
-    setError(err.message || 'Failed to create account');
-  } finally {
-    setLoading(false);
-  }
-};
+      // Since email confirmation is disabled, user is automatically signed in
+      // Redirect directly to settings to complete setup
+      console.log('🎯 Redirecting to settings for onboarding...');
+      router.push('/settings');
+
+    } catch (err: any) {
+      console.error('❌ Signup error:', err);
+      setError(err.message || 'Failed to create account');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
@@ -196,7 +200,6 @@ export default function SignupPage() {
                     value={formData.email}
                     onChange={(e) => updateField('email', e.target.value)}
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                    placeholder="your@email.com"
                     autoComplete="email"
                   />
                 </div>
@@ -213,7 +216,6 @@ export default function SignupPage() {
                     value={formData.password}
                     onChange={(e) => updateField('password', e.target.value)}
                     className="w-full pl-10 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                    placeholder="Create a strong password"
                     autoComplete="new-password"
                   />
                   <button
@@ -238,7 +240,6 @@ export default function SignupPage() {
                     value={formData.confirmPassword}
                     onChange={(e) => updateField('confirmPassword', e.target.value)}
                     className="w-full pl-10 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                    placeholder="Re-enter your password"
                     autoComplete="new-password"
                   />
                   <button
@@ -276,7 +277,6 @@ export default function SignupPage() {
                     value={formData.barName}
                     onChange={(e) => updateField('barName', e.target.value)}
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                    placeholder="The Spot Lounge"
                   />
                 </div>
               </div>
@@ -292,7 +292,6 @@ export default function SignupPage() {
                     value={formData.location}
                     onChange={(e) => updateField('location', e.target.value)}
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                    placeholder="Nairobi, Kenya"
                   />
                 </div>
               </div>
@@ -308,7 +307,6 @@ export default function SignupPage() {
                     value={formData.phone}
                     onChange={(e) => updateField('phone', e.target.value)}
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                    placeholder="+254 712 345 678"
                   />
                 </div>
               </div>
@@ -401,7 +399,7 @@ export default function SignupPage() {
           <div className="mt-6 text-center text-sm text-gray-600">
             Already have an account?{' '}
             <button
-              onClick={() => router.push('/staff/login')}
+              onClick={() => router.push('/login')}
               className="text-orange-600 font-semibold hover:underline"
             >
               Sign In
