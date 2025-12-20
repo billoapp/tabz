@@ -33,38 +33,69 @@ export default function MenuManagementPage() {
     price: '' 
   });
 
-  // Check authentication and load bars
+  // DEBUG: Log all state changes
+  useEffect(() => {
+    console.log('🔍 STATE CHECK:', {
+      loading,
+      barLoading,
+      currentBarId,
+      userBarsCount: userBars.length,
+      combined: loading || barLoading
+    });
+  }, [loading, barLoading, currentBarId, userBars]);
+
+  // Check authentication
   useEffect(() => {
     const checkAuth = async () => {
-      if (!barLoading) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          console.log('No authenticated user, redirecting to login');
-          router.push('/login');
-          return;
-        }
-        
-        if (!currentBarId) {
-          console.log('No current bar set, but user is authenticated');
-          // Don't redirect immediately - let BarContext handle loading
-          return;
-        }
+      console.log('🔐 checkAuth running...', { barLoading });
+      
+      if (barLoading) {
+        console.log('⏳ Still loading bars...');
+        return;
       }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('❌ No authenticated user, redirecting to login');
+        router.push('/login');
+        return;
+      }
+      
+      console.log('✅ User authenticated:', user.id);
+      
+      if (!currentBarId) {
+        console.log('⚠️ No current bar set, waiting...');
+        // Set loading to false if no bars available
+        if (userBars.length === 0) {
+          console.log('❌ User has no bars');
+          setLoading(false);
+        }
+        return;
+      }
+      
+      console.log('✅ Current bar set:', currentBarId);
     };
     
     checkAuth();
-  }, [barLoading, currentBarId, router]);
+  }, [barLoading, currentBarId, router, userBars.length]);
 
-  // Load catalog data
+  // Load catalog data when bar is selected
   useEffect(() => {
-    if (currentBarId) {
+    console.log('📦 Effect triggered:', { currentBarId, barLoading });
+    
+    if (!barLoading && currentBarId) {
+      console.log('🚀 Loading catalog and menu...');
       loadCatalogData();
       loadBarMenu();
+    } else if (!barLoading && !currentBarId) {
+      console.log('⚠️ No bar selected, stopping loading state');
+      setLoading(false);
     }
-  }, [currentBarId]);
+  }, [currentBarId, barLoading]);
 
   const loadCatalogData = async () => {
     try {
+      console.log('🚀 loadCatalogData START');
       setLoading(true);
 
       // Load suppliers
@@ -74,7 +105,10 @@ export default function MenuManagementPage() {
         .eq('active', true)
         .order('name');
 
-      if (suppliersError) throw suppliersError;
+      if (suppliersError) {
+        console.error('❌ Suppliers error:', suppliersError);
+        throw suppliersError;
+      }
 
       // Load categories
       const { data: categoriesData, error: categoriesError } = await supabase
@@ -82,7 +116,10 @@ export default function MenuManagementPage() {
         .select('*')
         .order('name');
 
-      if (categoriesError) throw categoriesError;
+      if (categoriesError) {
+        console.error('❌ Categories error:', categoriesError);
+        throw categoriesError;
+      }
 
       // Load products
       const { data: productsData, error: productsError } = await supabase
@@ -94,7 +131,10 @@ export default function MenuManagementPage() {
         .eq('active', true)
         .order('name');
 
-      if (productsError) throw productsError;
+      if (productsError) {
+        console.error('❌ Products error:', productsError);
+        throw productsError;
+      }
 
       setSuppliers(suppliersData || []);
       setCategories(categoriesData || []);
@@ -107,9 +147,10 @@ export default function MenuManagementPage() {
       });
 
     } catch (error) {
-      console.error('Error loading catalog:', error);
-      alert('Failed to load product catalog');
+      console.error('❌ Error loading catalog:', error);
+      alert('Failed to load product catalog: ' + (error as any).message);
     } finally {
+      console.log('🏁 loadCatalogData FINALLY - setting loading to false');
       setLoading(false);
     }
   };
@@ -117,11 +158,11 @@ export default function MenuManagementPage() {
   const loadBarMenu = async () => {
     try {
       if (!currentBarId) {
-        console.log('No currentBarId, skipping menu load');
+        console.log('⚠️ No currentBarId, skipping menu load');
         return;
       }
 
-      console.log('Loading bar menu for:', currentBarId);
+      console.log('📋 Loading bar menu for:', currentBarId);
 
       // Set RLS context
       const { error: rpcError } = await supabase.rpc('set_bar_context', { 
@@ -129,7 +170,7 @@ export default function MenuManagementPage() {
       });
       
       if (rpcError) {
-        console.error('RPC error in loadBarMenu:', rpcError);
+        console.error('⚠️ RPC error in loadBarMenu:', rpcError);
         // Continue anyway - RLS might still work
       }
 
@@ -152,16 +193,15 @@ export default function MenuManagementPage() {
         .eq('active', true);
 
       if (error) {
-        console.error('Error loading bar_products:', error);
-        return; // Just return, don't throw
+        console.error('❌ Error loading bar_products:', error);
+        return;
       }
 
       setBarProducts(data || []);
       console.log('✅ Loaded bar menu:', data?.length || 0, 'items');
 
     } catch (error) {
-      console.error('Unexpected error in loadBarMenu:', error);
-      // Swallow error - don't let it crash the page
+      console.error('❌ Unexpected error in loadBarMenu:', error);
     }
   };
 
@@ -259,15 +299,11 @@ export default function MenuManagementPage() {
     }
 
     try {
-      // For custom items, we can either:
-      // 1. Create them as products (recommended)
-      // 2. Store them separately
-      
-      // Option 1: Create as product
+      // Create as product
       const { data: productData, error: productError } = await supabase
         .from('products')
         .insert({
-          supplier_id: null, // Custom items have no supplier
+          supplier_id: null,
           name: newCustomItem.name,
           sku: `CUSTOM-${Date.now()}`,
           category: newCustomItem.category,
@@ -280,7 +316,6 @@ export default function MenuManagementPage() {
       if (productError) throw productError;
 
       // Add to bar menu
-      // Set RLS context for bar isolation
       if (currentBarId) {
         await supabase.rpc('set_bar_context', { p_bar_id: currentBarId });
       }
@@ -299,7 +334,7 @@ export default function MenuManagementPage() {
       setNewCustomItem({ name: '', category: '', price: '' });
       setShowAddCustom(false);
       await loadBarMenu();
-      await loadCatalogData(); // Refresh products
+      await loadCatalogData();
       alert('✅ Custom item added!');
 
     } catch (error: any) {
@@ -308,12 +343,37 @@ export default function MenuManagementPage() {
     }
   };
 
+  // Loading state
   if (loading || barLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-gray-500">Loading catalog...</p>
+          <p className="text-xs text-gray-400 mt-2">
+            {barLoading ? 'Loading bars...' : 'Loading products...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // No bar selected state
+  if (!currentBarId || userBars.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center p-8">
+          <div className="text-6xl mb-4">🍺</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">No Bar Assigned</h2>
+          <p className="text-gray-500 mb-4">
+            You don't have access to any bars yet. Please contact an administrator.
+          </p>
+          <button
+            onClick={() => router.push('/')}
+            className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600"
+          >
+            Go to Dashboard
+          </button>
         </div>
       </div>
     );
@@ -397,7 +457,6 @@ export default function MenuManagementPage() {
               return (
                 <div key={product.id} className="bg-white rounded-xl shadow-sm p-4">
                   <div className="flex gap-4">
-                    {/* Product Image */}
                     {displayImage && (
                       <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                         <img 
@@ -411,7 +470,6 @@ export default function MenuManagementPage() {
                       </div>
                     )}
 
-                    {/* Product Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
@@ -498,7 +556,7 @@ export default function MenuManagementPage() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-gray-800">Browse Product Catalog</h2>
             <button
-              onClick={() => setSearchQuery(' ')} // Trigger search view
+              onClick={() => setSearchQuery(' ')}
               className="text-orange-600 text-sm font-medium flex items-center gap-1"
             >
               <Search size={16} />
@@ -544,7 +602,7 @@ export default function MenuManagementPage() {
                 key={cat.name}
                 onClick={() => {
                   setSelectedCategory(cat.name);
-                  setSearchQuery(' '); // Trigger filtered view
+                  setSearchQuery(' ');
                 }}
                 className="px-4 py-2 bg-white rounded-full text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md"
               >
