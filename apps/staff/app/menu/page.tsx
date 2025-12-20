@@ -5,11 +5,12 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Plus, Trash2, ShoppingCart, Search, Filter, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useBar } from '@/contexts/page';
 
 export default function MenuManagementPage() {
   const router = useRouter();
+  const { currentBarId, userBars, setCurrentBar, isLoading: barLoading } = useBar();
   const [loading, setLoading] = useState(true);
-  const [userBarId, setUserBarId] = useState<string | null>(null);
   
   // Catalog data
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -32,36 +33,20 @@ export default function MenuManagementPage() {
     price: '' 
   });
 
-  // Check authentication
+  // Check authentication and load bars
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-
-      const barId = user.user_metadata?.bar_id;
-      
-      if (!barId) {
-        alert('Your account is not linked to a bar.');
-        router.push('/login');
-        return;
-      }
-
-      setUserBarId(barId);
-    };
-    checkAuth();
-  }, [router]);
+    if (!barLoading && !currentBarId) {
+      router.push('/login');
+    }
+  }, [barLoading, currentBarId, router]);
 
   // Load catalog data
   useEffect(() => {
-    if (userBarId) {
+    if (currentBarId) {
       loadCatalogData();
       loadBarMenu();
     }
-  }, [userBarId]);
+  }, [currentBarId]);
 
   const loadCatalogData = async () => {
     try {
@@ -116,6 +101,11 @@ export default function MenuManagementPage() {
 
   const loadBarMenu = async () => {
     try {
+      // Set RLS context for bar isolation
+      if (currentBarId) {
+        await supabase.rpc('set_bar_context', { bar_id: currentBarId });
+      }
+
       // Load bar's menu items from bar_products table
       const { data, error } = await supabase
         .from('bar_products')
@@ -131,7 +121,7 @@ export default function MenuManagementPage() {
             supplier:suppliers(name)
           )
         `)
-        .eq('bar_id', userBarId)
+        .eq('bar_id', currentBarId)
         .eq('active', true);
 
       if (error) throw error;
@@ -180,10 +170,15 @@ export default function MenuManagementPage() {
     }
 
     try {
+      // Set RLS context for bar isolation
+      if (currentBarId) {
+        await supabase.rpc('set_bar_context', { bar_id: currentBarId });
+      }
+
       const { error } = await supabase
         .from('bar_products')
         .insert({
-          bar_id: userBarId,
+          bar_id: currentBarId,
           product_id: product.id,
           sale_price: parseFloat(price),
           active: true
@@ -205,6 +200,11 @@ export default function MenuManagementPage() {
     if (!window.confirm('Remove this item from your menu?')) return;
 
     try {
+      // Set RLS context for bar isolation
+      if (currentBarId) {
+        await supabase.rpc('set_bar_context', { bar_id: currentBarId });
+      }
+
       const { error } = await supabase
         .from('bar_products')
         .delete()
@@ -249,10 +249,15 @@ export default function MenuManagementPage() {
       if (productError) throw productError;
 
       // Add to bar menu
+      // Set RLS context for bar isolation
+      if (currentBarId) {
+        await supabase.rpc('set_bar_context', { bar_id: currentBarId });
+      }
+
       const { error: menuError } = await supabase
         .from('bar_products')
         .insert({
-          bar_id: userBarId,
+          bar_id: currentBarId,
           product_id: productData.id,
           sale_price: parseFloat(newCustomItem.price),
           active: true
@@ -272,7 +277,7 @@ export default function MenuManagementPage() {
     }
   };
 
-  if (loading) {
+  if (loading || barLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -435,7 +440,22 @@ export default function MenuManagementPage() {
         >
           <ArrowRight size={24} className="transform rotate-180" />
         </button>
-        <h1 className="text-2xl font-bold">Menu Management</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-bold">Menu Management</h1>
+          {userBars.length > 1 && (
+            <select 
+              value={currentBarId || ''} 
+              onChange={(e) => setCurrentBar(e.target.value)}
+              className="bg-white bg-opacity-20 text-white border border-white border-opacity-30 rounded-lg px-3 py-1 text-sm"
+            >
+              {userBars.map(bar => (
+                <option key={bar.id} value={bar.id} className="text-gray-800">
+                  {bar.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         <p className="text-orange-100 text-sm">
           {barProducts.length} items in your menu
         </p>

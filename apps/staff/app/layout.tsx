@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { BarProvider } from '@/contexts/page';
 
 export const metadata: Metadata = {
   title: 'Kwikoda Staff - Bar Management',
@@ -18,7 +19,9 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body className="font-sans antialiased">
-        {children}
+        <BarProvider>
+          {children}
+        </BarProvider>
       </body>
     </html>
   );
