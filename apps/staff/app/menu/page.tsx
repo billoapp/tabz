@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Plus, Trash2, ShoppingCart, Search, Filter, X } from 'lucide-react';
+import { ArrowRight, Plus, Trash2, ShoppingCart, Search, Filter, X, Edit2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useBar } from '@/contexts/page';
 
@@ -40,9 +40,10 @@ export default function MenuManagementPage() {
       barLoading,
       currentBarId,
       userBarsCount: userBars.length,
+      barProductsCount: barProducts.length,
       combined: loading || barLoading
     });
-  }, [loading, barLoading, currentBarId, userBars]);
+  }, [loading, barLoading, currentBarId, userBars, barProducts]);
 
   // Check authentication
   useEffect(() => {
@@ -171,22 +172,25 @@ export default function MenuManagementPage() {
       
       if (rpcError) {
         console.error('⚠️ RPC error in loadBarMenu:', rpcError);
-        // Continue anyway - RLS might still work
       }
 
-      // Load bar's menu items
+      // Load bar's menu items - simplified query
       const { data, error } = await supabase
         .from('bar_products')
         .select(`
-          *,
-          product:products(
+          id,
+          bar_id,
+          product_id,
+          sale_price,
+          active,
+          created_at,
+          products (
             id,
             name,
             sku,
             category,
             image_url,
-            category_image_url,
-            supplier:suppliers(name)
+            suppliers (name)
           )
         `)
         .eq('bar_id', currentBarId)
@@ -194,9 +198,11 @@ export default function MenuManagementPage() {
 
       if (error) {
         console.error('❌ Error loading bar_products:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         return;
       }
 
+      console.log('📋 Raw bar_products data:', data);
       setBarProducts(data || []);
       console.log('✅ Loaded bar menu:', data?.length || 0, 'items');
 
@@ -230,7 +236,9 @@ export default function MenuManagementPage() {
   });
 
   const isProductInMenu = (productId: string) => {
-    return barProducts.some(item => item.product_id === productId);
+    const inMenu = barProducts.some(item => item.product_id === productId);
+    console.log(`Checking if product ${productId} is in menu:`, inMenu);
+    return inMenu;
   };
 
   const handleAddToMenu = async (product: any) => {
@@ -240,8 +248,7 @@ export default function MenuManagementPage() {
       currentBarId,
       productId: product.id,
       price,
-      currentBarIdType: typeof currentBarId,
-      currentBarIdLength: currentBarId?.length
+      productName: product.name
     });
     
     if (!price || price <= 0) {
@@ -249,16 +256,13 @@ export default function MenuManagementPage() {
       return;
     }
 
-    // Check if currentBarId is valid
     if (!currentBarId || currentBarId === '') {
       alert('Error: No bar selected. Please refresh the page.');
-      console.error('❌ currentBarId is empty!');
       return;
     }
 
     try {
-      // Set RLS context for bar isolation
-      console.log('📞 Calling RPC with bar_id:', currentBarId);
+      console.log('📞 Setting RLS context...');
       const { error: rpcError } = await supabase.rpc('set_bar_context', { 
         p_bar_id: currentBarId 
       });
@@ -269,22 +273,29 @@ export default function MenuManagementPage() {
       }
 
       console.log('💾 Inserting product...');
-      const { error } = await supabase
+      const { data: insertData, error } = await supabase
         .from('bar_products')
         .insert({
           bar_id: currentBarId,
           product_id: product.id,
           sale_price: parseFloat(price),
           active: true
-        });
+        })
+        .select();
 
       if (error) {
         console.error('❌ Insert error:', error);
         throw error;
       }
 
+      console.log('✅ Product inserted:', insertData);
+
       setAddingPrice({ ...addingPrice, [product.id]: '' });
+      
+      // Reload the menu to show the new item
+      console.log('🔄 Reloading menu...');
       await loadBarMenu();
+      
       alert('✅ Added to your menu!');
 
     } catch (error: any) {
@@ -478,7 +489,7 @@ export default function MenuManagementPage() {
           ) : (
             filteredProducts.map(product => {
               const alreadyInMenu = isProductInMenu(product.id);
-              const displayImage = product.image_url || product.category_image_url;
+              const displayImage = product.image_url;
               
               return (
                 <div key={product.id} className="bg-white rounded-xl shadow-sm p-4">
@@ -490,7 +501,7 @@ export default function MenuManagementPage() {
                           alt={product.name}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            e.currentTarget.src = product.category_image_url || '/placeholder.png';
+                            e.currentTarget.style.display = 'none';
                           }}
                         />
                       </div>
@@ -508,13 +519,13 @@ export default function MenuManagementPage() {
                           </span>
                         </div>
                         {alreadyInMenu && (
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
-                            In Menu
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium flex items-center gap-1">
+                            ✓ In Menu
                           </span>
                         )}
                       </div>
 
-                      {!alreadyInMenu && (
+                      {!alreadyInMenu ? (
                         <div className="flex gap-2 mt-3">
                           <input
                             type="number"
@@ -532,6 +543,10 @@ export default function MenuManagementPage() {
                           >
                             Add
                           </button>
+                        </div>
+                      ) : (
+                        <div className="mt-3 text-sm text-gray-500 italic">
+                          Already in your menu
                         </div>
                       )}
                     </div>
@@ -646,7 +661,7 @@ export default function MenuManagementPage() {
 
         {/* Your Menu */}
         <div>
-          <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu</h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu ({barProducts.length} items)</h2>
           {barProducts.length === 0 ? (
             <div className="bg-white rounded-xl p-8 text-center text-gray-500">
               <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
@@ -656,8 +671,10 @@ export default function MenuManagementPage() {
           ) : (
             <div className="bg-white rounded-xl shadow-sm divide-y">
               {barProducts.map(item => {
-                const product = item.product;
-                const displayImage = product?.image_url || product?.category_image_url;
+                const product = item.products;
+                const displayImage = product?.image_url;
+                
+                console.log('Rendering menu item:', item);
                 
                 return (
                   <div key={item.id} className="p-4 flex items-center gap-4">
@@ -667,12 +684,15 @@ export default function MenuManagementPage() {
                           src={displayImage} 
                           alt={product.name}
                           className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
                         />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-800">{product?.name}</p>
-                      <p className="text-xs text-gray-500">{product?.supplier?.name}</p>
+                      <p className="font-semibold text-gray-800">{product?.name || 'Unknown Product'}</p>
+                      <p className="text-xs text-gray-500">{product?.suppliers?.name || 'No supplier'}</p>
                       <p className="text-sm text-orange-600 font-bold mt-1">
                         KSh {item.sale_price.toLocaleString()}
                       </p>
