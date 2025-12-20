@@ -235,17 +235,40 @@ export default function MenuManagementPage() {
 
   const handleAddToMenu = async (product: any) => {
     const price = addingPrice[product.id];
+    
+    console.log('🛒 ADD TO MENU DEBUG:', {
+      currentBarId,
+      productId: product.id,
+      price,
+      currentBarIdType: typeof currentBarId,
+      currentBarIdLength: currentBarId?.length
+    });
+    
     if (!price || price <= 0) {
       alert('Please enter a valid price');
       return;
     }
 
+    // Check if currentBarId is valid
+    if (!currentBarId || currentBarId === '') {
+      alert('Error: No bar selected. Please refresh the page.');
+      console.error('❌ currentBarId is empty!');
+      return;
+    }
+
     try {
       // Set RLS context for bar isolation
-      if (currentBarId) {
-        await supabase.rpc('set_bar_context', { p_bar_id: currentBarId });
+      console.log('📞 Calling RPC with bar_id:', currentBarId);
+      const { error: rpcError } = await supabase.rpc('set_bar_context', { 
+        p_bar_id: currentBarId 
+      });
+      
+      if (rpcError) {
+        console.error('❌ RPC Error:', rpcError);
+        throw rpcError;
       }
 
+      console.log('💾 Inserting product...');
       const { error } = await supabase
         .from('bar_products')
         .insert({
@@ -255,14 +278,17 @@ export default function MenuManagementPage() {
           active: true
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Insert error:', error);
+        throw error;
+      }
 
       setAddingPrice({ ...addingPrice, [product.id]: '' });
       await loadBarMenu();
       alert('✅ Added to your menu!');
 
     } catch (error: any) {
-      console.error('Error adding to menu:', error);
+      console.error('❌ Error adding to menu:', error);
       alert('Failed to add item: ' + error.message);
     }
   };
