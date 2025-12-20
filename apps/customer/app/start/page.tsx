@@ -55,29 +55,24 @@ function ConsentContent() {
         .from('bars')
         .select('id, name, active, location, slug')
         .eq('slug', slug)
-        .single();
+        .maybeSingle();
 
-      console.log('🔍 Bar query result:', { bar, barError });
-      console.log('🔍 Query details:', {
-        queriedSlug: slug,
-        foundBar: bar ? 'Yes' : 'No',
-        error: barError ? barError.message : 'None'
-      });
+      console.log('📊 Bar query result:', { bar, barError });
 
       if (barError) {
         console.error('❌ Supabase error:', barError);
-        setError(`Bar not found in database. Please scan a valid QR code.`);
+        setError(`Database error: ${barError.message}`);
         setLoading(false);
         return;
       }
 
       if (!bar) {
-        setError('Bar not found or has been removed.');
+        setError(`Bar not found with slug: "${slug}". Please scan a valid QR code.`);
         setLoading(false);
         return;
       }
 
-      // Check both 'active' and 'is_active' fields
+      // Check if bar is active
       const isActive = bar.active !== false;
       
       if (!isActive) {
@@ -86,15 +81,17 @@ function ConsentContent() {
         return;
       }
 
+      // ✅ CRITICAL FIX: Set the bar ID here!
+      setBarId(bar.id);
       setBarName(bar.name || 'Bar');
-      console.log('✅ Bar loaded successfully:', bar.name);
+      console.log('✅ Bar loaded successfully:', bar.name, 'ID:', bar.id);
       
       // Check for existing open tab at this bar
       const tabData = sessionStorage.getItem('currentTab');
       if (tabData) {
         try {
           const existingTab = JSON.parse(tabData);
-          if (existingTab.bar_id === barId && existingTab.status === 'open') {
+          if (existingTab.bar_id === bar.id && existingTab.status === 'open') {
             // User already has an open tab at this bar
             if (confirm(`You already have an open tab at ${bar.name}. Continue to your tab?`)) {
               router.push('/menu');

@@ -43,10 +43,29 @@ export default function SettingsPage() {
 
   const loadBarInfo = async () => {
     try {
+      // Get current user's bar_id from their session
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+
+      const barId = user.user_metadata?.bar_id;
+      
+      if (!barId) {
+        alert('No bar associated with your account');
+        router.push('/login');
+        return;
+      }
+
+      console.log('🔍 Loading bar for user bar_id:', barId);
+
+      // Get ONLY this user's bar (not all bars!)
       const { data, error } = await supabase
         .from('bars')
         .select('*')
-        .limit(1)
+        .eq('id', barId)
         .single();
 
       if (error) throw error;
@@ -64,7 +83,7 @@ export default function SettingsPage() {
         };
         setBarInfo(info);
         setOriginalBarInfo(info);
-        console.log('✅ Bar info loaded:', info);
+        console.log('✅ Loaded bar:', info.name, 'Slug:', info.slug);
       }
     } catch (error) {
       console.error('Error loading bar info:', error);
