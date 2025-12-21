@@ -1,4 +1,4 @@
-// apps/staff/app/reports/page.tsx - FIXED: Properly filter by authenticated user's bar_id
+// apps/staff/app/reports/page.tsx - 80% width layout
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -14,27 +14,16 @@ export default function ReportsPage() {
   const [showProModal, setShowProModal] = useState(false);
   const [proFeature, setProFeature] = useState('');
 
-  // Debug: Check authentication
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      console.log('👤 Current user bar_id:', user?.user_metadata?.bar_id);
-      console.log('👤 User email:', user?.email);
-    };
-    checkAuth();
-  }, []);
-
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
     try {
-      // Get authenticated user
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        console.error('❌ No authenticated user');
+        console.error('No authenticated user');
         router.push('/login');
         return;
       }
@@ -42,15 +31,12 @@ export default function ReportsPage() {
       const userBarId = user.user_metadata?.bar_id;
       
       if (!userBarId) {
-        console.error('❌ No bar_id in user metadata');
+        console.error('No bar_id in user metadata');
         alert('Your account is not linked to a bar.');
         router.push('/login');
         return;
       }
 
-      console.log('🔍 Loading data for bar_id:', userBarId);
-
-      // Get THIS user's bar name
       const { data: barData, error: barError } = await supabase
         .from('bars')
         .select('name')
@@ -61,10 +47,8 @@ export default function ReportsPage() {
       
       if (barData) {
         setBarName(barData.name);
-        console.log('✅ Loaded bar name:', barData.name);
       }
 
-      // Get tabs for THIS bar only
       const { data: tabsData, error: tabsError } = await supabase
         .from('tabs')
         .select(`
@@ -78,7 +62,6 @@ export default function ReportsPage() {
       if (tabsError) throw tabsError;
 
       setTabs(tabsData || []);
-      console.log('✅ Loaded', tabsData?.length || 0, 'tabs for bar:', userBarId);
     } catch (error) {
       console.error('Error loading data:', error);
       alert('Failed to load report data. Please try again.');
@@ -110,7 +93,6 @@ export default function ReportsPage() {
     return { totalTabs, totalOrders, totalPayments, totalOutstanding };
   };
 
-  // Helper function to get display name
   const getDisplayName = (tab: any) => {
     if (tab.notes) {
       try {
@@ -233,10 +215,8 @@ export default function ReportsPage() {
             }
             .text-right { text-align: right; }
             .text-center { text-align: center; }
-            .page-break { page-break-before: always; }
             @media print {
               body { padding: 0; }
-              .no-print { display: none; }
             }
           </style>
         </head>
@@ -335,168 +315,166 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
-        <button 
-          onClick={() => router.push('/')}
-          className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
-        >
-          <ArrowRight size={24} className="transform rotate-180" />
-        </button>
-        <h1 className="text-2xl font-bold">Reports & Export</h1>
-        <p className="text-orange-100 text-sm">Download and print your data</p>
-      </div>
-
-      <div className="p-4 space-y-3">
-        {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-sm divide-y">
+    <div className="min-h-screen bg-gray-50 flex justify-center">
+      <div className="w-full" style={{ maxWidth: '80%' }}>
+        <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
           <button 
-            onClick={handlePrintDaily}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
+            onClick={() => router.push('/')}
+            className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
           >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Printer size={20} className="text-blue-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold text-gray-800">Print Daily Report</p>
-                <p className="text-sm text-gray-500">Physical receipt for records</p>
-              </div>
-            </div>
-            <ArrowRight size={20} className="text-gray-400" />
+            <ArrowRight size={24} className="transform rotate-180" />
           </button>
-
-          <button 
-            onClick={() => handleProFeature('CSV Export')}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Download size={20} className="text-green-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold text-gray-800">Download CSV</p>
-                <p className="text-sm text-gray-500">Open in Excel or Google Sheets</p>
-              </div>
-            </div>
-            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-              Pro
-            </span>
-          </button>
-
-          <button 
-            onClick={() => handleProFeature('Google Sheets Sync')}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Sheet size={20} className="text-purple-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold text-gray-800">Sync to Google Sheets</p>
-                <p className="text-sm text-gray-500">Auto-update spreadsheet daily</p>
-              </div>
-            </div>
-            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-              Pro
-            </span>
-          </button>
+          <h1 className="text-2xl font-bold">Reports & Export</h1>
+          <p className="text-orange-100 text-sm">Download and print your data</p>
         </div>
 
-        {/* Today's Summary */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="font-bold text-gray-800 mb-4">Today's Summary</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Total Tabs</span>
-              <span className="font-bold">{stats.totalTabs}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Total Orders</span>
-              <span className="font-bold">{stats.totalOrders}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Total Payments</span>
-              <span className="font-bold text-green-600">KSh {stats.totalPayments.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Total Outstanding</span>
-              <span className="font-bold text-orange-600">
-                KSh {stats.totalOutstanding.toLocaleString()}
+        <div className="p-4 space-y-3">
+          <div className="bg-white rounded-xl shadow-sm divide-y">
+            <button 
+              onClick={handlePrintDaily}
+              className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Printer size={20} className="text-blue-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-800">Print Daily Report</p>
+                  <p className="text-sm text-gray-500">Physical receipt for records</p>
+                </div>
+              </div>
+              <ArrowRight size={20} className="text-gray-400" />
+            </button>
+
+            <button 
+              onClick={() => handleProFeature('CSV Export')}
+              className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Download size={20} className="text-green-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-800">Download CSV</p>
+                  <p className="text-sm text-gray-500">Open in Excel or Google Sheets</p>
+                </div>
+              </div>
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
+                Pro
               </span>
+            </button>
+
+            <button 
+              onClick={() => handleProFeature('Google Sheets Sync')}
+              className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Sheet size={20} className="text-purple-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-800">Sync to Google Sheets</p>
+                  <p className="text-sm text-gray-500">Auto-update spreadsheet daily</p>
+                </div>
+              </div>
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
+                Pro
+              </span>
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <h3 className="font-bold text-gray-800 mb-4">Today's Summary</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total Tabs</span>
+                <span className="font-bold">{stats.totalTabs}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total Orders</span>
+                <span className="font-bold">{stats.totalOrders}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total Payments</span>
+                <span className="font-bold text-green-600">KSh {stats.totalPayments.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total Outstanding</span>
+                <span className="font-bold text-orange-600">
+                  KSh {stats.totalOutstanding.toLocaleString()}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Info */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-sm text-gray-700">
-            <strong>📊 Pro Tip:</strong> Upgrade to Pro to unlock CSV exports and automatic Google Sheets sync for seamless accounting.
-          </p>
-        </div>
-      </div>
-
-      {/* Pro Feature Modal */}
-      {showProModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-xl font-bold">✨</span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Upgrade to Pro</h3>
-                  <p className="text-sm text-gray-500">Unlock premium features</p>
-                </div>
-              </div>
-              <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-              <p className="text-sm text-gray-700 mb-3">
-                <strong>{proFeature}</strong> is a Pro feature that helps you:
-              </p>
-              <ul className="text-sm text-gray-600 space-y-2 ml-4">
-                {proFeature === 'CSV Export' ? (
-                  <>
-                    <li>• Export all data to Excel-compatible format</li>
-                    <li>• Share reports with accountants instantly</li>
-                    <li>• Analyze trends with pivot tables</li>
-                  </>
-                ) : (
-                  <>
-                    <li>• Automatically sync daily reports to Google Sheets</li>
-                    <li>• Real-time dashboard for managers</li>
-                    <li>• No manual data entry needed</li>
-                  </>
-                )}
-              </ul>
-            </div>
-
-            <div className="space-y-3">
-              <button 
-                onClick={() => setShowProModal(false)}
-                className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition"
-              >
-                Coming Soon
-              </button>
-              <button 
-                onClick={() => setShowProModal(false)}
-                className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition"
-              >
-                Close
-              </button>
-            </div>
-
-            <p className="text-xs text-gray-500 text-center mt-4">
-              Join the waitlist • Be notified when Pro launches
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <p className="text-sm text-gray-700">
+              <strong>📊 Pro Tip:</strong> Upgrade to Pro to unlock CSV exports and automatic Google Sheets sync for seamless accounting.
             </p>
           </div>
         </div>
-      )}
+
+        {showProModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xl font-bold">✨</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800">Upgrade to Pro</h3>
+                    <p className="text-sm text-gray-500">Unlock premium features</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+                <p className="text-sm text-gray-700 mb-3">
+                  <strong>{proFeature}</strong> is a Pro feature that helps you:
+                </p>
+                <ul className="text-sm text-gray-600 space-y-2 ml-4">
+                  {proFeature === 'CSV Export' ? (
+                    <>
+                      <li>• Export all data to Excel-compatible format</li>
+                      <li>• Share reports with accountants instantly</li>
+                      <li>• Analyze trends with pivot tables</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>• Automatically sync daily reports to Google Sheets</li>
+                      <li>• Real-time dashboard for managers</li>
+                      <li>• No manual data entry needed</li>
+                    </>
+                  )}
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <button 
+                  onClick={() => setShowProModal(false)}
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition"
+                >
+                  Coming Soon
+                </button>
+                <button 
+                  onClick={() => setShowProModal(false)}
+                  className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition"
+                >
+                  Close
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500 text-center mt-4">
+                Join the waitlist • Be notified when Pro launches
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

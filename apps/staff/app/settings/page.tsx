@@ -1,4 +1,4 @@
-// apps/staff/app/settings/page.tsx - FIXED ONBOARDING & QR CODE
+// apps/staff/app/settings/page.tsx - 80% width layout
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -47,7 +47,7 @@ export default function SettingsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        console.error('❌ No authenticated user');
+        console.error('No authenticated user');
         router.push('/login');
         return;
       }
@@ -55,13 +55,11 @@ export default function SettingsPage() {
       const userBarId = user.user_metadata?.bar_id;
       
       if (!userBarId) {
-        console.error('❌ No bar_id in user metadata');
+        console.error('No bar_id in user metadata');
         alert('Your account is not linked to a bar. Please contact administrator.');
         router.push('/login');
         return;
       }
-
-      console.log('🔍 Loading bar for authenticated user, bar_id:', userBarId);
 
       const { data, error } = await supabase
         .from('bars')
@@ -70,7 +68,7 @@ export default function SettingsPage() {
         .single();
 
       if (error) {
-        console.error('❌ Error loading bar:', error);
+        console.error('Error loading bar:', error);
         throw error;
       }
 
@@ -91,14 +89,12 @@ export default function SettingsPage() {
         slug: data.slug || ''
       };
       
-      // Check if this is a new user (no slug or incomplete info)
       const incomplete = !info.slug || !info.name;
       setIsNewUser(incomplete);
       setEditMode(incomplete);
       
       setBarInfo(info);
       setEditedInfo(info);
-      console.log('✅ Loaded bar:', info.name, 'ID:', info.id, 'Slug:', info.slug);
     } catch (error) {
       console.error('Error loading bar info:', error);
       alert('Failed to load bar information');
@@ -128,10 +124,8 @@ export default function SettingsPage() {
         ? `${editedInfo.location}, ${editedInfo.city}`
         : editedInfo.location;
 
-      // Generate slug if not exists
       let slug = editedInfo.slug || generateSlug(editedInfo.name);
 
-      // Check if slug is unique
       const { data: existingBar } = await supabase
         .from('bars')
         .select('id')
@@ -140,11 +134,8 @@ export default function SettingsPage() {
         .single();
 
       if (existingBar) {
-        // Slug exists, add random number
         slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
       }
-
-      console.log('💾 Saving bar info for bar_id:', userBarId, 'with slug:', slug);
 
       const { error } = await supabase
         .from('bars')
@@ -199,7 +190,6 @@ export default function SettingsPage() {
 
       const qrData = `https://mteja.vercel.app/?bar=${barInfo.slug}`;
       
-      // Create a printable HTML document with margins and info
       const printContent = `
         <!DOCTYPE html>
         <html>
@@ -333,7 +323,6 @@ export default function SettingsPage() {
         </html>
       `;
 
-      // Open print dialog
       const printWindow = window.open('', '_blank');
       if (printWindow) {
         printWindow.document.write(printContent);
@@ -363,326 +352,324 @@ export default function SettingsPage() {
   const qrUrl = barInfo.slug ? `https://mteja.vercel.app/?bar=${barInfo.slug}` : '';
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
-      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
-        {!isNewUser && (
-          <button 
-            onClick={() => router.push('/')}
-            className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
-          >
-            <ArrowRight size={24} className="transform rotate-180" />
-          </button>
-        )}
-        <h1 className="text-2xl font-bold">{isNewUser ? 'Complete Setup' : 'Settings'}</h1>
-        <p className="text-orange-100 text-sm">
-          {isNewUser ? 'Set up your restaurant to get started' : 'Manage your restaurant'}
-        </p>
-      </div>
-
-      {isNewUser && (
-        <div className="p-4">
-          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3">
-            <AlertCircle size={24} className="text-blue-600 flex-shrink-0 mt-1" />
-            <div>
-              <p className="font-semibold text-blue-900 mb-1">Welcome to Kwikoda!</p>
-              <p className="text-sm text-blue-800">
-                Complete your restaurant information below to generate your QR code and start accepting digital orders.
-              </p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
+      <div className="w-full" style={{ maxWidth: '80%' }}>
+        <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
+          {!isNewUser && (
+            <button 
+              onClick={() => router.push('/')}
+              className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
+            >
+              <ArrowRight size={24} className="transform rotate-180" />
+            </button>
+          )}
+          <h1 className="text-2xl font-bold">{isNewUser ? 'Complete Setup' : 'Settings'}</h1>
+          <p className="text-orange-100 text-sm">
+            {isNewUser ? 'Set up your restaurant to get started' : 'Manage your restaurant'}
+          </p>
         </div>
-      )}
 
-      <div className="p-4 space-y-4">
-        {/* Restaurant Information */}
-        <div className="bg-white rounded-xl shadow-sm p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <Store size={20} className="text-orange-600" />
-              </div>
+        {isNewUser && (
+          <div className="p-4">
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3">
+              <AlertCircle size={24} className="text-blue-600 flex-shrink-0 mt-1" />
               <div>
-                <h3 className="font-bold text-gray-800">Restaurant Information</h3>
-                <p className="text-sm text-gray-500">
-                  {editMode ? 'Fill in your details' : 'Current registered details'}
+                <p className="font-semibold text-blue-900 mb-1">Welcome to Kwikoda!</p>
+                <p className="text-sm text-blue-800">
+                  Complete your restaurant information below to generate your QR code and start accepting digital orders.
                 </p>
               </div>
             </div>
-            {!editMode && !isNewUser && (
-              <button
-                onClick={() => setEditMode(true)}
-                className="flex items-center gap-2 text-orange-600 hover:text-orange-700 font-medium"
-              >
-                <Edit2 size={18} />
-                Edit
-              </button>
-            )}
           </div>
+        )}
 
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Restaurant Name {editMode && <span className="text-red-500">*</span>}
-              </label>
-              {editMode ? (
-                <input
-                  type="text"
-                  value={editedInfo.name}
-                  onChange={(e) => setEditedInfo({...editedInfo, name: e.target.value})}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                />
-              ) : (
-                <div className="px-4 py-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-800 font-medium">{barInfo.name || '(Not set)'}</p>
+        <div className="p-4 space-y-4">
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <Store size={20} className="text-orange-600" />
                 </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location/Area</label>
-              {editMode ? (
-                <input
-                  type="text"
-                  value={editedInfo.location}
-                  onChange={(e) => setEditedInfo({...editedInfo, location: e.target.value})}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                />
-              ) : (
-                <div className="px-4 py-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-800">{barInfo.location || '(Not set)'}</p>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-              {editMode ? (
-                <input
-                  type="text"
-                  value={editedInfo.city}
-                  onChange={(e) => setEditedInfo({...editedInfo, city: e.target.value})}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                />
-              ) : (
-                <div className="px-4 py-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-800">{barInfo.city || '(Not set)'}</p>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-              {editMode ? (
-                <input
-                  type="tel"
-                  value={editedInfo.phone}
-                  onChange={(e) => setEditedInfo({...editedInfo, phone: e.target.value})}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                />
-              ) : (
-                <div className="px-4 py-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-800">{barInfo.phone || '(Not set)'}</p>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              {editMode ? (
-                <input
-                  type="email"
-                  value={editedInfo.email}
-                  onChange={(e) => setEditedInfo({...editedInfo, email: e.target.value})}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                />
-              ) : (
-                <div className="px-4 py-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-800">{barInfo.email || '(Not set)'}</p>
-                </div>
-              )}
-            </div>
-
-            {!editMode && (
-              <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bar Slug (URL)</label>
-                  <div className="px-4 py-3 bg-gray-50 rounded-lg border-2 border-gray-200">
-                    <code className="text-sm text-gray-600 break-all">{barInfo.slug || '(No slug)'}</code>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Used in QR code: mteja.vercel.app/?bar={barInfo.slug}
+                  <h3 className="font-bold text-gray-800">Restaurant Information</h3>
+                  <p className="text-sm text-gray-500">
+                    {editMode ? 'Fill in your details' : 'Current registered details'}
                   </p>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bar ID</label>
-                  <div className="px-4 py-3 bg-gray-50 rounded-lg border-2 border-gray-200">
-                    <code className="text-xs text-gray-600 break-all font-mono">{barInfo.id}</code>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {editMode && (
-              <div className="flex gap-2 pt-3">
+              </div>
+              {!editMode && !isNewUser && (
                 <button
-                  onClick={handleSaveBarInfo}
-                  disabled={saving}
-                  className="flex-1 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                  onClick={() => setEditMode(true)}
+                  className="flex items-center gap-2 text-orange-600 hover:text-orange-700 font-medium"
                 >
-                  <Save size={20} />
-                  {saving ? 'Saving...' : isNewUser ? 'Complete Setup' : 'Save Changes'}
+                  <Edit2 size={18} />
+                  Edit
                 </button>
-                {!isNewUser && (
-                  <button
-                    onClick={handleCancelEdit}
-                    disabled={saving}
-                    className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 disabled:bg-gray-100"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* QR Code Display */}
-        {!isNewUser && (
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <QrCode size={20} className="text-blue-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-800">Customer QR Code</h3>
-                <p className="text-sm text-gray-500">For {barInfo.name}</p>
-              </div>
-            </div>
-
-            {barInfo.slug ? (
-              <>
-                <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-8 mb-4">
-                  <div className="bg-white rounded-xl p-6 shadow-lg mx-auto max-w-xs">
-                    <div className="aspect-square bg-white rounded-lg overflow-hidden border-4 border-gray-100">
-                      <img 
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}&bgcolor=ffffff&color=f97316&qzone=2&format=svg`}
-                        alt={`${barInfo.name} QR Code`}
-                        className="w-full h-full"
-                      />
-                    </div>
-                    <div className="text-center mt-4">
-                      <p className="font-bold text-gray-800">{barInfo.name}</p>
-                      <p className="text-sm text-gray-500">Scan to order</p>
-                      <p className="text-xs text-orange-600 mt-1 font-mono">{barInfo.slug}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs text-gray-500">Customer URL:</p>
-                    <button
-                      onClick={handleCopyQRUrl}
-                      className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700"
-                    >
-                      {copied ? <Check size={14} /> : <Copy size={14} />}
-                      {copied ? 'Copied!' : 'Copy'}
-                    </button>
-                  </div>
-                  <code className="text-sm text-gray-800 break-all">{qrUrl}</code>
-                </div>
-
-                <button
-                  onClick={handleDownloadQR}
-                  className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 flex items-center justify-center gap-2"
-                >
-                  <Download size={20} />
-                  Print QR Code (with Instructions)
-                </button>
-                <p className="text-xs text-center text-gray-500 mt-2">
-                  Includes URL for customers without QR scanners
-                </p>
-              </>
-            ) : (
-              <div className="text-center py-8">
-                <AlertCircle size={48} className="mx-auto mb-3 text-orange-500" />
-                <p className="text-gray-700 font-medium mb-2">Setup Required</p>
-                <p className="text-sm text-gray-500">
-                  Complete restaurant information above to generate your QR code
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Notifications - Only show after setup */}
-        {!isNewUser && (
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Bell size={20} className="text-green-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-800">Notifications</h3>
-                <p className="text-sm text-gray-500">Alert preferences (default: off)</p>
-              </div>
+              )}
             </div>
 
             <div className="space-y-3">
-              <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                <span className="text-sm font-medium text-gray-700">New Orders</span>
-                <input
-                  type="checkbox"
-                  checked={notifications.newOrders}
-                  onChange={(e) => setNotifications({...notifications, newOrders: e.target.checked})}
-                  className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                />
-              </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Restaurant Name {editMode && <span className="text-red-500">*</span>}
+                </label>
+                {editMode ? (
+                  <input
+                    type="text"
+                    value={editedInfo.name}
+                    onChange={(e) => setEditedInfo({...editedInfo, name: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                  />
+                ) : (
+                  <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                    <p className="text-gray-800 font-medium">{barInfo.name || '(Not set)'}</p>
+                  </div>
+                )}
+              </div>
 
-              <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                <span className="text-sm font-medium text-gray-700">Pending Approvals</span>
-                <input
-                  type="checkbox"
-                  checked={notifications.pendingApprovals}
-                  onChange={(e) => setNotifications({...notifications, pendingApprovals: e.target.checked})}
-                  className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                />
-              </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Location/Area</label>
+                {editMode ? (
+                  <input
+                    type="text"
+                    value={editedInfo.location}
+                    onChange={(e) => setEditedInfo({...editedInfo, location: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                  />
+                ) : (
+                  <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                    <p className="text-gray-800">{barInfo.location || '(Not set)'}</p>
+                  </div>
+                )}
+              </div>
 
-              <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                <span className="text-sm font-medium text-gray-700">Payment Received</span>
-                <input
-                  type="checkbox"
-                  checked={notifications.payments}
-                  onChange={(e) => setNotifications({...notifications, payments: e.target.checked})}
-                  className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                />
-              </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                {editMode ? (
+                  <input
+                    type="text"
+                    value={editedInfo.city}
+                    onChange={(e) => setEditedInfo({...editedInfo, city: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                  />
+                ) : (
+                  <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                    <p className="text-gray-800">{barInfo.city || '(Not set)'}</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                {editMode ? (
+                  <input
+                    type="tel"
+                    value={editedInfo.phone}
+                    onChange={(e) => setEditedInfo({...editedInfo, phone: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                  />
+                ) : (
+                  <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                    <p className="text-gray-800">{barInfo.phone || '(Not set)'}</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                {editMode ? (
+                  <input
+                    type="email"
+                    value={editedInfo.email}
+                    onChange={(e) => setEditedInfo({...editedInfo, email: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                  />
+                ) : (
+                  <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                    <p className="text-gray-800">{barInfo.email || '(Not set)'}</p>
+                  </div>
+                )}
+              </div>
+
+              {!editMode && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bar Slug (URL)</label>
+                    <div className="px-4 py-3 bg-gray-50 rounded-lg border-2 border-gray-200">
+                      <code className="text-sm text-gray-600 break-all">{barInfo.slug || '(No slug)'}</code>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Used in QR code: mteja.vercel.app/?bar={barInfo.slug}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bar ID</label>
+                    <div className="px-4 py-3 bg-gray-50 rounded-lg border-2 border-gray-200">
+                      <code className="text-xs text-gray-600 break-all font-mono">{barInfo.id}</code>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {editMode && (
+                <div className="flex gap-2 pt-3">
+                  <button
+                    onClick={handleSaveBarInfo}
+                    disabled={saving}
+                    className="flex-1 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                  >
+                    <Save size={20} />
+                    {saving ? 'Saving...' : isNewUser ? 'Complete Setup' : 'Save Changes'}
+                  </button>
+                  {!isNewUser && (
+                    <button
+                      onClick={handleCancelEdit}
+                      disabled={saving}
+                      className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 disabled:bg-gray-100"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Feedback - Only show after setup */}
-        {!isNewUser && (
-          <div className="bg-white rounded-xl shadow-sm">
-            <button
-              onClick={() => alert('Email feedback to: support@kwikoda.com')}
-              className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                  <MessageSquare size={20} className="text-yellow-600" />
+          {!isNewUser && (
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <QrCode size={20} className="text-blue-600" />
                 </div>
-                <div className="text-left">
-                  <p className="font-semibold text-gray-800">Send Feedback</p>
-                  <p className="text-sm text-gray-500">support@kwikoda.com</p>
+                <div>
+                  <h3 className="font-bold text-gray-800">Customer QR Code</h3>
+                  <p className="text-sm text-gray-500">For {barInfo.name}</p>
                 </div>
               </div>
-              <ArrowRight size={20} className="text-gray-400" />
-            </button>
-          </div>
-        )}
+
+              {barInfo.slug ? (
+                <>
+                  <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-8 mb-4">
+                    <div className="bg-white rounded-xl p-6 shadow-lg mx-auto max-w-xs">
+                      <div className="aspect-square bg-white rounded-lg overflow-hidden border-4 border-gray-100">
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}&bgcolor=ffffff&color=f97316&qzone=2&format=svg`}
+                          alt={`${barInfo.name} QR Code`}
+                          className="w-full h-full"
+                        />
+                      </div>
+                      <div className="text-center mt-4">
+                        <p className="font-bold text-gray-800">{barInfo.name}</p>
+                        <p className="text-sm text-gray-500">Scan to order</p>
+                        <p className="text-xs text-orange-600 mt-1 font-mono">{barInfo.slug}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs text-gray-500">Customer URL:</p>
+                      <button
+                        onClick={handleCopyQRUrl}
+                        className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700"
+                      >
+                        {copied ? <Check size={14} /> : <Copy size={14} />}
+                        {copied ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                    <code className="text-sm text-gray-800 break-all">{qrUrl}</code>
+                  </div>
+
+                  <button
+                    onClick={handleDownloadQR}
+                    className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 flex items-center justify-center gap-2"
+                  >
+                    <Download size={20} />
+                    Print QR Code (with Instructions)
+                  </button>
+                  <p className="text-xs text-center text-gray-500 mt-2">
+                    Includes URL for customers without QR scanners
+                  </p>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <AlertCircle size={48} className="mx-auto mb-3 text-orange-500" />
+                  <p className="text-gray-700 font-medium mb-2">Setup Required</p>
+                  <p className="text-sm text-gray-500">
+                    Complete restaurant information above to generate your QR code
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isNewUser && (
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Bell size={20} className="text-green-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Notifications</h3>
+                  <p className="text-sm text-gray-500">Alert preferences (default: off)</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
+                  <span className="text-sm font-medium text-gray-700">New Orders</span>
+                  <input
+                    type="checkbox"
+                    checked={notifications.newOrders}
+                    onChange={(e) => setNotifications({...notifications, newOrders: e.target.checked})}
+                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
+                  <span className="text-sm font-medium text-gray-700">Pending Approvals</span>
+                  <input
+                    type="checkbox"
+                    checked={notifications.pendingApprovals}
+                    onChange={(e) => setNotifications({...notifications, pendingApprovals: e.target.checked})}
+                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
+                  <span className="text-sm font-medium text-gray-700">Payment Received</span>
+                  <input
+                    type="checkbox"
+                    checked={notifications.payments}
+                    onChange={(e) => setNotifications({...notifications, payments: e.target.checked})}
+                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {!isNewUser && (
+            <div className="bg-white rounded-xl shadow-sm">
+              <button
+                onClick={() => alert('Email feedback to: support@kwikoda.com')}
+                className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-yellow-100 rounded-lg">
+                    <MessageSquare size={20} className="text-yellow-600" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-semibold text-gray-800">Send Feedback</p>
+                    <p className="text-sm text-gray-500">support@kwikoda.com</p>
+                  </div>
+                </div>
+                <ArrowRight size={20} className="text-gray-400" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
