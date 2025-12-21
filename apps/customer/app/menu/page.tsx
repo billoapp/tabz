@@ -42,14 +42,18 @@ export default function MenuPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  const getDisplayImage = (product: Product) => {
+  // Helper function to get display image with category fallback - SIMILAR TO STAFF APP
+  const getDisplayImage = (product: Product, categoryName?: string) => {
     if (!product) return null;
     
     if (product.image_url) {
       return product.image_url;
     }
     
-    const category = categories.find(cat => cat.name === product?.category);
+    const category = categories.find(cat => 
+      cat.name === (categoryName || product.category)
+    );
+    
     return category?.image_url || null;
   };
 
@@ -145,7 +149,24 @@ export default function MenuPage() {
       if (fullTab.bar?.id) {
         console.log('📋 Loading products for bar:', fullTab.bar.id);
         
-        // FIXED: Use proper Supabase query syntax without nested parentheses issues
+        // Load categories FIRST (like in staff app)
+        try {
+          const { data: categoriesData, error: categoriesError } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('active', true);
+
+          if (categoriesError) {
+            console.error('❌ Error loading categories:', categoriesError);
+          } else {
+            console.log('✅ Loaded categories:', categoriesData);
+            setCategories(categoriesData || []);
+          }
+        } catch (error) {
+          console.error('Error loading categories:', error);
+        }
+
+        // Then get bar_products
         try {
           // First get bar_products
           const { data: barProductsData, error: barProductsError } = await supabase
@@ -200,23 +221,6 @@ export default function MenuPage() {
           }
         } catch (error) {
           console.error('Error loading products:', error);
-        }
-
-        // Load categories
-        try {
-          const { data: categoriesData, error: categoriesError } = await supabase
-            .from('categories')
-            .select('*')
-            .eq('active', true);
-
-          if (categoriesError) {
-            console.error('❌ Error loading categories:', categoriesError);
-          } else {
-            console.log('✅ Loaded categories:', categoriesData);
-            setCategories(categoriesData || []);
-          }
-        } catch (error) {
-          console.error('Error loading categories:', error);
         }
       }
 
@@ -598,25 +602,25 @@ export default function MenuPage() {
                 const product = barProduct.product;
                 if (!product) return null;
                 
-                const displayImage = getDisplayImage(product);
+                // USE THE SAME APPROACH AS STAFF APP
+                const displayImage = getDisplayImage(product, product.category);
                 
                 return (
                   <div key={barProduct.id} className="bg-gray-50 rounded-xl p-3 shadow-sm">
                     {displayImage ? (
-                      <img 
-                        src={displayImage} 
-                        alt={product.name || 'Product'}
-                        className="w-full h-32 object-cover rounded-lg mb-2"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.style.visibility = 'hidden';
-                        }}
-                      />
+                      <div className="w-full h-32 bg-gray-100 rounded-lg overflow-hidden mb-2">
+                        <img 
+                          src={displayImage} 
+                          alt={product.name || 'Product'}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      </div>
                     ) : (
-                      <div className="w-full h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg mb-2 flex items-center justify-center">
-                        <span className="text-4xl text-gray-400 font-semibold">
-                          {product.category?.charAt(0) || 'P'}
-                        </span>
+                      <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg mb-2 flex items-center justify-center">
+                        <span className="text-3xl">🍺</span>
                       </div>
                     )}
                     
