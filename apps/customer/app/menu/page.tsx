@@ -19,7 +19,7 @@ interface BarProduct {
   product_id: string;
   sale_price: number;
   active: boolean;
-  product?: Product; // ✅ SINGLE OBJECT, not array
+  product?: Product;
 }
 
 export default function MenuPage() {
@@ -42,16 +42,13 @@ export default function MenuPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  // ✅ Helper function to get display image with category fallback
   const getDisplayImage = (product: Product) => {
     if (!product) return null;
     
-    // If product has image, use it
     if (product.image_url) {
       return product.image_url;
     }
     
-    // Otherwise, find category image from loaded categories
     const category = categories.find(cat => cat.name === product?.category);
     return category?.image_url || null;
   };
@@ -145,102 +142,109 @@ export default function MenuPage() {
       }
       setDisplayName(name);
 
-            if (fullTab.bar?.id) {
+      if (fullTab.bar?.id) {
         console.log('📋 Loading products for bar:', fullTab.bar.id);
         
-        // ✅ FIXED: Proper Supabase query syntax
-        const { data: productsData, error: productsError } = await supabase
-          .from('bar_products')
-          .select(`
-            id,
-            bar_id,
-            product_id,
-            sale_price,
-            active,
-            custom_products,
-            products (
-              id,
-              name,
-              description,
-              category,
-              image_url
-            )
-          `)
-          .eq('bar_id', fullTab.bar.id)
-          .eq('active', true);
+        // FIXED: Use proper Supabase query syntax without nested parentheses issues
+        try {
+          // First get bar_products
+          const { data: barProductsData, error: barProductsError } = await supabase
+            .from('bar_products')
+            .select('id, bar_id, product_id, sale_price, active')
+            .eq('bar_id', fullTab.bar.id)
+            .eq('active', true);
 
-        if (productsError) {
-          console.error('❌ Error loading products:', productsError);
-        } else {
-          console.log('✅ Raw products data:', productsData);
-          
-          // ✅ TRANSFORM: Convert array to single object
-          const transformedProducts = (productsData || []).map(item => {
-            // Handle custom products (when custom_products is not null)
-            if (item.custom_products) {
-              return {
-                id: item.id,
-                bar_id: item.bar_id,
-                product_id: item.product_id,
-                sale_price: item.sale_price,
-                active: item.active,
-                product: {
-                  id: item.custom_products.id,
-                  name: item.custom_products.name,
-                  description: item.custom_products.description || '',
-                  category: item.custom_products.category || 'Custom',
-                  image_url: item.custom_products.image_url
-                }
-              };
-            }
+          if (barProductsError) {
+            console.error('❌ Error loading bar products:', barProductsError);
+          } else if (barProductsData && barProductsData.length > 0) {
+            console.log('✅ Bar products data:', barProductsData);
             
-            // Handle standard products (when products object exists)
-            if (item.products && typeof item.products === 'object') {
-              return {
-                id: item.id,
-                bar_id: item.bar_id,
-                product_id: item.product_id,
-                sale_price: item.sale_price,
-                active: item.active,
-                product: item.products
-              };
-            }
+            // Get product IDs
+            const productIds = barProductsData.map(bp => bp.product_id);
             
-            return null; // Will be filtered out
-          }).filter(item => item !== null);
+            if (productIds.length > 0) {
+              // Get product details
+              const { data: productsData, error: productsError } = await supabase
+                .from('products')
+                .select('id, name, description, category, image_url')
+                .in('id', productIds);
 
-          setBarProducts(transformedProducts as BarProduct[]);
+              if (productsError) {
+                console.error('❌ Error loading products:', productsError);
+              } else {
+                console.log('✅ Products data:', productsData);
+                
+                // Combine data
+                const transformedProducts = barProductsData.map(barProduct => {
+                  const product = productsData?.find(p => p.id === barProduct.product_id);
+                  
+                  return {
+                    id: barProduct.id,
+                    bar_id: barProduct.bar_id,
+                    product_id: barProduct.product_id,
+                    sale_price: barProduct.sale_price,
+                    active: barProduct.active,
+                    product: product ? {
+                      id: product.id,
+                      name: product.name,
+                      description: product.description || '',
+                      category: product.category || 'Uncategorized',
+                      image_url: product.image_url
+                    } : undefined
+                  };
+                });
+
+                setBarProducts(transformedProducts as BarProduct[]);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error loading products:', error);
         }
 
-        // ✅ Load categories - FIXED query
-        const { data: categoriesData, error: categoriesError } = await supabase
-          .from('categories')
-          .select('*')
-          .eq('active', true);
+        // Load categories
+        try {
+          const { data: categoriesData, error: categoriesError } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('active', true);
 
-        if (categoriesError) {
-          console.error('❌ Error loading categories:', categoriesError);
-        } else {
-          console.log('✅ Loaded categories:', categoriesData);
-          setCategories(categoriesData || []);
+          if (categoriesError) {
+            console.error('❌ Error loading categories:', categoriesError);
+          } else {
+            console.log('✅ Loaded categories:', categoriesData);
+            setCategories(categoriesData || []);
+          }
+        } catch (error) {
+          console.error('Error loading categories:', error);
         }
       }
 
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('tab_orders')
-        .select('*')
-        .eq('tab_id', currentTab.id)
-        .order('created_at', { ascending: false });
+      // Load orders
+      try {
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('tab_orders')
+          .select('*')
+          .eq('tab_id', currentTab.id)
+          .order('created_at', { ascending: false });
 
-      if (!ordersError) setOrders(ordersData || []);
+        if (!ordersError) setOrders(ordersData || []);
+      } catch (error) {
+        console.error('Error loading orders:', error);
+      }
 
-      const { data: paymentsData, error: paymentsError } = await supabase
-        .from('tab_payments')
-        .select('*')
-        .eq('tab_id', currentTab.id)
-        .order('created_at', { ascending: false });
+      // Load payments
+      try {
+        const { data: paymentsData, error: paymentsError } = await supabase
+          .from('tab_payments')
+          .select('*')
+          .eq('tab_id', currentTab.id)
+          .order('created_at', { ascending: false });
 
-      if (!paymentsError) setPayments(paymentsData || []);
+        if (!paymentsError) setPayments(paymentsData || []);
+      } catch (error) {
+        console.error('Error loading payments:', error);
+      }
     } catch (error) {
       console.error('Error loading tab:', error);
     } finally {
@@ -249,6 +253,11 @@ export default function MenuPage() {
   };
 
   const handleCloseTab = async () => {
+    const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const tabTotal = orders.filter(order => order.status !== 'cancelled').reduce((sum, order) => sum + parseFloat(order.total), 0);
+    const paidTotal = payments.filter(payment => payment.status === 'success').reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    const balance = tabTotal - paidTotal;
+    
     if (balance > 0) {
       alert(`You still have an outstanding balance of KSh ${balance.toFixed(0)}. Please complete payment before closing.`);
       return;
@@ -315,7 +324,6 @@ export default function MenuPage() {
     }
   };
 
-  // ✅ Access product as single object
   const categoryOptions = ['All', ...new Set(
     barProducts
       .map(bp => bp.product?.category)
@@ -332,7 +340,6 @@ export default function MenuPage() {
     );
   }
 
-  // ✅ Access product as single object
   const addToCart = (barProduct: BarProduct) => {
     const product = barProduct.product;
     if (!product) return;
@@ -586,7 +593,6 @@ export default function MenuPage() {
               ))}
             </div>
             
-            {/* ✅ Using getDisplayImage with single object */}
             <div className="grid grid-cols-2 gap-3 mb-20">
               {filteredProducts.map(barProduct => {
                 const product = barProduct.product;
