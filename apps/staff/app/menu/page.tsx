@@ -1,9 +1,9 @@
-// apps/staff/app/menu/page.tsx - 80% width layout
+// apps/staff/app/menu/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Plus, Trash2, ShoppingCart, Search, Filter, X, Edit2 } from 'lucide-react';
+import { ArrowRight, Plus, Trash2, ShoppingCart, Search, Filter, X, Edit2, Save } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useBar } from '@/contexts/page';
 
@@ -20,18 +20,24 @@ export default function MenuManagementPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Bar menu
+  // Bar menu (published items)
   const [barProducts, setBarProducts] = useState<any[]>([]);
   const [addingPrice, setAddingPrice] = useState<any>({});
   
-  // Custom items
-  const [customItems, setCustomItems] = useState<any[]>([]);
+  // Custom products (unpublished)
+  const [customProducts, setCustomProducts] = useState<any[]>([]);
   const [showAddCustom, setShowAddCustom] = useState(false);
   const [newCustomItem, setNewCustomItem] = useState({ 
     name: '', 
     category: '', 
-    price: '' 
+    description: '',
+    image_url: ''
   });
+
+  // Editing states
+  const [editingPrice, setEditingPrice] = useState<string | null>(null);
+  const [editingCustom, setEditingCustom] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
 
   // Helper function to get display image with category fallback
   const getDisplayImage = (product: any, categoryName?: string) => {
@@ -71,6 +77,7 @@ export default function MenuManagementPage() {
     if (!barLoading && currentBarId) {
       loadCatalogData();
       loadBarMenu();
+      loadCustomProducts();
     } else if (!barLoading && !currentBarId) {
       setLoading(false);
     }
@@ -122,20 +129,13 @@ export default function MenuManagementPage() {
     try {
       if (!currentBarId) return;
 
-      const { error: rpcError } = await supabase.rpc('set_bar_context', { 
-        p_bar_id: currentBarId
-      });
-      
-      if (rpcError) {
-        console.error('RPC error in loadBarMenu:', rpcError);
-      }
-
       const { data, error } = await supabase
         .from('bar_products')
         .select(`
           id,
           bar_id,
           product_id,
+          custom_product_id,
           sale_price,
           active,
           created_at,
@@ -145,7 +145,16 @@ export default function MenuManagementPage() {
             sku,
             category,
             image_url,
-            suppliers (name)
+            description,
+            suppliers (name, logo_url)
+          ),
+          custom_products (
+            id,
+            name,
+            sku,
+            category,
+            image_url,
+            description
           )
         `)
         .eq('bar_id', currentBarId)
@@ -162,6 +171,41 @@ export default function MenuManagementPage() {
       console.error('Unexpected error in loadBarMenu:', error);
     }
   };
+
+  const loadCustomProducts = async () => {
+    try {
+      if (!currentBarId) return;
+
+      const { data, error } = await supabase
+        .from('custom_products')
+        .select('*')
+        .eq('bar_id', currentBarId)
+        .eq('active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Filter out ones already published
+      const publishedCustomIds = barProducts
+        .filter(bp => bp.custom_product_id)
+        .map(bp => bp.custom_product_id);
+
+      const unpublished = (data || []).filter(
+        cp => !publishedCustomIds.includes(cp.id)
+      );
+
+      setCustomProducts(unpublished);
+    } catch (error) {
+      console.error('Error loading custom products:', error);
+    }
+  };
+
+  // Reload custom products whenever bar menu changes
+  useEffect(() => {
+    if (currentBarId && barProducts.length >= 0) {
+      loadCustomProducts();
+    }
+  }, [barProducts.length]);
 
   const filteredProducts = products.filter(product => {
     if (selectedSupplier && product.supplier_id !== selectedSupplier.id) {
@@ -188,165 +232,179 @@ export default function MenuManagementPage() {
     return barProducts.some(item => item.product_id === productId);
   };
 
-  const [isAddingProduct, setIsAddingProduct] = useState<string | null>(null);
-
-  // 🛠️ RETRY FUNCTION (ONLY ONE DECLARATION)
-  const retryWithFreshProduct = async (product: any, price: string) => {
-    try {
-      // Get fresh product data from database
-      const { data: freshProduct, error: fetchError } = await supabase
-        .from('products')
-        .select('id')
-        .eq('id', product.id)
-        .single();
-      
-      if (fetchError || !freshProduct) {
-        console.error('Could not fetch fresh product:', fetchError);
-        alert('Product not found in database. Please try a different product.');
-        return;
-      }
-      
-      console.log('🔄 Retrying with fresh ID:', freshProduct.id);
-      
-      // Retry the insert
-      const { error: retryError } = await supabase
-        .from('bar_products')
-        .insert({
-          bar_id: currentBarId,
-          product_id: freshProduct.id,
-          sale_price: parseFloat(price),
-          active: true
-        });
-      
-      if (retryError) throw retryError;
-      
-      alert('✅ Added to your menu! (Retry successful)');
-      await loadBarMenu();
-      
-    } catch (retryError: any) {
-      console.error('❌ Retry failed:', retryError);
-      alert('Failed after retry: ' + retryError.message);
-    }
-  };
-
+  // ADD GLOBAL PRODUCT to menu
   const handleAddToMenu = async (product: any) => {
-    // 🛡️ PREVENT DOUBLE CLICKS
-    if (isAddingProduct === product.id) {
-      console.log('⚠️ Already adding this product, ignoring duplicate click');
-      return;
-    }
-    
     const price = addingPrice[product.id];
     
-    // 🛡️ VALIDATE PRICE EXISTS
     if (!price || price <= 0) {
       alert('Please enter a valid price');
       return;
     }
 
-    if (!currentBarId || currentBarId === '') {
-      alert('Error: No bar selected. Please refresh the page.');
+    if (!currentBarId) {
+      alert('Error: No bar selected');
       return;
     }
 
-    // 🛡️ SET LOCK IMMEDIATELY
-    setIsAddingProduct(product.id);
-    
     try {
-      console.log(`🕒 Starting add process for: ${product.name}`);
-
-      // OPTION 1: Remove RPC call if not strictly needed
-      // const { error: rpcError } = await supabase.rpc('set_bar_context', { 
-      //   p_bar_id: currentBarId 
-      // });
-      // if (rpcError) throw rpcError;
-
-      // OPTION 2: Add timeout between RPC and insert
-      const { error: rpcError } = await supabase.rpc('set_bar_context', { 
-        p_bar_id: currentBarId 
-      });
-      
-      if (rpcError) {
-        console.error('RPC error:', rpcError);
-        throw rpcError;
-      }
-      
-      // ⏱️ SMALL DELAY TO ENSURE RPC COMPLETES
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      console.log('📤 Inserting into bar_products...');
-      const { data: insertData, error } = await supabase
+      const { error } = await supabase
         .from('bar_products')
         .insert({
           bar_id: currentBarId,
           product_id: product.id,
+          custom_product_id: null,
           sale_price: parseFloat(price),
           active: true
-        })
-        .select();
+        });
 
       if (error) {
-        console.error('❌ Insert error:', {
-          message: error.message,
-          code: error.code,
-          details: error.details
-        });
-        
-        // 🛡️ HANDLE SPECIFIC ERRORS
-        if (error.code === '23505') { // Unique violation
+        if (error.code === '23505') {
           alert('This product is already in your menu!');
-        } else if (error.message.includes('invalid input syntax for type uuid')) {
-          // RETRY WITH FRESH DATA
-          console.log('🔄 Retrying with fresh product data...');
-          await retryWithFreshProduct(product, price);
-        } else {
-          throw error;
+          return;
         }
-        return;
+        throw error;
       }
 
-      console.log('✅ Insert successful:', insertData);
-      
-      // 🛡️ DELAY STATE UPDATE - FIXED TYPE
-      setTimeout(() => {
-        setAddingPrice((prev: Record<string, string>) => ({ ...prev, [product.id]: '' }));
-        setIsAddingProduct(null);
-      }, 300); // Give UI time to update
-      
-      // 🛡️ DELAY RELOAD
-      setTimeout(async () => {
-        await loadBarMenu();
-        alert('✅ Added to your menu!');
-      }, 500);
+      setAddingPrice({ ...addingPrice, [product.id]: '' });
+      await loadBarMenu();
+      alert('✅ Added to menu!');
 
     } catch (error: any) {
-      console.error('❌ Final error:', error);
-      
-      // 🛡️ RESET LOCK ON ERROR
-      setTimeout(() => {
-        setIsAddingProduct(null);
-      }, 1000);
-      
-      if (error.message.includes('invalid input syntax for type uuid')) {
-        alert(`Error: Invalid product ID. This might be a temporary issue. Please try again in a moment.`);
-      } else {
-        alert('Failed to add item: ' + error.message);
-      }
+      console.error('Error:', error);
+      alert('Failed to add item: ' + error.message);
     }
   };
 
+  // CREATE CUSTOM PRODUCT (unpublished)
+  const handleCreateCustomProduct = async () => {
+    if (!newCustomItem.name || !newCustomItem.category) {
+      alert('Please fill in name and category');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('custom_products')
+        .insert({
+          bar_id: currentBarId,
+          name: newCustomItem.name,
+          category: newCustomItem.category,
+          description: newCustomItem.description || null,
+          image_url: newCustomItem.image_url || null,
+          sku: `CUSTOM-${currentBarId}-${Date.now()}`,
+          active: true
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setNewCustomItem({ name: '', category: '', description: '', image_url: '' });
+      setShowAddCustom(false);
+      await loadCustomProducts();
+      alert('✅ Custom product created! Now add a price to publish it.');
+
+    } catch (error: any) {
+      console.error('Error creating custom product:', error);
+      alert('Failed to create: ' + error.message);
+    }
+  };
+
+  // PUBLISH CUSTOM PRODUCT to menu
+  const handlePublishCustomProduct = async (customProduct: any) => {
+    const price = addingPrice[customProduct.id];
+    
+    if (!price || parseFloat(price) <= 0) {
+      alert('Please enter a valid price');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('bar_products')
+        .insert({
+          bar_id: currentBarId,
+          product_id: null,
+          custom_product_id: customProduct.id,
+          sale_price: parseFloat(price),
+          active: true
+        });
+
+      if (error) throw error;
+
+      setAddingPrice({ ...addingPrice, [customProduct.id]: '' });
+      await loadBarMenu();
+      alert('✅ Published to menu!');
+
+    } catch (error: any) {
+      console.error('Error publishing:', error);
+      alert('Failed to publish: ' + error.message);
+    }
+  };
+
+  // UPDATE PRICE in bar_products
+  const handleUpdatePrice = async (barProductId: string, newPrice: number) => {
+    try {
+      const { error } = await supabase
+        .from('bar_products')
+        .update({
+          sale_price: newPrice,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', barProductId)
+        .eq('bar_id', currentBarId);
+
+      if (error) throw error;
+
+      await loadBarMenu();
+      setEditingPrice(null);
+      alert('✅ Price updated!');
+
+    } catch (error: any) {
+      console.error('Error updating price:', error);
+      alert('Failed to update price: ' + error.message);
+    }
+  };
+
+  // UPDATE CUSTOM PRODUCT details
+  const handleUpdateCustomProduct = async (customProductId: string) => {
+    try {
+      const { error } = await supabase
+        .from('custom_products')
+        .update({
+          name: editForm.name,
+          description: editForm.description,
+          image_url: editForm.image_url,
+          category: editForm.category,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', customProductId)
+        .eq('bar_id', currentBarId);
+
+      if (error) throw error;
+
+      await loadCustomProducts();
+      await loadBarMenu();
+      setEditingCustom(null);
+      setEditForm({});
+      alert('✅ Custom product updated!');
+
+    } catch (error: any) {
+      console.error('Error updating custom product:', error);
+      alert('Failed to update: ' + error.message);
+    }
+  };
+
+  // REMOVE from menu (unpublish)
   const handleRemoveFromMenu = async (menuItemId: string) => {
     if (!window.confirm('Remove this item from your menu?')) return;
 
     try {
-      if (currentBarId) {
-        await supabase.rpc('set_bar_context', { p_bar_id: currentBarId });
-      }
-
       const { error } = await supabase
         .from('bar_products')
         .delete()
-        .eq('id', menuItemId);
+        .eq('id', menuItemId)
+        .eq('bar_id', currentBarId);
 
       if (error) throw error;
 
@@ -359,52 +417,25 @@ export default function MenuManagementPage() {
     }
   };
 
-  const handleAddCustomItem = async () => {
-    if (!newCustomItem.name || !newCustomItem.category || !newCustomItem.price) {
-      alert('Please fill in all fields');
-      return;
-    }
+  // DELETE CUSTOM PRODUCT permanently
+  const handleDeleteCustomProduct = async (customProductId: string) => {
+    if (!window.confirm('Permanently delete this custom product?')) return;
 
     try {
-      const { data: productData, error: productError } = await supabase
-        .from('products')
-        .insert({
-          supplier_id: null,
-          name: newCustomItem.name,
-          sku: `CUSTOM-${Date.now()}`,
-          category: newCustomItem.category,
-          description: 'Custom menu item',
-          active: true
-        })
-        .select()
-        .single();
+      const { error } = await supabase
+        .from('custom_products')
+        .update({ active: false })
+        .eq('id', customProductId)
+        .eq('bar_id', currentBarId);
 
-      if (productError) throw productError;
+      if (error) throw error;
 
-      if (currentBarId) {
-        await supabase.rpc('set_bar_context', { p_bar_id: currentBarId });
-      }
-
-      const { error: menuError } = await supabase
-        .from('bar_products')
-        .insert({
-          bar_id: currentBarId,
-          product_id: productData.id,
-          sale_price: parseFloat(newCustomItem.price),
-          active: true
-        });
-
-      if (menuError) throw menuError;
-
-      setNewCustomItem({ name: '', category: '', price: '' });
-      setShowAddCustom(false);
-      await loadBarMenu();
-      await loadCatalogData();
-      alert('✅ Custom item added!');
+      await loadCustomProducts();
+      alert('✅ Custom product deleted');
 
     } catch (error: any) {
-      console.error('Error adding custom item:', error);
-      alert('Failed to add custom item: ' + error.message);
+      console.error('Error deleting:', error);
+      alert('Failed to delete: ' + error.message);
     }
   };
 
@@ -565,21 +596,9 @@ export default function MenuManagementPage() {
                             />
                             <button
                               onClick={() => handleAddToMenu(product)}
-                              disabled={isAddingProduct === product.id}
-                              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-                                isAddingProduct === product.id
-                                  ? 'bg-gray-300 cursor-not-allowed'
-                                  : 'bg-orange-500 text-white hover:bg-orange-600'
-                              }`}
+                              className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600"
                             >
-                              {isAddingProduct === product.id ? (
-                                <span className="flex items-center gap-2">
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                  Adding...
-                                </span>
-                              ) : (
-                                'Add'
-                              )}
+                              Add
                             </button>
                           </div>
                         ) : (
@@ -632,6 +651,7 @@ export default function MenuManagementPage() {
         </div>
 
         <div className="p-4 space-y-6">
+          {/* Browse Product Catalog */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-800">Browse Product Catalog</h2>
@@ -696,6 +716,127 @@ export default function MenuManagementPage() {
             </div>
           </div>
 
+          {/* Unpublished Custom Products */}
+          {customProducts.length > 0 && (
+            <div>
+              <h2 className="text-lg font-bold text-gray-800 mb-3">
+                Unpublished Custom Products ({customProducts.length})
+              </h2>
+              <div className="space-y-2">
+                {customProducts.map(cp => (
+                  <div key={cp.id} className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
+                    {editingCustom === cp.id ? (
+                      <div className="space-y-3">
+                        <h3 className="font-semibold text-sm mb-2">Edit Custom Product</h3>
+                        <input
+                          type="text"
+                          value={editForm.name}
+                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                          placeholder="Name"
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                        />
+                        <select
+                          value={editForm.category}
+                          onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                        >
+                          {categories.map(cat => (
+                            <option key={cat.name} value={cat.name}>{cat.name}</option>
+                          ))}
+                        </select>
+                        <textarea
+                          value={editForm.description}
+                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                          placeholder="Description (optional)"
+                          rows={2}
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                        />
+                        <input
+                          type="text"
+                          value={editForm.image_url}
+                          onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
+                          placeholder="Image URL (optional)"
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleUpdateCustomProduct(cp.id)}
+                            className="flex-1 bg-green-500 text-white py-2 rounded-lg font-medium hover:bg-green-600 flex items-center justify-center gap-2"
+                          >
+                            <Save size={16} />
+                            Save
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingCustom(null);
+                              setEditForm({});
+                            }}
+                            className="flex-1 bg-gray-200 py-2 rounded-lg font-medium hover:bg-gray-300"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
+                          {cp.image_url ? (
+                            <img src={cp.image_url} alt={cp.name} className="w-full h-full object-cover rounded-lg" />
+                          ) : (
+                            <span className="text-2xl">✨</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-800">{cp.name}</p>
+                          <p className="text-xs text-gray-600">{cp.category}</p>
+                          {cp.description && (
+                            <p className="text-xs text-gray-500 mt-1">{cp.description}</p>
+                          )}
+                        </div>
+                        <input
+                          type="number"
+                          placeholder="Price (KSh)"
+                          value={addingPrice[cp.id] || ''}
+                          onChange={(e) => setAddingPrice({ ...addingPrice, [cp.id]: e.target.value })}
+                          className="w-28 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => handlePublishCustomProduct(cp)}
+                          className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 whitespace-nowrap"
+                        >
+                          Publish
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingCustom(cp.id);
+                            setEditForm({
+                              name: cp.name,
+                              category: cp.category,
+                              description: cp.description || '',
+                              image_url: cp.image_url || ''
+                            });
+                          }}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                          title="Edit product"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCustomProduct(cp.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                          title="Delete product"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Your Menu (Published Items) */}
           <div>
             <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu ({barProducts.length} items)</h2>
             {barProducts.length === 0 ? (
@@ -707,40 +848,124 @@ export default function MenuManagementPage() {
             ) : (
               <div className="bg-white rounded-xl shadow-sm divide-y">
                 {barProducts.map(item => {
-                  const product = item.products;
-                  const displayImage = getDisplayImage(product, product?.category);
+                  const isCustom = !!item.custom_product_id;
+                  const productData = isCustom ? item.custom_products : item.products;
+                  const displayImage = isCustom 
+                    ? productData?.image_url 
+                    : getDisplayImage(productData, productData?.category);
                   
                   return (
-                    <div key={item.id} className="p-4 flex items-center gap-4">
-                      {displayImage ? (
-                        <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                          <img 
-                            src={displayImage} 
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
+                    <div key={item.id} className="p-4">
+                      {editingPrice === item.id ? (
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-800 mb-2">{productData?.name}</p>
+                            <input
+                              type="number"
+                              defaultValue={item.sale_price}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const newPrice = parseFloat((e.target as HTMLInputElement).value);
+                                  if (newPrice > 0) {
+                                    handleUpdatePrice(item.id, newPrice);
+                                  }
+                                }
+                              }}
+                              placeholder="New price"
+                              className="w-full px-3 py-2 border-2 border-orange-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                              autoFocus
+                            />
+                          </div>
+                          <button
+                            onClick={() => {
+                              const input = document.querySelector(`input[type="number"]`) as HTMLInputElement;
+                              const newPrice = parseFloat(input.value);
+                              if (newPrice > 0) {
+                                handleUpdatePrice(item.id, newPrice);
+                              }
                             }}
-                          />
+                            className="px-4 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingPrice(null)}
+                            className="px-4 py-2 bg-gray-200 rounded-lg font-medium hover:bg-gray-300"
+                          >
+                            Cancel
+                          </button>
                         </div>
                       ) : (
-                        <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
-                          <span className="text-3xl">🍺</span>
+                        <div className="flex items-center gap-4">
+                          {displayImage ? (
+                            <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                              <img 
+                                src={displayImage} 
+                                alt={productData?.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
+                              <span className="text-3xl">{isCustom ? '✨' : '🍺'}</span>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-semibold text-gray-800">{productData?.name || 'Unknown Product'}</p>
+                              {isCustom && (
+                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                                  Custom
+                                </span>
+                              )}
+                            </div>
+                            {!isCustom && productData?.suppliers?.name && (
+                              <p className="text-xs text-gray-500">{productData.suppliers.name}</p>
+                            )}
+                            {productData?.description && (
+                              <p className="text-xs text-gray-600 mt-1">{productData.description}</p>
+                            )}
+                            <p className="text-sm text-orange-600 font-bold mt-1">
+                              KSh {item.sale_price.toLocaleString()}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setEditingPrice(item.id)}
+                            className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
+                            title="Edit price"
+                          >
+                            <Edit2 size={20} />
+                          </button>
+                          {isCustom && (
+                            <button
+                              onClick={() => {
+                                // Find in custom products or bar_products
+                                setEditingCustom(productData?.id);
+                                setEditForm({
+                                  name: productData?.name,
+                                  category: productData?.category,
+                                  description: productData?.description || '',
+                                  image_url: productData?.image_url || ''
+                                });
+                              }}
+                              className="p-2 text-purple-500 hover:bg-purple-50 rounded-lg"
+                              title="Edit product details"
+                            >
+                              <Edit2 size={20} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemoveFromMenu(item.id)}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                            title="Remove from menu"
+                          >
+                            <Trash2 size={20} />
+                          </button>
                         </div>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-800">{product?.name || 'Unknown Product'}</p>
-                        <p className="text-xs text-gray-500">{product?.suppliers?.name || 'No supplier'}</p>
-                        <p className="text-sm text-orange-600 font-bold mt-1">
-                          KSh {item.sale_price.toLocaleString()}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveFromMenu(item.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                      >
-                        <Trash2 size={20} />
-                      </button>
                     </div>
                   );
                 })}
@@ -748,27 +973,28 @@ export default function MenuManagementPage() {
             )}
           </div>
 
+          {/* Add Custom Item */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-gray-800">Custom Items</h2>
+              <h2 className="text-lg font-bold text-gray-800">Create Custom Product</h2>
               <button
                 onClick={() => setShowAddCustom(!showAddCustom)}
                 className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-600 flex items-center gap-2"
               >
-                <Plus size={16} />
-                Add Custom
+                {showAddCustom ? <X size={16} /> : <Plus size={16} />}
+                {showAddCustom ? 'Cancel' : 'Add Custom'}
               </button>
             </div>
 
             {showAddCustom && (
               <div className="bg-white rounded-xl p-4 shadow-sm">
-                <h3 className="font-semibold mb-3">Add Custom Item</h3>
+                <h3 className="font-semibold mb-3">Create New Custom Product</h3>
                 <div className="space-y-3">
                   <input
                     type="text"
                     value={newCustomItem.name}
                     onChange={(e) => setNewCustomItem({...newCustomItem, name: e.target.value})}
-                    placeholder="Item name"
+                    placeholder="Product name *"
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
                   <select
@@ -776,32 +1002,36 @@ export default function MenuManagementPage() {
                     onChange={(e) => setNewCustomItem({...newCustomItem, category: e.target.value})}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   >
-                    <option value="">Select category</option>
+                    <option value="">Select category *</option>
                     {categories.map(cat => (
                       <option key={cat.name} value={cat.name}>{cat.name}</option>
                     ))}
                   </select>
-                  <input
-                    type="number"
-                    value={newCustomItem.price}
-                    onChange={(e) => setNewCustomItem({...newCustomItem, price: e.target.value})}
-                    placeholder="Price (KSh)"
+                  <textarea
+                    value={newCustomItem.description}
+                    onChange={(e) => setNewCustomItem({...newCustomItem, description: e.target.value})}
+                    placeholder="Description (optional)"
+                    rows={2}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleAddCustomItem}
-                      className="flex-1 bg-orange-500 text-white py-2 rounded-lg font-medium hover:bg-orange-600"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => setShowAddCustom(false)}
-                      className="flex-1 bg-gray-200 py-2 rounded-lg font-medium hover:bg-gray-300"
-                    >
-                      Cancel
-                    </button>
+                  <input
+                    type="text"
+                    value={newCustomItem.image_url}
+                    onChange={(e) => setNewCustomItem({...newCustomItem, image_url: e.target.value})}
+                    placeholder="Image URL (optional)"
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                  />
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-800">
+                      💡 This will create an unpublished product. Add a price to publish it to your menu.
+                    </p>
                   </div>
+                  <button
+                    onClick={handleCreateCustomProduct}
+                    className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600"
+                  >
+                    Create Product
+                  </button>
                 </div>
               </div>
             )}
