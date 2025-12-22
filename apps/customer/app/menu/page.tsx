@@ -43,6 +43,7 @@ export default function MenuPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [menuExpanded, setMenuExpanded] = useState(true);
   const [scrollY, setScrollY] = useState(0);
+  const [autoCloseMenu, setAutoCloseMenu] = useState(true);
 
   const menuCollapseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -80,7 +81,7 @@ export default function MenuPage() {
 
   // Auto-collapse menu after 30 seconds
   useEffect(() => {
-    if (menuExpanded) {
+    if (menuExpanded && autoCloseMenu) {
       if (menuCollapseTimerRef.current) {
         clearTimeout(menuCollapseTimerRef.current);
       }
@@ -95,7 +96,7 @@ export default function MenuPage() {
         clearTimeout(menuCollapseTimerRef.current);
       }
     };
-  }, [menuExpanded]);
+  }, [menuExpanded, autoCloseMenu]);
 
   const toggleMenu = () => {
     setMenuExpanded(!menuExpanded);
@@ -525,7 +526,6 @@ export default function MenuPage() {
     <div className="min-h-screen bg-gray-50">
       <div 
         className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top-0 z-20 shadow-lg"
-        style={{ transform: `translateY(${parallaxOffset}px)` }}
       >
         <div className="flex items-center justify-between">
           <div>
@@ -599,7 +599,7 @@ export default function MenuPage() {
         <div className="p-4 border-b bg-gradient-to-r from-orange-50 to-red-50">
           <button
             onClick={toggleMenu}
-            className="w-full flex items-center justify-between text-left"
+            className="w-full flex items-center justify-between text-left mb-3"
           >
             <h2 className="text-2xl font-bold text-gray-800">Menu</h2>
             {menuExpanded ? (
@@ -608,6 +608,19 @@ export default function MenuPage() {
               <ChevronDown size={24} className="text-orange-500" />
             )}
           </button>
+          
+          <div className="flex items-center gap-2 text-sm">
+            <input 
+              type="checkbox" 
+              id="autoCloseMenu"
+              checked={autoCloseMenu}
+              onChange={(e) => setAutoCloseMenu(e.target.checked)}
+              className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
+            />
+            <label htmlFor="autoCloseMenu" className="text-gray-600 cursor-pointer">
+              Auto-close menu after 30 seconds
+            </label>
+          </div>
         </div>
 
         <div 
