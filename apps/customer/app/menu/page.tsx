@@ -486,17 +486,43 @@ className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top
 {(() => {
 const pendingTime = getPendingOrderTime();
 if (!pendingTime) return null;
-// --- Timer Display Logic ---
-// Calculate how much of the ring should be filled based on elapsed time.
-// For example, let's say the ring fills completely after 5 minutes (300 seconds).
-// We can calculate the percentage of 300 seconds that has elapsed.
-const maxTimeSeconds = 300; // 5 minutes
-const elapsedPercentage = Math.min((pendingTime.elapsed / maxTimeSeconds) * 100, 100);
+
+// --- Timer Display Logic for Elapsed Time ---
+const elapsedSeconds = pendingTime.elapsed;
+const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+const elapsedRemainingSeconds = elapsedSeconds % 60;
+
+// Determine visual state based on elapsed time
+let visualState: 'green' | 'yellow' | 'red' = 'green';
+let maxTimeSeconds = 300; // Start with 5 minutes for green state calculation
+if (elapsedSeconds >= 420) { // 7 minutes
+    visualState = 'red';
+    maxTimeSeconds = 480; // 8 minutes for red state calculation
+} else if (elapsedSeconds >= 300) { // 5 minutes
+    visualState = 'yellow';
+    maxTimeSeconds = 420; // 7 minutes for yellow state calculation
+}
+
+// Calculate how much of the ring should be filled based on elapsed time within its visual state window.
+// If elapsed time exceeds the window for the current state, fill the ring completely.
+const stateWindowStart = visualState === 'red' ? 420 : visualState === 'yellow' ? 300 : 0;
+const stateWindowDuration = maxTimeSeconds - stateWindowStart;
+const elapsedInWindow = Math.max(0, elapsedSeconds - stateWindowStart);
+const elapsedPercentageInWindow = Math.min((elapsedInWindow / stateWindowDuration) * 100, 100);
+
 // The circumference of the circle with radius 45 is 2 * Math.PI * 45
 const circumference = 2 * Math.PI * 45;
 // strokeDashoffset is the length of the gap. Start with the full circumference (empty ring)
 // and subtract the filled portion.
-const strokeDashoffset = circumference * (1 - elapsedPercentage / 100);
+const strokeDashoffset = circumference * (1 - elapsedPercentageInWindow / 100);
+
+// Determine stroke color based on visual state
+let strokeColor = "url(#gradient-green)";
+if (visualState === 'yellow') {
+    strokeColor = "url(#gradient-yellow)";
+} else if (visualState === 'red') {
+    strokeColor = "url(#gradient-red)";
+}
 
 return (
 <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 flex flex-col items-center justify-center animate-fadeIn">
@@ -510,7 +536,7 @@ cx="50%"
 cy="50%"
 r="45%"
 fill="none"
-stroke="url(#gradient)"
+stroke={strokeColor}
 strokeWidth="8"
 strokeLinecap="round"
 strokeDasharray={circumference} // Total length of the circle
@@ -518,16 +544,24 @@ strokeDashoffset={strokeDashoffset} // How much of the circle is *not* drawn (th
 className="transition-all duration-1000 ease-linear"
 />
 <defs>
-<linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-<stop offset="0%" stopColor="#f97316" />
-<stop offset="100%" stopColor="#dc2626" />
+<linearGradient id="gradient-green" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stopColor="#10B981" /> {/* Green-500 */}
+<stop offset="100%" stopColor="#059669" /> {/* Green-700 */}
+</linearGradient>
+<linearGradient id="gradient-yellow" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stopColor="#F59E0B" /> {/* Yellow-500 */}
+<stop offset="100%" stopColor="#D97706" /> {/* Yellow-700 */}
+</linearGradient>
+<linearGradient id="gradient-red" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stopColor="#EF4444" /> {/* Red-500 */}
+<stop offset="100%" stopColor="#DC2626" /> {/* Red-700 */}
 </linearGradient>
 </defs>
 </svg>
 <div className="absolute inset-0 flex flex-col items-center justify-center">
 <Clock size={32} className="text-orange-500 mb-2 animate-pulse" />
 <div className="text-5xl font-bold text-gray-800 animate-pulse-number">
-{formatTime(pendingTime.elapsed)}
+{formatTime(elapsedSeconds)}
 </div>
 <p className="text-xs text-gray-500 mt-2">Time elapsed</p>
 </div>
