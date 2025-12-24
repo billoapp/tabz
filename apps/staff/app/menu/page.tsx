@@ -253,9 +253,13 @@ export default function MenuManagementPage() {
           bar_id: currentBarId,
           product_id: product.id,
           custom_product_id: null,
+          name: product.name,
+          description: product.description,
+          category: product.category,
+          image_url: product.image_url,
+          sku: product.sku,
           sale_price: parseFloat(price),
           active: true
-          // NO user_id!
         });
 
       if (error) {
@@ -281,25 +285,6 @@ export default function MenuManagementPage() {
     const price = addingPrice[customProduct.id];
     
     if (!price || parseFloat(price) <= 0) {
-      alert('Please enter a valid price');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('bar_products')
-        .insert({
-          bar_id: currentBarId,
-          product_id: null,
-          custom_product_id: customProduct.id,
-          sale_price: parseFloat(price),
-          active: true
-          // NO user_id!
-        });
-
-      if (error) throw error;
-
-      setAddingPrice({ ...addingPrice, [customProduct.id]: '' });
       await loadBarMenu();
       alert('✅ Published to menu!');
 
