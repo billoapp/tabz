@@ -399,7 +399,7 @@ if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
 return `${Math.floor(seconds / 3600)}h ago`;
 };
 
-// MODIFIED: getPendingOrderTime function to use stored submission time
+// MODIFIED: getPendingOrderTime function to use stored submission time for persistence
 const getPendingOrderTime = () => {
 const pendingOrder = orders.find(o => o.status === 'pending' && o.initiated_by === 'customer');
 if (!pendingOrder) {
@@ -408,13 +408,13 @@ sessionStorage.removeItem('customerOrderSubmissionTime');
 return null;
 }
 
-// NEW: Check for stored submission time first
+// NEW: Check for stored submission time first (for persistence)
 const storedSubmissionTimeStr = sessionStorage.getItem('customerOrderSubmissionTime');
 let orderTime;
 if (storedSubmissionTimeStr) {
 orderTime = new Date(storedSubmissionTimeStr).getTime();
 } else {
-// Fallback to server time if stored time is not found
+// Fallback to server time if stored time is not found (e.g., old orders before this change)
 orderTime = new Date(pendingOrder.created_at).getTime();
 }
 
@@ -487,34 +487,28 @@ className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top
 const pendingTime = getPendingOrderTime();
 if (!pendingTime) return null;
 
-// --- Timer Display Logic for Elapsed Time ---
+// --- Timer Display Logic for Elapsed Time with Color Phases ---
 const elapsedSeconds = pendingTime.elapsed;
-const elapsedMinutes = Math.floor(elapsedSeconds / 60);
-const elapsedRemainingSeconds = elapsedSeconds % 60;
 
 // Determine visual state based on elapsed time
 let visualState: 'green' | 'yellow' | 'red' = 'green';
-let maxTimeSeconds = 300; // Start with 5 minutes for green state calculation
 if (elapsedSeconds >= 420) { // 7 minutes
     visualState = 'red';
-    maxTimeSeconds = 480; // 8 minutes for red state calculation
 } else if (elapsedSeconds >= 300) { // 5 minutes
     visualState = 'yellow';
-    maxTimeSeconds = 420; // 7 minutes for yellow state calculation
 }
 
-// Calculate how much of the ring should be filled based on elapsed time within its visual state window.
-// If elapsed time exceeds the window for the current state, fill the ring completely.
-const stateWindowStart = visualState === 'red' ? 420 : visualState === 'yellow' ? 300 : 0;
-const stateWindowDuration = maxTimeSeconds - stateWindowStart;
-const elapsedInWindow = Math.max(0, elapsedSeconds - stateWindowStart);
-const elapsedPercentageInWindow = Math.min((elapsedInWindow / stateWindowDuration) * 100, 100);
+// Calculate how much of the ring should be filled based on elapsed time within a *fixed maximum window*.
+// This creates the effect where the ring fills up to a point and then stays full or changes color.
+// Let's define a maximum window for the visual progress (e.g., 8 minutes = 480 seconds).
+const maxVisualTimeSeconds = 480; // 8 minutes
+const elapsedPercentage = Math.min((elapsedSeconds / maxVisualTimeSeconds) * 100, 100);
 
 // The circumference of the circle with radius 45 is 2 * Math.PI * 45
 const circumference = 2 * Math.PI * 45;
 // strokeDashoffset is the length of the gap. Start with the full circumference (empty ring)
 // and subtract the filled portion.
-const strokeDashoffset = circumference * (1 - elapsedPercentageInWindow / 100);
+const strokeDashoffset = circumference * (1 - elapsedPercentage / 100);
 
 // Determine stroke color based on visual state
 let strokeColor = "url(#gradient-green)";
