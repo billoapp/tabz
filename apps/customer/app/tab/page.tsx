@@ -60,7 +60,7 @@ export default function TabPage() {
       console.log('✅ Orders loaded:', ordersData);
       
       // 🐛 DEBUG: Log each order's details
-      ordersData?.forEach(order => {
+      ordersData?.forEach((order: any) => {
         console.log(`📦 Order ${order.id}:`, {
           status: order.status,
           initiated_by: order.initiated_by,
