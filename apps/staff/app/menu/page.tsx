@@ -5,7 +5,6 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Plus, Trash2, ShoppingCart, Search, Filter, X, Edit2, Save } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useBar } from '@/contexts/page';
 
 interface Product {
   id: string;
@@ -18,7 +17,7 @@ interface Product {
 
 export default function MenuManagementPage() {
   const router = useRouter();
-  const { currentBarId, userBars, setCurrentBar, isLoading: barLoading } = useBar();
+  const [barId, setBarId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
   // Catalog data
@@ -67,34 +66,33 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
 
   useEffect(() => {
     const checkAuth = async () => {
-      if (barLoading) return;
-
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/login');
         return;
       }
       
-      if (!currentBarId) {
-        if (userBars.length === 0) {
-          setLoading(false);
-        }
+      const userBarId = user.user_metadata?.bar_id;
+      if (!userBarId) {
+        console.error('No bar_id in user metadata');
+        alert('Your account is not linked to a bar. Please contact administrator.');
+        router.push('/login');
         return;
       }
+      
+      setBarId(userBarId);
     };
     
     checkAuth();
-  }, [barLoading, currentBarId, router, userBars.length]);
+  }, [router]);
 
   useEffect(() => {
-    if (!barLoading && currentBarId) {
+    if (barId) {
       loadCatalogData();
       loadBarMenu();
       loadCustomProducts();
-    } else if (!barLoading && !currentBarId) {
-      setLoading(false);
     }
-  }, [currentBarId, barLoading]);
+  }, [barId]);
 
   const loadCatalogData = async () => {
     try {
@@ -140,13 +138,13 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
 
   const loadBarMenu = async () => {
   try {
-    if (!currentBarId) return;
+    if (!barId) return;
 
     // Just fetch bar_products - all data is already there!
     const { data, error } = await supabase
       .from('bar_products')
       .select('*')
-      .eq('bar_id', currentBarId)
+      .eq('bar_id', barId)
       .eq('active', true)
       .order('created_at', { ascending: false });
 
@@ -164,12 +162,12 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
 
   const loadCustomProducts = async () => {
     try {
-      if (!currentBarId) return;
+      if (!barId) return;
 
       const { data, error } = await supabase
         .from('custom_products')
         .select('*')
-        .eq('bar_id', currentBarId)
+        .eq('bar_id', barId)
         .eq('active', true)
         .order('created_at', { ascending: false });
 
@@ -192,7 +190,7 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
 
   // Reload custom products whenever bar menu changes
   useEffect(() => {
-    if (currentBarId && barProducts.length >= 0) {
+    if (barId && barProducts.length >= 0) {
       loadCustomProducts();
     }
   }, [barProducts.length]);
@@ -231,7 +229,7 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
       return;
     }
 
-    if (!currentBarId) {
+    if (!barId) {
       alert('Error: No bar selected');
       return;
     }
@@ -240,7 +238,7 @@ const getDisplayImage = (product: Product | undefined, categoryName?: string) =>
       const { error } = await supabase
         .from('bar_products')
         .insert({
-          bar_id: currentBarId,
+          bar_id: barId,
           product_id: product.id,
           custom_product_id: null,
           name: product.name,
@@ -283,7 +281,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
     const { error } = await supabase
       .from('bar_products')
       .insert({
-        bar_id: currentBarId,
+        bar_id: barId,
         product_id: null,
         custom_product_id: customProduct.id,
         name: customProduct.name,
@@ -318,12 +316,12 @@ const handlePublishCustomProduct = async (customProduct: any) => {
       const { data, error } = await supabase
         .from('custom_products')
         .insert({
-          bar_id: currentBarId,
+          bar_id: barId,
           name: newCustomItem.name,
           category: newCustomItem.category,
           description: newCustomItem.description || null,
           image_url: newCustomItem.image_url || null,
-          sku: `CUSTOM-${currentBarId}-${Date.now()}`,
+          sku: `CUSTOM-${barId}-${Date.now()}`,
           active: true
         })
         .select()
@@ -352,7 +350,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', barProductId)
-        .eq('bar_id', currentBarId);
+        .eq('bar_id', barId);
 
       if (error) throw error;
 
@@ -379,7 +377,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', customProductId)
-        .eq('bar_id', currentBarId);
+        .eq('bar_id', barId);
 
       if (error) throw error;
 
@@ -404,7 +402,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
         .from('bar_products')
         .delete()
         .eq('id', menuItemId)
-        .eq('bar_id', currentBarId);
+        .eq('bar_id', barId);
 
       if (error) throw error;
 
@@ -426,7 +424,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
         .from('custom_products')
         .update({ active: false })
         .eq('id', customProductId)
-        .eq('bar_id', currentBarId);
+        .eq('bar_id', barId);
 
       if (error) throw error;
 
@@ -439,7 +437,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
     }
   };
 
-  if (loading || barLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -450,7 +448,7 @@ const handlePublishCustomProduct = async (customProduct: any) => {
     );
   }
 
-  if (!currentBarId || userBars.length === 0) {
+  if (!barId) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center p-8">
@@ -631,19 +629,6 @@ const handlePublishCustomProduct = async (customProduct: any) => {
           </button>
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl font-bold">Menu Management</h1>
-            {userBars.length > 1 && (
-              <select 
-                value={currentBarId || ''} 
-                onChange={(e) => setCurrentBar(e.target.value)}
-                className="bg-white bg-opacity-20 text-white border border-white border-opacity-30 rounded-lg px-3 py-1 text-sm"
-              >
-                {userBars.map(bar => (
-                  <option key={bar.id} value={bar.id} className="text-gray-800">
-                    {bar.name}
-                  </option>
-                ))}
-              </select>
-            )}
           </div>
           <p className="text-orange-100 text-sm">
             {barProducts.length} items in your menu
