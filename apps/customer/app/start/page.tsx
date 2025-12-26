@@ -1,4 +1,4 @@
-// app/start/page.tsx - FIXED: Better bar_id handling
+// app/start/page.tsx - FIXED Navigation
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
@@ -7,8 +7,6 @@ import { Shield, Bell, Store, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
 
-
-// Create a separate component that uses useSearchParams
 function ConsentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -25,34 +23,31 @@ function ConsentContent() {
   useEffect(() => {
     console.log('🔍 Start page loaded');
     
-    // Try to get bar slug from multiple sources
+    // Try to get bar slug from URL first, then sessionStorage
     let slug = searchParams?.get('bar') || searchParams?.get('slug');
     
-    // Fallback to sessionStorage if not in URL
     if (!slug) {
       slug = sessionStorage.getItem('scanned_bar_slug');
       console.log('📦 Retrieved bar slug from sessionStorage:', slug);
     } else {
       console.log('🔗 Retrieved bar slug from URL:', slug);
-      // Store it for later use
       sessionStorage.setItem('scanned_bar_slug', slug);
     }
 
     if (!slug) {
-      // Redirect back to main page to select a bar
-      router.push('/');
+      console.error('❌ No bar slug found, redirecting to landing');
+      router.replace('/');
       return;
     }
 
     setBarSlug(slug);
     loadBarInfo(slug);
-  }, [searchParams]);
+  }, []); // Remove searchParams from dependencies to prevent re-runs
 
   const loadBarInfo = async (slug: string) => {
     try {
       console.log('🔍 Loading bar info for slug:', slug);
       
-      // Get bar info by slug from QR code
       const { data: bar, error: barError } = await supabase
         .from('bars')
         .select('id, name, active, location, slug')
@@ -74,7 +69,6 @@ function ConsentContent() {
         return;
       }
 
-      // Check if bar is active
       const isActive = bar.active !== false;
       
       if (!isActive) {
@@ -83,7 +77,6 @@ function ConsentContent() {
         return;
       }
 
-      // ✅ CRITICAL FIX: Set the bar ID here!
       setBarId(bar.id);
       setBarName(bar.name || 'Bar');
       console.log('✅ Bar loaded successfully:', bar.name, 'ID:', bar.id);
@@ -94,9 +87,8 @@ function ConsentContent() {
         try {
           const existingTab = JSON.parse(tabData);
           if (existingTab.bar_id === bar.id && existingTab.status === 'open') {
-            // User already has an open tab at this bar
             if (confirm(`You already have an open tab at ${bar.name}. Continue to your tab?`)) {
-              router.push('/menu');
+              router.replace('/menu'); // Use replace instead of push
               return;
             }
           }
@@ -129,7 +121,7 @@ function ConsentContent() {
     try {
       const barDeviceKey = getBarDeviceKey(barId);
       
-      // ✅ CHECK: Does this device already have an open tab at this bar?
+      // Check for existing open tab
       const { data: existingTab, error: checkError } = await supabase
         .from('tabs')
         .select('*')
@@ -138,13 +130,15 @@ function ConsentContent() {
         .eq('status', 'open')
         .maybeSingle();
 
-      if (checkError) throw checkError;
+      if (checkError) {
+        console.error('Error checking existing tab:', checkError);
+        throw checkError;
+      }
 
       // If tab exists, reuse it
       if (existingTab) {
         console.log('✅ Found existing open tab, resuming:', existingTab.tab_number);
         
-        // Update display name if customer provided a new nickname
         if (nickname.trim()) {
           const notes = JSON.parse(existingTab.notes || '{}');
           notes.display_name = nickname.trim();
@@ -164,14 +158,19 @@ function ConsentContent() {
           }
         })();
 
+        // Store tab data before navigation
         sessionStorage.setItem('currentTab', JSON.stringify(existingTab));
         sessionStorage.setItem('displayName', displayName);
         sessionStorage.setItem('barName', barName);
-        router.push('/menu');
+        
+        console.log('📦 Stored tab data, navigating to menu...');
+        
+        // Use replace to prevent back button issues
+        router.replace('/menu');
         return;
       }
 
-      // Determine display name and tab_number for NEW tab
+      // Create new tab
       let displayName: string;
       let tabNumber: number | null;
       
@@ -195,16 +194,15 @@ function ConsentContent() {
         tabNumber = nextNumber;
       }
 
-      console.log('📝 Creating NEW tab for bar:', barId);
+      console.log('🆕 Creating NEW tab for bar:', barId);
 
-      // Create new tab with device-bar key
       const { data: tab, error: tabError } = await supabase
         .from('tabs')
         .insert({
           bar_id: barId,
           tab_number: tabNumber,
           status: 'open',
-          owner_identifier: barDeviceKey, // ✅ Use device-bar key
+          owner_identifier: barDeviceKey,
           notes: JSON.stringify({
             display_name: displayName,
             has_nickname: !!nickname.trim(),
@@ -218,21 +216,29 @@ function ConsentContent() {
         .select()
         .single();
 
-      if (tabError) throw tabError;
+      if (tabError) {
+        console.error('Error creating tab:', tabError);
+        throw tabError;
+      }
 
       console.log('✅ New tab created successfully:', tab);
 
+      // Store tab data before navigation
       sessionStorage.setItem('currentTab', JSON.stringify(tab));
       sessionStorage.setItem('displayName', displayName);
       sessionStorage.setItem('barName', barName);
-      router.push('/menu');
+      
+      console.log('📦 Stored new tab data, navigating to menu...');
+      
+      // Use replace to prevent back button issues
+      router.replace('/menu');
 
     } catch (error: any) {
       console.error('❌ Error creating/loading tab:', error);
       alert(`Error: ${error.message || 'Please try again'}`);
-    } finally {
-      setCreating(false);
+      setCreating(false); // Only reset creating state on error
     }
+    // Don't set creating to false on success - let navigation happen
   };
 
   if (loading) {
@@ -271,7 +277,7 @@ function ConsentContent() {
           <button
             onClick={() => {
               sessionStorage.clear();
-              router.push('/');
+              router.replace('/');
             }}
             className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600"
           >
@@ -289,7 +295,7 @@ function ConsentContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-        {/* Bar Information - Prominently Displayed */}
+        {/* Bar Information */}
         <div className="text-center mb-6 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl border border-orange-200">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Store size={20} className="text-orange-600" />
@@ -297,11 +303,6 @@ function ConsentContent() {
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">{barName}</h2>
           <p className="text-sm text-gray-600">Ready to start your tab</p>
-          {barId && (
-            <p className="text-xs text-gray-400 mt-2 font-mono">
-              Bar ID: {barId.substring(0, 8)}...
-            </p>
-          )}
         </div>
 
         {/* Trust Statement */}
@@ -312,9 +313,6 @@ function ConsentContent() {
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Anonymous Tab</h1>
           <p className="text-gray-700 leading-relaxed">
             You're anonymous here. We don't collect names, phone numbers, or emails.
-          </p>
-          <p className="text-sm text-gray-500 mt-2">
-            This tab exists only for this visit at {barName}.
           </p>
         </div>
 
@@ -361,10 +359,6 @@ function ConsentContent() {
               </ul>
             </div>
           </label>
-          
-          <p className="text-xs text-gray-500 mt-2">
-            Sounds and on-screen alerts only. No phone number required.
-          </p>
         </div>
 
         {/* Terms Consent */}
@@ -393,9 +387,6 @@ function ConsentContent() {
                   Privacy Policy
                 </button>
               </p>
-              <p className="text-xs text-gray-500 mt-1">
-                We don't sell or store personal data.
-              </p>
             </div>
           </label>
         </div>
@@ -421,16 +412,12 @@ function ConsentContent() {
           <p className="text-xs text-gray-500">
             🔒 Your privacy is protected
           </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Your tab is only accessible at this location
-          </p>
         </div>
       </div>
     </div>
   );
 }
 
-// Main component with Suspense boundary
 export default function ConsentPage() {
   return (
     <Suspense fallback={

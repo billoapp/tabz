@@ -7,6 +7,15 @@ import { ArrowRight, Plus, Trash2, ShoppingCart, Search, Filter, X, Edit2, Save 
 import { supabase } from '@/lib/supabase';
 import { useBar } from '@/contexts/page';
 
+interface Product {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  image_url?: string;
+  sku?: string;
+}
+
 export default function MenuManagementPage() {
   const router = useRouter();
   const { currentBarId, userBars, setCurrentBar, isLoading: barLoading } = useBar();
@@ -40,7 +49,11 @@ export default function MenuManagementPage() {
   const [editForm, setEditForm] = useState<any>({});
 
   // Helper function to get display image with category fallback
-  const getDisplayImage = (product: any, categoryName?: string) => {
+const getDisplayImage = (product: Product | undefined, categoryName?: string) => {
+    if (!product) {
+      return null;
+    }
+    
     if (product.image_url) {
       return product.image_url;
     }

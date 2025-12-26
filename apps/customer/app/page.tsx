@@ -1,4 +1,4 @@
-// app/page.tsx - FIXED: Preserves bar_id through navigation
+// app/page.tsx
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -41,11 +41,11 @@ function LandingContent() {
     console.log('🚀 Start button clicked, bar slug:', slug);
     
     if (slug) {
-      // Navigate to start page WITH slug parameter
+      // Navigate to consent/start page WITH slug parameter
       router.push(`/start?bar=${slug}`);
     } else {
-      // No slug - go to start page anyway (will show error)
-      router.push('/start');
+      // No slug - stay on landing page
+      console.log('No bar slug found, staying on landing page');
     }
   };
 
@@ -75,7 +75,7 @@ function LandingContent() {
   const slug = searchParams.get('bar') || searchParams.get('slug');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex flex-col items-center p-6 py-12">
       {/* Header */}
       <div className="text-white text-center mb-12">
         <h1 className="text-5xl font-bold mb-3">Tabz</h1>

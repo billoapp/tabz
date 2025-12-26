@@ -31,7 +31,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
   async function loadUserBars() {
     try {
       setIsLoading(true);
-      
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         console.log('No authenticated user found');
@@ -56,31 +56,31 @@ export function BarProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Error loading user_bars:', error);
-        
+
         // Fallback: try to get bar_id from user metadata (old approach)
         const barId = user.user_metadata?.bar_id;
         if (barId) {
           console.log('Using fallback bar_id from metadata:', barId);
-          
+
           // Try to load the bar info
           const { data: barData } = await supabase
             .from('bars')
             .select('id, name')
             .eq('id', barId)
             .single();
-          
+
           const fallbackBar = {
             id: barId,
             name: barData?.name || 'Default Bar',
             role: 'owner'
           };
-          
+
           setUserBars([fallbackBar]);
           await setCurrentBar(barId);
           setIsLoading(false);
           return;
         }
-        
+
         console.error('No bars found for user');
         setIsLoading(false);
         return;
@@ -100,12 +100,12 @@ export function BarProvider({ children }: { children: ReactNode }) {
 
       console.log('Loaded bars:', bars);
       setUserBars(bars);
-      
+
       // Set first bar as current by default
       if (bars.length > 0) {
         await setCurrentBar(bars[0].id);
       }
-      
+
     } catch (error) {
       console.error('Failed to load bars:', error);
     } finally {
@@ -116,7 +116,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
   async function setCurrentBar(barId: string) {
     try {
       console.log('Setting current bar to:', barId);
-      
+
       // Validate UUID format
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(barId)) {
@@ -124,19 +124,19 @@ export function BarProvider({ children }: { children: ReactNode }) {
       }
 
       console.log('Calling set_bar_context RPC...');
-      const { error } = await supabase.rpc('set_bar_context', { 
+      const { error } = await supabase.rpc('set_bar_context', {
         p_bar_id: barId
       });
-      
+
       if (error) {
         console.error('RPC error:', error);
         throw error;
       }
-      
+
       setCurrentBarId(barId);
       localStorage.setItem('currentBarId', barId);
-      console.log('✅ Bar context set successfully to:', barId);
-      
+      console.log('Bar context set successfully to:', barId);
+
     } catch (error) {
       console.error('Failed to set bar context:', error);
       throw error;

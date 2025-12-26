@@ -1,20 +1,36 @@
 {
-  "name": "Tabz",
+  "name": "tabz",
   "version": "1.0.0",
   "private": true,
+  "description": "Tabz - Anonymous tab management system for bars and restaurants",
   "workspaces": [
-    "apps/customer",
-    "apps/staff"
+    "apps/*",
+    "packages/*",
+    "api"
   ],
   "scripts": {
-    "dev:customer": "npm run dev --workspace=apps/customer",
-    "dev:staff": "npm run dev --workspace=apps/staff",
-    "build:customer": "npm run build --workspace=apps/customer",
-    "build:staff": "npm run build --workspace=apps/staff"
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:customer": "pnpm --filter @tabz/customer dev",
+    "dev:staff": "pnpm --filter @tabz/staff dev",
+    "build": "pnpm --recursive --filter \"./apps/*\" build",
+    "build:customer": "pnpm --filter @tabz/customer build",
+    "build:staff": "pnpm --filter @tabz/staff build",
+    "start": "pnpm --recursive --filter \"./apps/*\" start",
+    "start:customer": "pnpm --filter @tabz/customer start",
+    "start:staff": "pnpm --filter @tabz/staff start",
+    "lint": "pnpm --recursive lint",
+    "clean": "pnpm --recursive clean && rimraf node_modules",
+    "type-check": "pnpm --recursive type-check"
   },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.88.0",
-    "@vercel/node": "^5.5.15",
-    "dotenv": "^17.2.3"
-  }
+  "devDependencies": {
+    "turbo": "^2.7.2",
+    "prettier": "^3.2.5",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@10.25.0+sha512.5e82639027af37cf832061bcc6d639c219634488e0f2baebe785028a793de7b525ffcd3f7ff574f5e9860654e098fe852ba8ac5dd5cefe1767d23a020a92f501"
 }
