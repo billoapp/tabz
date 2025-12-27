@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCard as CreditCardIcon, DollarSign } from 'lucide-react';
+import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface Product {
@@ -77,7 +77,6 @@ export default function MenuPage() {
     realTimeTimerRef.current = setInterval(() => {
       setCurrentTime(Date.now());
     }, 1000);
-
     return () => {
       if (realTimeTimerRef.current) {
         clearInterval(realTimeTimerRef.current);
@@ -95,7 +94,6 @@ export default function MenuPage() {
       console.log('⏭️ Load already attempted, skipping...');
       return;
     }
-    
     loadAttempted.current = true;
     console.log('🔄 Menu page: Starting loadTabData...');
     loadTabData();
@@ -103,37 +101,28 @@ export default function MenuPage() {
 
   const loadTabData = async () => {
     console.log('📋 Menu page: loadTabData called');
-    
     // Give sessionStorage time to be available (sometimes needed after navigation)
     await new Promise(resolve => setTimeout(resolve, 100));
-    
     const tabData = sessionStorage.getItem('currentTab');
     console.log('📦 Menu page: Retrieved tab data from sessionStorage:', tabData ? 'Found' : 'Not found');
-    
     if (!tabData) {
       console.error('❌ Menu page: No tab data found in sessionStorage');
       console.log('📦 All sessionStorage keys:', Object.keys(sessionStorage));
-      
       // Wait a bit longer and try once more before giving up
       await new Promise(resolve => setTimeout(resolve, 500));
       const retryTabData = sessionStorage.getItem('currentTab');
-      
       if (!retryTabData) {
         console.error('❌ Menu page: Still no tab data after retry, redirecting to home');
         router.replace('/');
         return;
       }
-      
       console.log('✅ Menu page: Found tab data on retry');
     }
-
     const finalTabData = tabData || sessionStorage.getItem('currentTab');
-    
     let currentTab;
     try {
       currentTab = JSON.parse(finalTabData!);
       console.log('✅ Menu page: Parsed tab data:', currentTab.id);
-      
       if (!currentTab?.id) {
         throw new Error('Invalid tab data - missing ID');
       }
@@ -144,7 +133,6 @@ export default function MenuPage() {
       router.replace('/');
       return;
     }
-
     try {
       console.log('🔍 Menu page: Fetching full tab data from Supabase...');
       const { data: fullTab, error: tabError } = await supabase
@@ -152,12 +140,11 @@ export default function MenuPage() {
         .select('*, bar:bars(id, name, location)')
         .eq('id', currentTab.id)
         .maybeSingle();
-        
+
       if (tabError) {
         console.error('❌ Menu page: Error fetching tab:', tabError);
         throw tabError;
       }
-      
       if (!fullTab) {
         console.error('❌ Menu page: Tab not found in database');
         sessionStorage.removeItem('currentTab');
@@ -165,11 +152,9 @@ export default function MenuPage() {
         router.replace('/');
         return;
       }
-
       console.log('✅ Menu page: Full tab loaded:', fullTab);
       setTab(fullTab);
       setBarName(fullTab.bar?.name || 'Bar');
-
       let name = 'Your Tab';
       if (fullTab.notes) {
         try {
@@ -182,7 +167,6 @@ export default function MenuPage() {
         name = `Tab ${fullTab.tab_number}`;
       }
       setDisplayName(name);
-
       if (fullTab.bar?.id) {
         try {
           const { data: categoriesData, error: categoriesError } = await supabase
@@ -202,7 +186,6 @@ export default function MenuPage() {
         } catch (error) {
           console.error('Error loading categories:', error);
         }
-
         try {
           const { data: barProductsData, error: barProductsError } = await supabase
             .from('bar_products')
@@ -232,7 +215,6 @@ export default function MenuPage() {
           console.error('Error loading products:', error);
         }
       }
-
       try {
         const { data: ordersData, error: ordersError } = await supabase
           .from('tab_orders')
@@ -243,7 +225,6 @@ export default function MenuPage() {
       } catch (error) {
         console.error('Error loading orders:', error);
       }
-
       try {
         const { data: paymentsData, error: paymentsError } = await supabase
           .from('tab_payments')
@@ -259,7 +240,6 @@ export default function MenuPage() {
     } finally {
       setLoading(false);
     }
-
     getPendingOrderTime();
   };
 
@@ -268,12 +248,10 @@ export default function MenuPage() {
     const tabTotal = orders.filter(order => order.status !== 'cancelled').reduce((sum, order) => sum + parseFloat(order.total), 0);
     const paidTotal = payments.filter(payment => payment.status === 'success').reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
     const balance = tabTotal - paidTotal;
-
     if (balance > 0) {
       alert(`You still have an outstanding balance of KSh ${balance.toFixed(0)}. Please complete payment before closing.`);
       return;
     }
-
     try {
       const { error } = await supabase
         .from('tabs')
@@ -284,13 +262,11 @@ export default function MenuPage() {
         })
         .eq('id', tab.id);
       if (error) throw error;
-
       sessionStorage.removeItem('currentTab');
       sessionStorage.removeItem('cart');
       sessionStorage.removeItem('displayName');
       sessionStorage.removeItem('barName');
       sessionStorage.removeItem('oldestPendingCustomerOrderTime');
-
       alert('✅ Tab closed successfully! Thank you for visiting ' + barName + '.');
       router.push('/');
     } catch (error: any) {
@@ -392,11 +368,8 @@ export default function MenuPage() {
         price: item.price,
         total: item.price * item.quantity
       }));
-
       const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
       const orderSubmissionTime = new Date().toISOString();
-
       const { error } = await supabase
         .from('tab_orders')
         .insert({
@@ -407,7 +380,6 @@ export default function MenuPage() {
           initiated_by: 'customer'
         });
       if (error) throw error;
-
       sessionStorage.setItem('oldestPendingCustomerOrderTime', orderSubmissionTime);
       sessionStorage.removeItem('cart');
       setCart([]);
@@ -427,17 +399,14 @@ export default function MenuPage() {
       alert('Cash payment confirmed. Please wait for staff to confirm.');
       return;
     }
-
     if (activePaymentMethod === 'mpesa' && (!phoneNumber || !paymentAmount)) {
       alert('Please enter phone number and amount');
       return;
     }
-
     if (activePaymentMethod === 'cards' && !paymentAmount) {
       alert('Please enter amount');
       return;
     }
-
     try {
       const { error } = await supabase
         .from('tab_payments')
@@ -449,7 +418,6 @@ export default function MenuPage() {
           reference: `PAY${Date.now()}`
         });
       if (error) throw error;
-
       alert('Payment successful! 🎉');
       setPaymentAmount('');
       setPhoneNumber('');
@@ -483,29 +451,23 @@ export default function MenuPage() {
 
   const getPendingOrderTime = () => {
     const pendingCustomerOrders = orders.filter(o => o.status === 'pending' && o.initiated_by === 'customer');
-
     if (pendingCustomerOrders.length === 0) {
       sessionStorage.removeItem('oldestPendingCustomerOrderTime');
       return null;
     }
-
     const oldestPendingOrder = pendingCustomerOrders.reduce((oldest, current) => {
       return new Date(current.created_at) < new Date(oldest.created_at) ? current : oldest;
     }, pendingCustomerOrders[0]);
-
     const storedSubmissionTimeStr = sessionStorage.getItem('oldestPendingCustomerOrderTime');
     let orderTime;
-
     if (storedSubmissionTimeStr) {
       orderTime = new Date(storedSubmissionTimeStr).getTime();
     } else {
       orderTime = new Date(oldestPendingOrder.created_at).getTime();
       sessionStorage.setItem('oldestPendingCustomerOrderTime', new Date(orderTime).toISOString());
     }
-
     const now = currentTime;
     const elapsedSeconds = Math.floor((now - orderTime) / 1000);
-
     return {
       elapsed: elapsedSeconds,
       orderId: oldestPendingOrder.id,
@@ -543,12 +505,10 @@ export default function MenuPage() {
   }
 
   const parallaxOffset = scrollY * 0.5;
-
   const numberedOrders = [...orders].reverse().map((order, index) => ({
     ...order,
     number: orders.length - index
   }));
-
   const lastOrder = orders[orders.length - 1];
   const lastOrderTotal = lastOrder ? parseFloat(lastOrder.total).toFixed(0) : '0';
   const lastOrderTime = lastOrder ? timeAgo(lastOrder.created_at) : '';
@@ -586,31 +546,26 @@ export default function MenuPage() {
       {(() => {
         const pendingTime = getPendingOrderTime();
         if (!pendingTime) return null;
-
         const elapsedSeconds = pendingTime.elapsed;
         const maxTimeSeconds = 900;
         const elapsedPercentage = Math.min((elapsedSeconds / maxTimeSeconds) * 100, 100);
-
         const getStrokeColor = (percentage: number) => {
           if (percentage <= 33) {
             return "url(#gradient-green)";
           } else if (percentage <= 66) {
-            return "url(#gradient-yellow)";
+            return "url(#gradient-orange)";
           } else {
             return "url(#gradient-red)";
           }
         };
-
         const circumference = 2 * Math.PI * 45;
         const segmentLength = (elapsedPercentage / 100) * circumference;
         const strokeDasharray = `${segmentLength} ${circumference}`;
         const startOffset = circumference * 0.25;
         const strokeDashoffset = startOffset;
         const strokeColor = getStrokeColor(elapsedPercentage);
-
         return (
           <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 flex flex-col items-center justify-center animate-fadeIn">
-            {/* <p className="text-sm font-semibold text-gray-600 mb-4 uppercase tracking-wide">Your Oldest Order is Being Prepared</p> */}
             <div className="relative" style={{ width: '45vw', height: '45vw', maxWidth: '280px', maxHeight: '280px' }}>
               <div className="absolute inset-0 rounded-full bg-gradient-to-r from-orange-400 to-red-500 opacity-20 animate-pulse-slow"></div>
               <svg className="absolute inset-0 w-full h-full">
@@ -661,7 +616,6 @@ export default function MenuPage() {
       <div ref={menuRef} className="bg-white relative overflow-hidden">
         <div className="p-4 border-b bg-gradient-to-r from-orange-50 to-red-50">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Menu</h2>
-          
           {/* Category Filter Buttons */}
           <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
             {categoryOptions.map((category) => (
@@ -679,7 +633,6 @@ export default function MenuPage() {
             ))}
           </div>
         </div>
-        
         <div className="relative">
           <div className="overflow-x-auto scrollbar-hide px-4 pb-4">
             <div className="flex gap-4 pb-4" style={{ paddingLeft: '16px' }}>
@@ -696,35 +649,35 @@ export default function MenuPage() {
                     }}
                   >
                     <div
-                      className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer transform transition-all hover:scale-105"
-                      onClick={() => addToCart(barProduct)} // Clicking image adds to cart
+                      className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer transform transition-all hover:scale-105 flex flex-col"
+                      onClick={() => addToCart(barProduct)}
                     >
-                      {displayImage ? (
-                        <img
-                          src={displayImage}
-                          alt={product.name || 'Product'}
-                          className="w-full h-40 object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            const parent = e.currentTarget.parentElement;
-                            if (parent) {
-                              const fallback = document.createElement('div');
-                              fallback.className = 'w-full h-40 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg flex items-center justify-center';
-                              const span = document.createElement('span');
-                              span.className = 'text-4xl text-gray-400 font-semibold';
-                              span.textContent = product.category?.charAt(0) || 'P';
-                              fallback.appendChild(span);
-                              parent.appendChild(fallback);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-40 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg flex items-center justify-center">
-                          <span className="text-4xl text-gray-400 font-semibold">
+                      {/* 4:5 Aspect Ratio Container (256px wide → 320px tall) */}
+                      <div className="w-full pb-[125%] relative bg-gray-100">
+                        {displayImage ? (
+                          <img
+                            src={displayImage}
+                            alt={product.name || 'Product'}
+                            className="absolute inset-0 w-full h-full object-contain" // ← removed p-2
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) {
+                                const fallback = document.createElement('div');
+                                fallback.className = 'absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300';
+                                fallback.textContent = product.category?.charAt(0) || 'P';
+                                parent.appendChild(fallback);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300">
                             {product.category?.charAt(0) || 'P'}
-                          </span>
-                        </div>
-                      )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Product info below image */}
                       <div className="p-4">
                         <h3 className="text-sm font-medium text-gray-900">{product.name || 'Product'}</h3>
                         <p className="text-xs text-gray-500 mt-1">KSh {barProduct.sale_price.toFixed(0)}</p>
@@ -744,7 +697,6 @@ export default function MenuPage() {
         className="bg-gray-50 p-4"
       >
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Order History</h2>
-
         {/* Order Summary Card */}
         {orders.length > 0 && (
           <div className="flex items-center justify-between mb-4 bg-white rounded-lg border border-gray-100 p-4">
@@ -759,7 +711,6 @@ export default function MenuPage() {
             </div>
           </div>
         )}
-
         {/* Order History List */}
         <div className="bg-white rounded-lg border border-gray-100 p-4 space-y-0">
           {orders.length === 0 ? (
@@ -770,7 +721,6 @@ export default function MenuPage() {
               const initiatedBy = order.initiated_by || 'customer';
               const isStaffOrder = initiatedBy === 'staff';
               const needsApproval = order.status === 'pending' && isStaffOrder;
-
               return (
                 <div key={order.id}>
                   <div className="py-4">
@@ -876,7 +826,6 @@ export default function MenuPage() {
                 </div>
               </button>
             </div>
-
             {/* Visa Card Header (only visible in Cards tab) */}
             {activePaymentMethod === 'cards' && (
               <div className="flex items-center justify-between mb-4">
@@ -892,13 +841,11 @@ export default function MenuPage() {
                 <button className="text-xs text-orange-500 font-medium">Change</button>
               </div>
             )}
-
             <div className="border-t border-gray-100 pt-4">
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
                 <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
                 <p className="text-3xl font-bold text-orange-600">KSh {balance.toFixed(0)}</p>
               </div>
-
               <div className="space-y-4">
                 {/* M-Pesa Form */}
                 {activePaymentMethod === 'mpesa' && (
@@ -939,7 +886,6 @@ export default function MenuPage() {
                     </div>
                   </>
                 )}
-
                 {/* Cards Form */}
                 {activePaymentMethod === 'cards' && (
                   <div>
@@ -967,7 +913,6 @@ export default function MenuPage() {
                     </div>
                   </div>
                 )}
-
                 {/* Cash Form */}
                 {activePaymentMethod === 'cash' && (
                   <div className="text-center py-4">
@@ -978,7 +923,6 @@ export default function MenuPage() {
                     </div>
                   </div>
                 )}
-
                 <button
                   onClick={processPayment}
                   disabled={
@@ -995,7 +939,6 @@ export default function MenuPage() {
           </div>
         </div>
       )}
-
       {balance === 0 && orders.length > 0 && (
         <div className="bg-white p-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">All Paid! 🎉</h2>
@@ -1024,7 +967,6 @@ export default function MenuPage() {
           </p>
         </div>
       )}
-
       {showCloseConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
@@ -1052,7 +994,6 @@ export default function MenuPage() {
           </div>
         </div>
       )}
-
       {showCart && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-30 flex items-end">
           <div className="bg-white w-full rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto">
@@ -1098,7 +1039,6 @@ export default function MenuPage() {
           </div>
         </div>
       )}
-
       {cartCount > 0 && (
         <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-orange-500 text-white rounded-full p-4 shadow-lg hover:bg-orange-600 flex items-center gap-2 z-20">
           <ShoppingCart size={24} />

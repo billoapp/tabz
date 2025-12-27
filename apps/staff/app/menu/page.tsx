@@ -116,6 +116,19 @@ export default function MenuManagementPage() {
     return category?.image_url || null;
   };
 
+  // Helper function to convert Google Drive share links to direct links
+  const convertGoogleDriveLink = (url: string): string => {
+    if (!url) return url;
+    if (url.includes('drive.google.com') && url.includes('/file/d/')) {
+      const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        const fileId = match[1];
+        return `https://drive.google.com/uc?export=view&id=${fileId}`;
+      }
+    }
+    return url;
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -229,7 +242,6 @@ export default function MenuManagementPage() {
     }
   };
 
-  // Reload custom products whenever bar menu changes
   useEffect(() => {
     if (barId && barProducts.length >= 0) {
       loadCustomProducts();
@@ -258,7 +270,6 @@ export default function MenuManagementPage() {
     return barProducts.some((item) => item.product_id === productId);
   };
 
-  // ADD GLOBAL PRODUCT to menu
   const handleAddToMenu = async (product: Product) => {
     const price = addingPrice[product.id];
     if (!price || parseFloat(price) <= 0) {
@@ -303,7 +314,6 @@ export default function MenuManagementPage() {
     }
   };
 
-  // PUBLISH CUSTOM PRODUCT to menu
   const handlePublishCustomProduct = async (customProduct: CustomProduct) => {
     const price = addingPrice[customProduct.id];
     if (!price || parseFloat(price) <= 0) {
@@ -338,7 +348,6 @@ export default function MenuManagementPage() {
     }
   };
 
-  // CREATE CUSTOM PRODUCT (unpublished)
   const handleCreateCustomProduct = async () => {
     if (!newCustomItem.name || !newCustomItem.category) {
       alert('Please fill in name and category');
@@ -372,7 +381,6 @@ export default function MenuManagementPage() {
     }
   };
 
-  // UPDATE PRICE in bar_products
   const handleUpdatePrice = async (barProductId: string, newPrice: number) => {
     try {
       const { error } = await supabase
@@ -395,7 +403,6 @@ export default function MenuManagementPage() {
     }
   };
 
-  // UPDATE CUSTOM PRODUCT details
   const handleUpdateCustomProduct = async (customProductId: string) => {
     try {
       const { error } = await supabase
@@ -423,7 +430,6 @@ export default function MenuManagementPage() {
     }
   };
 
-  // REMOVE from menu (unpublish)
   const handleRemoveFromMenu = async (menuItemId: string) => {
     if (!window.confirm('Remove this item from your menu?')) return;
 
@@ -444,7 +450,6 @@ export default function MenuManagementPage() {
     }
   };
 
-  // DELETE CUSTOM PRODUCT permanently
   const handleDeleteCustomProduct = async (customProductId: string) => {
     if (!window.confirm('Permanently delete this custom product?')) return;
 
@@ -583,9 +588,7 @@ export default function MenuManagementPage() {
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
                             <h3 className="font-semibold text-gray-800">{product.name}</h3>
-                            <p className="text-xs text-gray-500">
-                              SKU: {product.sku}
-                            </p>
+                            <p className="text-xs text-gray-500">SKU: {product.sku}</p>
                             <span className="inline-block mt-1 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
                               {product.category}
                             </span>
@@ -746,85 +749,13 @@ export default function MenuManagementPage() {
                           rows={2}
                           className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                         />
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-700">Product Image (optional)</label>
-                          <input
-                            type="text"
-                            value={editForm.image_url || ''}
-                            onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
-                            placeholder="Paste image URL here"
-                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                          />
-                          <details className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <summary className="text-xs font-semibold text-gray-700 cursor-pointer">
-                              📸 How to upload an image
-                            </summary>
-                            <div className="space-y-2 text-xs text-gray-600 mt-2">
-                              <div>
-                                <p className="font-medium text-gray-700">Option 1: Google Drive</p>
-                                <ol className="list-decimal ml-4 space-y-1 mt-1">
-                                  <li>
-                                    Open{' '}
-                                    <a
-                                      href="https://drive.google.com"
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 underline"
-                                    >
-                                      Google Drive
-                                    </a>
-                                  </li>
-                                  <li>Upload your image</li>
-                                  <li>
-                                    Right-click → Get link → Change to &quot;Anyone with the link&quot;
-                                  </li>
-                                  <li>Copy the link and paste it above</li>
-                                </ol>
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-700">Option 2: ImgBB (Free, no account needed)</p>
-                                <ol className="list-decimal ml-4 space-y-1 mt-1">
-                                  <li>
-                                    Visit{' '}
-                                    <a
-                                      href="https://imgbb.com"
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 underline"
-                                    >
-                                      imgbb.com
-                                    </a>
-                                  </li>
-                                  <li>Click &quot;Start uploading&quot; and select your image</li>
-                                  <li>Copy the &quot;Direct link&quot; and paste above</li>
-                                </ol>
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-700">Option 3: OneDrive</p>
-                                <ol className="list-decimal ml-4 space-y-1 mt-1">
-                                  <li>
-                                    Open{' '}
-                                    <a
-                                      href="https://onedrive.live.com"
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 underline"
-                                    >
-                                      OneDrive
-                                    </a>
-                                  </li>
-                                  <li>Upload your image</li>
-                                  <li>Click &quot;Share&quot; → Copy link → Paste above</li>
-                                </ol>
-                              </div>
-                            </div>
-                            <div className="mt-2 pt-2 border-t border-gray-300">
-                              <p className="text-xs text-gray-500">
-                                💡 Tip: For best results, use square images (e.g., 500x500px)
-                              </p>
-                            </div>
-                          </details>
-                        </div>
+                        <input
+                          type="text"
+                          value={editForm.image_url || ''}
+                          onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
+                          placeholder="Image URL (optional)"
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                        />
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleUpdateCustomProduct(cp.id)}
@@ -908,9 +839,7 @@ export default function MenuManagementPage() {
 
           {/* Your Menu (Published Items) */}
           <div>
-            <h2 className="text-lg font-bold text-gray-800 mb-3">
-              Your Menu ({barProducts.length} items)
-            </h2>
+            <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu ({barProducts.length} items)</h2>
             {barProducts.length === 0 ? (
               <div className="bg-white rounded-xl p-8 text-center text-gray-500">
                 <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
@@ -922,29 +851,18 @@ export default function MenuManagementPage() {
                 {barProducts.map((item) => {
                   const isCustom = !!item.custom_product_id;
                   const productData = isCustom
-                    ? ({
-                        ...item,
-                        name: item.name,
-                        category: item.category,
-                        description: item.description,
-                        id: item.custom_product_id,
-                      } as CustomProduct)
-                    : ({
-                        ...item,
-                        supplier_id: undefined,
-                        id: item.product_id || '',
-                      } as Product);
-
+                    ? (item as CustomProduct)
+                    : ({ ...item, id: item.product_id || '' } as Product);
                   const displayImage = isCustom
-                    ? productData.image_url
-                    : getDisplayImage(productData as Product, productData.category);
+                    ? item.image_url
+                    : getDisplayImage(productData as Product, item.category);
 
                   return (
                     <div key={item.id} className="p-4">
                       {editingPrice === item.id ? (
                         <div className="flex items-center gap-3">
                           <div className="flex-1">
-                            <p className="font-semibold text-gray-800 mb-2">{productData.name}</p>
+                            <p className="font-semibold text-gray-800 mb-2">{item.name}</p>
                             <input
                               type="number"
                               defaultValue={item.sale_price}
@@ -963,10 +881,8 @@ export default function MenuManagementPage() {
                           </div>
                           <button
                             onClick={() => {
-                              const input = document.querySelector(
-                                `input[type="number"]`
-                              ) as HTMLInputElement;
-                              const newPrice = parseFloat(input.value);
+                              const input = document.querySelector(`input[type="number"]`) as HTMLInputElement;
+                              const newPrice = parseFloat(input?.value || '0');
                               if (newPrice > 0) {
                                 handleUpdatePrice(item.id, newPrice);
                               }
@@ -988,7 +904,7 @@ export default function MenuManagementPage() {
                             <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                               <img
                                 src={displayImage}
-                                alt={productData.name}
+                                alt={item.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
                                   (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -1002,16 +918,14 @@ export default function MenuManagementPage() {
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="font-semibold text-gray-800">{productData.name || 'Unknown Product'}</p>
+                              <p className="font-semibold text-gray-800">{item.name}</p>
                               {isCustom && (
                                 <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
                                   Custom
                                 </span>
                               )}
                             </div>
-                            {productData.description && (
-                              <p className="text-xs text-gray-600 mt-1">{productData.description}</p>
-                            )}
+                            {item.description && <p className="text-xs text-gray-600 mt-1">{item.description}</p>}
                             <p className="text-sm text-orange-600 font-bold mt-1">
                               KSh {item.sale_price.toLocaleString()}
                             </p>
@@ -1026,12 +940,12 @@ export default function MenuManagementPage() {
                           {isCustom && (
                             <button
                               onClick={() => {
-                                setEditingCustom(productData.id);
+                                setEditingCustom(item.custom_product_id!);
                                 setEditForm({
-                                  name: productData.name,
-                                  category: productData.category,
-                                  description: productData.description || '',
-                                  image_url: productData.image_url || '',
+                                  name: item.name,
+                                  category: item.category,
+                                  description: item.description || '',
+                                  image_url: item.image_url || '',
                                 });
                               }}
                               className="p-2 text-purple-500 hover:bg-purple-50 rounded-lg"
@@ -1103,36 +1017,39 @@ export default function MenuManagementPage() {
                     <input
                       type="text"
                       value={newCustomItem.image_url}
-                      onChange={(e) => setNewCustomItem({ ...newCustomItem, image_url: e.target.value })}
+                      onChange={(e) => {
+                        const convertedUrl = convertGoogleDriveLink(e.target.value);
+                        setNewCustomItem({ ...newCustomItem, image_url: convertedUrl });
+                      }}
+                      onBlur={(e) => {
+                        const convertedUrl = convertGoogleDriveLink(e.target.value);
+                        if (convertedUrl !== e.target.value) {
+                          setNewCustomItem({ ...newCustomItem, image_url: convertedUrl });
+                        }
+                      }}
                       placeholder="Paste image URL here"
                       className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                     />
+                    {newCustomItem.image_url && (
+                      <div className="mt-2 p-2 bg-gray-50 rounded-lg">
+                        <p className="text-xs text-gray-600 mb-1">Preview:</p>
+                        <img
+                          src={newCustomItem.image_url}
+                          alt="Preview"
+                          className="w-20 h-20 object-cover rounded"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement!.innerHTML +=
+                              '<p class="text-xs text-red-600">❌ Invalid image URL</p>';
+                          }}
+                        />
+                      </div>
+                    )}
                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                       <p className="text-xs font-semibold text-gray-700 mb-2">📸 How to upload an image:</p>
                       <div className="space-y-2 text-xs text-gray-600">
-                        <div>
-                          <p className="font-medium text-gray-700">Option 1: Google Drive</p>
-                          <ol className="list-decimal ml-4 space-y-1 mt-1">
-                            <li>
-                              Open{' '}
-                              <a
-                                href="https://drive.google.com"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 underline"
-                              >
-                                Google Drive
-                              </a>
-                            </li>
-                            <li>Upload your image</li>
-                            <li>
-                              Right-click → Get link → Change to &quot;Anyone with the link&quot;
-                            </li>
-                            <li>Copy the link and paste it above</li>
-                          </ol>
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-700">Option 2: ImgBB (Free, no account needed)</p>
+                        <div className="bg-green-50 border border-green-200 rounded p-2">
+                          <p className="font-medium text-green-800">✅ RECOMMENDED: ImgBB (Easiest!)</p>
                           <ol className="list-decimal ml-4 space-y-1 mt-1">
                             <li>
                               Visit{' '}
@@ -1140,38 +1057,57 @@ export default function MenuManagementPage() {
                                 href="https://imgbb.com"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-600 underline"
+                                className="text-blue-600 underline font-medium"
                               >
                                 imgbb.com
                               </a>
                             </li>
-                            <li>Click &quot;Start uploading&quot; and select your image</li>
-                            <li>Copy the &quot;Direct link&quot; and paste above</li>
+                            <li>Click "Start uploading" and select your image</li>
+                            <li>Copy the <strong>"Direct link"</strong> (ends with .jpg or .png)</li>
+                            <li>Paste it in the box above</li>
+                          </ol>
+                          <p className="text-green-700 mt-1 font-medium">✓ Free • No account needed • Works instantly</p>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                          <p className="font-medium text-blue-800">✅ Google Drive (Auto-converts!)</p>
+                          <ol className="list-decimal ml-4 space-y-1 mt-1">
+                            <li>Upload to Google Drive</li>
+                            <li>
+                              Right-click → Get link → Set to "Anyone with the link"
+                            </li>
+                            <li>Paste the link above - it will auto-convert! ✨</li>
                           </ol>
                         </div>
                         <div>
-                          <p className="font-medium text-gray-700">Option 3: OneDrive</p>
-                          <ol className="list-decimal ml-4 space-y-1 mt-1">
-                            <li>
-                              Open{' '}
-                              <a
-                                href="https://onedrive.live.com"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 underline"
-                              >
-                                OneDrive
-                              </a>
-                            </li>
-                            <li>Upload your image</li>
-                            <li>Click &quot;Share&quot; → Copy link → Paste above</li>
-                          </ol>
+                          <p className="font-medium text-gray-700">Other Options:</p>
+                          <p className="ml-4 mt-1">
+                            •{' '}
+                            <a
+                              href="https://imgur.com/upload"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 underline"
+                            >
+                              Imgur
+                            </a>{' '}
+                            - Popular & reliable
+                          </p>
+                          <p className="ml-4">
+                            •{' '}
+                            <a
+                              href="https://postimages.org"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 underline"
+                            >
+                              Postimages
+                            </a>{' '}
+                            - Simple & fast
+                          </p>
                         </div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-gray-300">
-                        <p className="text-xs text-gray-500">
-                          💡 Tip: For best results, use square images (e.g., 500x500px)
-                        </p>
+                        <p className="text-xs text-gray-500">💡 Tip: Use square images (500x500px) for best display</p>
                       </div>
                     </div>
                   </div>
