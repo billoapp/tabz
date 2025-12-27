@@ -11,7 +11,7 @@
     }
   },
   "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "@public_supabase_url",
+    "PUBLIC_SUPABASE_URL": "@public_supabase_url",
     "SUPABASE_PUBLISHABLE_KEY": "@supabase_publishable_key",
     "NEXT_PUBLIC_HCAPTCHA_SITE_KEY": "@next_public_hcaptcha_site_key",
     "HCAPTCHA_SECRET_KEY": "@hcaptcha_secret_key"
