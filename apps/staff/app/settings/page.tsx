@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
 export default function SettingsPage() {
   const router = useRouter();
   const [barInfo, setBarInfo] = useState({
