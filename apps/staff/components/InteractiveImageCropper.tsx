@@ -504,36 +504,13 @@ export default function InteractiveImageCropper({
                   onMouseUp={handleMouseUp}
                   onMouseLeave={handleMouseUp}
                 >
-                  {/* 4:5 Crop Overlay */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    {/* Semi-transparent overlay outside crop area */}
-                    <div className="absolute inset-0 bg-black/50" />
-                    
-                    {/* Crop area window */}
-                    <div 
-                      className="absolute border-4 border-white shadow-2xl"
-                      style={{
-                        width: `${CROP_WIDTH}px`,
-                        height: `${CROP_HEIGHT}px`,
-                        left: '50%',
-                        top: '50%',
-                        transform: 'translate(-50%, -50%)'
-                      }}
-                    />
-                    
-                    {/* Aspect ratio indicator */}
-                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-medium">
-                      4:5 Ratio
-                    </div>
-                  </div>
-
                   {/* Image being cropped */}
                   {originalImage && (
                     <img
                       ref={imageRef}
                       src={originalImage}
                       alt="Crop preview"
-                      className="absolute select-none"
+                      className="absolute select-none z-10"
                       style={{
                         transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
                         transformOrigin: '0 0',
@@ -542,12 +519,36 @@ export default function InteractiveImageCropper({
                       onLoad={() => generatePreview()}
                     />
                   )}
+
+                  {/* 4:5 Crop Overlay */}
+                  <div className="absolute inset-0 pointer-events-none z-20">
+                    {/* Semi-transparent overlay outside crop area */}
+                    <div className="absolute inset-0 bg-black/50" />
+                    
+                    {/* Crop area window - transparent area */}
+                    <div 
+                      className="absolute border-4 border-white shadow-2xl"
+                      style={{
+                        width: `${CROP_WIDTH}px`,
+                        height: `${CROP_HEIGHT}px`,
+                        left: '50%',
+                        top: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)'
+                      }}
+                    />
+                    
+                    {/* Aspect ratio indicator */}
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-medium z-30">
+                      4:5 Ratio
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Preview Panel */}
-            {previewUrl && (
+            {/* Preview Panel - Always show when image is loaded */}
+            {originalImage && (
               <div className="mt-6 p-4 bg-gray-50 rounded-xl">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-medium text-gray-700">Preview (4:5 Cropped)</h3>
@@ -557,11 +558,17 @@ export default function InteractiveImageCropper({
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="w-32 h-40 border-2 border-gray-300 rounded-lg overflow-hidden flex-shrink-0">
-                    <img
-                      src={previewUrl}
-                      alt="Cropped preview"
-                      className="w-full h-full object-cover"
-                    />
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt="Cropped preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                        <p className="text-gray-500 text-xs">Adjust image to see preview</p>
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1">
                     <p className="text-sm text-gray-600 mb-3">
@@ -569,7 +576,7 @@ export default function InteractiveImageCropper({
                     </p>
                     <button
                       onClick={handleCropAndUpload}
-                      disabled={isProcessing}
+                      disabled={isProcessing || !previewUrl}
                       className="bg-orange-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                       {isProcessing ? (
