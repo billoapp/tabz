@@ -11,10 +11,10 @@
     }
   },
   "env": {
-    "PUBLIC_SUPABASE_URL": "@public_supabase_url",
-    "SUPABASE_PUBLISHABLE_KEY": "@supabase_publishable_key",
-    "PUBLIC_HCAPTCHA_SITE_KEY": "@public_hcaptcha_site_key",
-    "HCAPTCHA_SECRET_KEY": "@hcaptcha_secret_key"
+    "PUBLIC_SUPABASE_URL": "PUBLIC_SUPABASE_URL",
+    "SUPABASE_PUBLISHABLE_KEY": "SUPABASE_PUBLISHABLE_KEY",
+    "PUBLIC_HCAPTCHA_SITE_KEY": "PUBLIC_HCAPTCHA_SITE_KEY",
+    "HCAPTCHA_SECRET_KEY": "HCAPTCHA_SECRET_KEY"
   },
   "headers": [
     {
