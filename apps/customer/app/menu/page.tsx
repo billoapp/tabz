@@ -477,7 +477,7 @@ export default function MenuPage() {
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const tabTotal = orders.filter(order => order.status !== 'cancelled').reduce((sum, order) => sum + parseFloat(order.total), 0);
+  const tabTotal = orders.filter(order => order.status === 'confirmed').reduce((sum, order) => sum + parseFloat(order.total), 0);
   const paidTotal = payments.filter(payment => payment.status === 'success').reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
   const balance = tabTotal - paidTotal;
   const pendingStaffOrders = orders.filter(o => o.status === 'pending' && o.initiated_by === 'staff').length;
@@ -546,9 +546,9 @@ export default function MenuPage() {
   }
 
   const parallaxOffset = scrollY * 0.5;
-  const numberedOrders = [...orders].reverse().map((order, index) => ({
+  const numberedOrders = orders.map((order, index) => ({
     ...order,
-    number: orders.length - index
+    number: index + 1
   }));
   const lastOrder = orders[orders.length - 1];
   const lastOrderTotal = lastOrder ? parseFloat(lastOrder.total).toFixed(0) : '0';

@@ -206,8 +206,8 @@ export default function TabDetailPage() {
 
   const getTabBalance = () => {
     if (!tab) return 0;
-    const ordersTotal = tab.orders?.reduce((sum: number, order: any) => 
-      sum + parseFloat(order.total), 0) || 0;
+    const ordersTotal = tab.orders?.filter((order: any) => order.status === 'confirmed')
+      .reduce((sum: number, order: any) => sum + parseFloat(order.total), 0) || 0;
     const paymentsTotal = tab.payments?.filter((p: any) => p.status === 'success')
       .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
     return ordersTotal - paymentsTotal;
@@ -268,7 +268,8 @@ export default function TabDetailPage() {
   }
 
   const balance = getTabBalance();
-  const ordersTotal = tab.orders?.reduce((sum: number, order: any) => sum + parseFloat(order.total), 0) || 0;
+  const ordersTotal = tab.orders?.filter((order: any) => order.status === 'confirmed')
+    .reduce((sum: number, order: any) => sum + parseFloat(order.total), 0) || 0;
   const paymentsTotal = tab.payments?.filter((p: any) => p.status === 'success')
     .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
 

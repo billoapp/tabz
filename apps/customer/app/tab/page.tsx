@@ -149,7 +149,7 @@ export default function TabPage() {
   }
 
   const tabTotal = orders
-    .filter(order => order.status !== 'cancelled')
+    .filter(order => order.status === 'confirmed')
     .reduce((sum, order) => sum + parseFloat(order.total), 0);
   const paidTotal = payments
     .filter(payment => payment.status === 'success')
