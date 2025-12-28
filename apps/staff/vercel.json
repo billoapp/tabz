@@ -1,7 +1,7 @@
 {
   "name": "Tabz-staff",
   "buildCommand": "pnpm --filter staff run build",
-  "outputDirectory": "apps/staff/.next",
+  "outputDirectory": ".next",
   "installCommand": "pnpm install --frozen-lockfile",
   "framework": "nextjs",
   "regions": ["cdg1"],
