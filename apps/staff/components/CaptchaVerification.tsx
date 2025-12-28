@@ -61,7 +61,7 @@ export default function CaptchaVerification({
         
         <HCaptcha
           ref={captchaRef}
-          sitekey={process.env.PUBLIC_HCAPTCHA_SITE_KEY!}
+          sitekey={process.env.PUBLIC_HCAPTCHA_SITE_KEY || ''}
           onLoad={onLoad}
           onVerify={onVerifyCaptcha}
           onError={onErrorCaptcha}
