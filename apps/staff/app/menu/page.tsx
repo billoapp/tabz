@@ -12,8 +12,10 @@ import {
   X,
   Edit2,
   Save,
+  Upload,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import InteractiveImageCropper from '@/components/InteractiveImageCropper';
 
 interface Product {
   id: string;
@@ -104,6 +106,10 @@ export default function MenuManagementPage() {
     image_url: '',
   });
 
+  // Cropper states
+  const [showCropper, setShowCropper] = useState(false);
+  const [currentImageField, setCurrentImageField] = useState<'new' | 'edit'>('new');
+
   // Helper function to get display image with category fallback
   const getDisplayImage = (product: Product | undefined, categoryName?: string) => {
     if (!product) {
@@ -127,6 +133,31 @@ export default function MenuManagementPage() {
       }
     }
     return url;
+  };
+
+  // Upload image to server and get URL
+  const uploadImageToServer = async (file: File): Promise<string> => {
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('aspectRatio', '4:5');
+      
+      const response = await fetch('/api/upload-product-image', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+      
+      const data = await response.json();
+      return data.url;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      throw error;
+    }
   };
 
   useEffect(() => {
@@ -470,6 +501,25 @@ export default function MenuManagementPage() {
     }
   };
 
+  // Handle image crop completion
+  const handleImageCropped = async (file: File, imageUrl: string) => {
+    try {
+      // Upload to server to get permanent URL
+      const permanentUrl = await uploadImageToServer(file);
+      
+      if (currentImageField === 'new') {
+        setNewCustomItem({ ...newCustomItem, image_url: permanentUrl });
+      } else {
+        setEditForm({ ...editForm, image_url: permanentUrl });
+      }
+      setShowCropper(false);
+      alert('✅ Image uploaded successfully!');
+    } catch (error: any) {
+      console.error('Error processing image:', error);
+      alert('Failed to upload image: ' + error.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -749,13 +799,63 @@ export default function MenuManagementPage() {
                           rows={2}
                           className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                         />
-                        <input
-                          type="text"
-                          value={editForm.image_url || ''}
-                          onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
-                          placeholder="Image URL (optional)"
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                        />
+                        
+                        {/* Image upload section for edit form */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700">Product Image</label>
+                          {editForm.image_url ? (
+                            <div className="space-y-3">
+                              <div className="relative w-32 h-40 border-2 border-gray-300 rounded-lg overflow-hidden">
+                                <img
+                                  src={editForm.image_url}
+                                  alt="Preview"
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCurrentImageField('edit');
+                                    setShowCropper(true);
+                                  }}
+                                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+                                >
+                                  Change Image
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditForm({ ...editForm, image_url: '' })}
+                                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCurrentImageField('edit');
+                                setShowCropper(true);
+                              }}
+                              className="w-full px-4 py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-orange-500 hover:bg-orange-50 text-center transition-colors"
+                            >
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-red-100 rounded-full flex items-center justify-center">
+                                  <Upload size={24} className="text-orange-500" />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-700">Upload Product Image</p>
+                                  <p className="text-sm text-gray-500 mt-1">
+                                    Click to crop image to 4:5 ratio
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          )}
+                        </div>
+
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleUpdateCustomProduct(cp.id)}
@@ -1012,8 +1112,74 @@ export default function MenuManagementPage() {
                     rows={2}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   />
+                  
+                  {/* Image upload section for new custom product */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Product Image (optional)</label>
+                    <label className="text-sm font-medium text-gray-700">
+                      Product Image
+                      <span className="text-gray-400 ml-1">(optional)</span>
+                    </label>
+                    
+                    {newCustomItem.image_url ? (
+                      <div className="space-y-3">
+                        <div className="relative w-32 h-40 border-2 border-gray-300 rounded-lg overflow-hidden">
+                          <img
+                            src={newCustomItem.image_url}
+                            alt="Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCurrentImageField('new');
+                              setShowCropper(true);
+                            }}
+                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+                          >
+                            Change Image
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewCustomItem({ ...newCustomItem, image_url: '' })}
+                            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentImageField('new');
+                          setShowCropper(true);
+                        }}
+                        className="w-full px-4 py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-orange-500 hover:bg-orange-50 text-center transition-colors"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-red-100 rounded-full flex items-center justify-center">
+                            <Upload size={24} className="text-orange-500" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-700">Upload Product Image</p>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Click to crop image to 4:5 ratio
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">Pan & zoom controls available</p>
+                          </div>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Legacy URL input (as fallback) */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Or paste image URL
+                      <span className="text-gray-400 ml-1">(alternative)</span>
+                    </label>
                     <input
                       type="text"
                       value={newCustomItem.image_url}
@@ -1027,90 +1193,11 @@ export default function MenuManagementPage() {
                           setNewCustomItem({ ...newCustomItem, image_url: convertedUrl });
                         }
                       }}
-                      placeholder="Paste image URL here"
+                      placeholder="Paste image URL here (ImgBB, Google Drive, etc.)"
                       className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                     />
-                    {newCustomItem.image_url && (
-                      <div className="mt-2 p-2 bg-gray-50 rounded-lg">
-                        <p className="text-xs text-gray-600 mb-1">Preview:</p>
-                        <img
-                          src={newCustomItem.image_url}
-                          alt="Preview"
-                          className="w-20 h-20 object-cover rounded"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.parentElement!.innerHTML +=
-                              '<p class="text-xs text-red-600">❌ Invalid image URL</p>';
-                          }}
-                        />
-                      </div>
-                    )}
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                      <p className="text-xs font-semibold text-gray-700 mb-2">📸 How to upload an image:</p>
-                      <div className="space-y-2 text-xs text-gray-600">
-                        <div className="bg-green-50 border border-green-200 rounded p-2">
-                          <p className="font-medium text-green-800">✅ RECOMMENDED: ImgBB (Easiest!)</p>
-                          <ol className="list-decimal ml-4 space-y-1 mt-1">
-                            <li>
-                              Visit{' '}
-                              <a
-                                href="https://imgbb.com"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 underline font-medium"
-                              >
-                                imgbb.com
-                              </a>
-                            </li>
-                            <li>Click "Start uploading" and select your image</li>
-                            <li>Copy the <strong>"Direct link"</strong> (ends with .jpg or .png)</li>
-                            <li>Paste it in the box above</li>
-                          </ol>
-                          <p className="text-green-700 mt-1 font-medium">✓ Free • No account needed • Works instantly</p>
-                        </div>
-                        <div className="bg-blue-50 border border-blue-200 rounded p-2">
-                          <p className="font-medium text-blue-800">✅ Google Drive (Auto-converts!)</p>
-                          <ol className="list-decimal ml-4 space-y-1 mt-1">
-                            <li>Upload to Google Drive</li>
-                            <li>
-                              Right-click → Get link → Set to "Anyone with the link"
-                            </li>
-                            <li>Paste the link above - it will auto-convert! ✨</li>
-                          </ol>
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-700">Other Options:</p>
-                          <p className="ml-4 mt-1">
-                            •{' '}
-                            <a
-                              href="https://imgur.com/upload"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 underline"
-                            >
-                              Imgur
-                            </a>{' '}
-                            - Popular & reliable
-                          </p>
-                          <p className="ml-4">
-                            •{' '}
-                            <a
-                              href="https://postimages.org"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 underline"
-                            >
-                              Postimages
-                            </a>{' '}
-                            - Simple & fast
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-2 pt-2 border-t border-gray-300">
-                        <p className="text-xs text-gray-500">💡 Tip: Use square images (500x500px) for best display</p>
-                      </div>
-                    </div>
                   </div>
+
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="text-sm text-blue-800">
                       💡 This will create an unpublished product. Add a price to publish it to your menu.
@@ -1128,6 +1215,14 @@ export default function MenuManagementPage() {
           </div>
         </div>
       </div>
+
+      {/* Image Cropper Modal */}
+      <InteractiveImageCropper
+        isOpen={showCropper}
+        onClose={() => setShowCropper(false)}
+        onImageReady={handleImageCropped}
+        aspectRatio={4/5}
+      />
     </div>
   );
 }
