@@ -3,8 +3,9 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Store, Mail, Phone, MapPin, Lock, CheckCircle, AlertCircle, Eye, EyeOff, UserCheck, Shield, Clock, TrendingUp } from 'lucide-react';
+import { Mail, Phone, MapPin, Lock, CheckCircle, AlertCircle, Eye, EyeOff, UserCheck, Shield, Clock, TrendingUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import Logo from '@/components/Logo';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -128,7 +129,7 @@ export default function SignupPage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center mb-4">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl">
-              <Store size={32} className="text-white" />
+              <Logo size="lg" variant="white" />
             </div>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-center mb-3">Join Tabeza</h1>
@@ -298,7 +299,9 @@ export default function SignupPage() {
                     Bar/Restaurant Name
                   </label>
                   <div className="relative">
-                    <Store size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                      <Logo size="sm" />
+                    </div>
                     <input
                       type="text"
                       value={formData.barName}

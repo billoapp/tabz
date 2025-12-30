@@ -3,8 +3,9 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Store, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import Logo from '@/components/Logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -82,7 +83,7 @@ export default function LoginPage() {
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white py-12 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl mb-4">
-            <Store size={40} className="text-white" />
+            <Logo size="xl" variant="white" />
           </div>
           <h1 className="text-5xl md:text-6xl font-bold mb-3">Tabeza</h1>
           <p className="text-xl text-orange-50 mb-2">
