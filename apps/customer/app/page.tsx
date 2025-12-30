@@ -4,6 +4,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Zap, DollarSign, Bell, Shield } from 'lucide-react';
+import Logo from '@/components/Logo';
 
 // Create a separate component that uses useSearchParams
 function LandingContent() {
@@ -76,8 +77,11 @@ function LandingContent() {
 
   return (
     <div className="h-screen bg-gradient-to-br from-orange-500 to-red-600 flex flex-col items-center p-4">
-      {/* Header */}
+      {/* Header with Logo */}
       <div className="text-white text-center mb-6">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl mb-4">
+          <Logo size="lg" variant="white" />
+        </div>
         <h1 className="text-4xl font-bold mb-2">Tabeza</h1>
         <p className="text-lg text-orange-100">Order smarter, not harder</p>
       </div>
@@ -85,26 +89,26 @@ function LandingContent() {
       {/* Main Card */}
       <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full flex-1 flex flex-col">
         {/* Benefits Grid */}
-        <div className="space-y-3 mb-6">
+        <div className="space-y-4 mb-8">
           {benefits.map((benefit, index) => (
             <div 
               key={index}
-              className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
+              className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition"
             >
-              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <benefit.icon size={16} className="text-orange-600" />
+              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <benefit.icon size={20} className="text-orange-600" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-800 text-sm mb-1">{benefit.title}</h3>
-                <p className="text-xs text-gray-600">{benefit.description}</p>
+                <p className="text-gray-600 text-sm">{benefit.description}</p>
               </div>
             </div>
           ))}
         </div>
         
         {/* Manual Code Entry */}
-        <div className="mb-4">
-          <label className="block text-xs font-medium text-gray-700 mb-1">
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Or enter bar slug:
           </label>
           <input
@@ -112,25 +116,15 @@ function LandingContent() {
             value={manualCode}
             onChange={(e) => setManualCode(e.target.value)}
             placeholder="e.g., sunset-lounge"
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="w-full px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
             onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}
           />
         </div>
         
-        {/* Debug info (remove in production) */}
-        {slug && (
-          <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-xs text-green-700 font-mono">
-              ✅ QR Code Scanned<br/>
-              Bar: {slug}
-            </p>
-          </div>
-        )}
-        
         {/* CTA */}
         <button
           onClick={handleStart}
-          className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-bold text-base hover:from-orange-600 hover:to-red-700 transition shadow-lg mt-auto"
+          className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-red-700 transition shadow-lg mt-auto"
         >
           Start
         </button>
