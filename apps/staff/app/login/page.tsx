@@ -85,9 +85,12 @@ export default function LoginPage() {
             <Store size={40} className="text-white" />
           </div>
           <h1 className="text-5xl md:text-6xl font-bold mb-3">Tabeza</h1>
-          <p className="text-xl text-orange-50 mb-8">
+          <p className="text-xl text-orange-50 mb-2">
             Tab management for bars and hospitality venues
           </p>
+          <div className="inline-block bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full mb-8">
+            <p className="text-lg font-semibold text-white">100% Free Forever</p>
+          </div>
           
           {/* Quick Stats - Optional but brief */}
           <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">

@@ -132,9 +132,12 @@ export default function SignupPage() {
             </div>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-center mb-3">Join Tabeza</h1>
-          <p className="text-lg md:text-xl text-center text-orange-50 max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl text-center text-orange-50 max-w-2xl mx-auto mb-2">
             Start managing your bar tabs digitally and say goodbye to lost revenue
           </p>
+          <div className="inline-block bg-white/20 backdrop-blur-sm px-6 py-2 rounded-full">
+            <p className="text-lg font-semibold text-white">✨ 100% Free Forever</p>
+          </div>
         </div>
       </div>
 
