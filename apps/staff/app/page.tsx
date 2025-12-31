@@ -16,6 +16,65 @@ const formatCurrency = (amount: number | string, decimals = 0): string => {
   }).format(number)}`;
 };
 
+// Calculate average service time from confirmed orders across all tabs
+const calculateAverageServiceTime = (tabs: any[]): string => {
+  const allConfirmedOrders = tabs.flatMap(tab => 
+    (tab.orders || []).filter((o: any) => 
+      o.status === 'confirmed' && 
+      o.confirmed_at && 
+      o.status !== 'cancelled'  // Exclude cancelled orders
+    )
+  );
+  
+  console.log('📊 Service Time Debug:', {
+    totalTabs: tabs.length,
+    allOrders: tabs.flatMap(tab => tab.orders || []).length,
+    confirmedOrders: tabs.flatMap(tab => (tab.orders || []).filter((o: any) => o.status === 'confirmed')).length,
+    cancelledOrders: tabs.flatMap(tab => (tab.orders || []).filter((o: any) => o.status === 'cancelled')).length,
+    confirmedWithTimestamp: allConfirmedOrders.length,
+    sampleOrder: allConfirmedOrders[0]
+  });
+  
+  if (allConfirmedOrders.length === 0) return '0m';
+  
+  const totalTime = allConfirmedOrders.reduce((sum, order) => {
+    const created = new Date(order.created_at).getTime();
+    const confirmed = new Date(order.confirmed_at).getTime();
+    const serviceTimeSeconds = Math.floor((confirmed - created) / 1000);
+    console.log(`Order ${order.id}: ${serviceTimeSeconds}s (${serviceTimeSeconds/60}m)`);
+    return sum + serviceTimeSeconds;
+  }, 0);
+  
+  const avgSeconds = Math.floor(totalTime / allConfirmedOrders.length);
+  const avgMinutes = Math.floor(avgSeconds / 60);
+  
+  console.log(`📊 Average Service Time: ${avgSeconds}s = ${avgMinutes}m`);
+  
+  if (avgMinutes > 0) {
+    return `${avgMinutes}m`;
+  } else {
+    return '<1m';
+  }
+};
+
+// Real-time timer format for pending orders
+const formatPendingTime = (createdAt: string, currentTime: number): string => {
+  const created = new Date(createdAt).getTime();
+  const elapsed = Math.floor((currentTime - created) / 1000); // seconds
+  
+  const hours = Math.floor(elapsed / 3600);
+  const minutes = Math.floor((elapsed % 3600) / 60);
+  const seconds = elapsed % 60;
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  } else {
+    return `${seconds}s`;
+  }
+};
+
 export default function TabsPage() {
   const router = useRouter();
   const { user, bar, loading: authLoading, signOut } = useAuth();
@@ -25,6 +84,7 @@ export default function TabsPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -42,6 +102,14 @@ export default function TabsPage() {
       return () => clearInterval(interval);
     }
   }, [bar]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000); // Update every second
+
+    return () => clearInterval(interval);
+  }, []);
 
   const loadTabs = async () => {
     if (!bar) return;
@@ -64,7 +132,7 @@ export default function TabsPage() {
           const [ordersResult, paymentsResult] = await Promise.all([
             supabase
               .from('tab_orders')
-              .select('id, total, status, created_at')
+              .select('id, total, status, created_at, confirmed_at')
               .eq('tab_id', tab.id)
               .order('created_at', { ascending: false }),
             
@@ -127,7 +195,30 @@ export default function TabsPage() {
                          tab.tab_number?.toString().includes(searchQuery) || 
                          tab.owner_identifier?.includes(searchQuery);
     const matchesFilter = filterStatus === 'all' || tab.status === filterStatus;
-    return matchesSearch && matchesFilter;
+    
+    // Special handling for 'pending' filter - show tabs with pending orders
+    const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending');
+    const matchesPendingFilter = filterStatus !== 'pending' || hasPendingOrders;
+    
+    return matchesSearch && matchesFilter && matchesPendingFilter;
+  }).sort((a, b) => {
+    // Priority sorting: pending orders first, then by status priority, then by tab number
+    const aHasPending = a.orders?.some((o: any) => o.status === 'pending');
+    const bHasPending = b.orders?.some((o: any) => o.status === 'pending');
+    
+    // Tabs with pending orders come first
+    if (aHasPending && !bHasPending) return -1;
+    if (!aHasPending && bHasPending) return 1;
+    
+    // Then by status priority: open -> closed -> overdue
+    const statusPriority = { open: 0, closed: 1, overdue: 2 };
+    const aPriority = statusPriority[a.status as keyof typeof statusPriority] ?? 3;
+    const bPriority = statusPriority[b.status as keyof typeof statusPriority] ?? 3;
+    
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    
+    // Finally by tab number (descending for newest first)
+    return (b.tab_number || 0) - (a.tab_number || 0);
   });
 
   const stats = {
@@ -186,11 +277,11 @@ export default function TabsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Users size={16} className="text-orange-100" />
-                <span className="text-sm text-orange-100">Open Tabs</span>
+                <span className="text-sm text-orange-100">Tabs</span>
               </div>
               <p className="text-2xl font-bold">{stats.totalTabs}</p>
             </div>
@@ -207,6 +298,13 @@ export default function TabsPage() {
                 <span className="text-sm text-red-100 font-semibold">Pending</span>
               </div>
               <p className="text-2xl font-bold text-white">{stats.pendingOrders}</p>
+            </div>
+            <div className="bg-green-500 bg-opacity-30 backdrop-blur-sm rounded-xl p-4 border border-green-300">
+              <div className="flex items-center gap-2 mb-1">
+                <RefreshCw size={16} className="text-green-100" />
+                <span className="text-sm text-green-100 font-semibold">Time</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{calculateAverageServiceTime(tabs)}</p>
             </div>
           </div>
         </div>
@@ -263,7 +361,7 @@ export default function TabsPage() {
           </div>
           
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-            {['all', 'open', 'closed'].map(status => (
+            {['all', 'pending', 'open', 'closed'].map(status => (
               <button
                 key={status}
                 onClick={() => setFilterStatus(status)}
@@ -273,7 +371,7 @@ export default function TabsPage() {
                     : 'bg-gray-100 text-gray-700'
                 }`}
               >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {status === 'pending' ? '⚡ Pending' : status.charAt(0).toUpperCase() + status.slice(1)}
               </button>
             ))}
           </div>
@@ -319,9 +417,28 @@ export default function TabsPage() {
 
                     <div className="flex items-center justify-between text-xs text-gray-600 pt-3 border-t border-gray-100">
                       <span>{tab.orders?.length || 0} orders</span>
-                      <span className="text-yellow-600 font-medium">
-                        {tab.orders?.filter((o: any) => o.status === 'pending').length || 0} pending
-                      </span>
+                      <div className="text-right">
+                        {tab.orders?.filter((o: any) => o.status === 'pending').length > 0 ? (
+                          <div className="text-yellow-600 font-medium">
+                            <div className="flex items-center gap-1">
+                              <AlertCircle size={10} />
+                              {tab.orders
+                                .filter((o: any) => o.status === 'pending')
+                                .slice(0, 1) // Show only the oldest pending order time
+                                .map((pendingOrder: any) => (
+                                  <span key={pendingOrder.id} className="font-mono text-xs">
+                                    {formatPendingTime(pendingOrder.created_at, currentTime)}
+                                  </span>
+                                ))}
+                            </div>
+                            <div className="text-xs">
+                              {tab.orders?.filter((o: any) => o.status === 'pending').length || 0} pending
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-green-600 font-medium">No pending</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

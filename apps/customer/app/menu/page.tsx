@@ -75,7 +75,7 @@ export default function MenuPage() {
   const [scrollY, setScrollY] = useState(0);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
-  const loadAttempted = useRef(false); // Prevent multiple load attempts
+  const loadAttempted = useRef(false);
 
   // Helper function to get display image with category fallback
   const getDisplayImage = (product: any, categoryName?: string) => {
@@ -106,7 +106,7 @@ export default function MenuPage() {
   useEffect(() => {
     if (!tab?.id) return;
 
-    console.log('🔄 Setting up real-time subscriptions for tab:', tab.id);
+    console.log('📡 Setting up real-time subscriptions for tab:', tab.id);
 
     // Subscribe to orders changes
     const ordersSubscription = supabase
@@ -162,7 +162,7 @@ export default function MenuPage() {
       )
       .subscribe();
 
-    // Subscribe to tab changes (for status updates, closure, etc.)
+    // Subscribe to tab changes
     const tabSubscription = supabase
       .channel(`tab-${tab.id}`)
       .on(
@@ -178,7 +178,6 @@ export default function MenuPage() {
           if (payload.eventType === 'UPDATE') {
             const updatedTab = payload.new as Tab;
             
-            // If tab was closed, redirect to home
             if (updatedTab.status === 'closed') {
               console.log('🛑 Tab was closed, redirecting to home');
               sessionStorage.removeItem('currentTab');
@@ -187,7 +186,6 @@ export default function MenuPage() {
               return;
             }
             
-            // Update tab data
             const { data: fullTab, error } = await supabase
               .from('tabs')
               .select('*, bar:bars(id, name, location)')
@@ -198,7 +196,6 @@ export default function MenuPage() {
               setTab(fullTab as Tab);
               setBarName((fullTab as any).bar?.name || 'Bar');
               
-              // Update display name
               let name = 'Your Tab';
               if ((fullTab as any).notes) {
                 try {
@@ -217,7 +214,6 @@ export default function MenuPage() {
       )
       .subscribe();
 
-    // Clean up subscriptions on unmount
     return () => {
       console.log('🧹 Cleaning up real-time subscriptions');
       ordersSubscription.unsubscribe();
@@ -231,7 +227,6 @@ export default function MenuPage() {
   };
 
   useEffect(() => {
-    // Prevent multiple simultaneous load attempts
     if (loadAttempted.current) {
       console.log('⏭️ Load already attempted, skipping...');
       return;
@@ -243,14 +238,12 @@ export default function MenuPage() {
 
   const loadTabData = async () => {
     console.log('📋 Menu page: loadTabData called');
-    // Give sessionStorage time to be available (sometimes needed after navigation)
     await new Promise(resolve => setTimeout(resolve, 100));
     const tabData = sessionStorage.getItem('currentTab');
     console.log('📦 Menu page: Retrieved tab data from sessionStorage:', tabData ? 'Found' : 'Not found');
     if (!tabData) {
       console.error('❌ Menu page: No tab data found in sessionStorage');
       console.log('📦 All sessionStorage keys:', Object.keys(sessionStorage));
-      // Wait a bit longer and try once more before giving up
       await new Promise(resolve => setTimeout(resolve, 500));
       const retryTabData = sessionStorage.getItem('currentTab');
       if (!retryTabData) {
@@ -406,12 +399,10 @@ export default function MenuPage() {
         return;
       }
 
-      // Clear session storage
       sessionStorage.removeItem('currentTab');
       sessionStorage.removeItem('cart');
       sessionStorage.removeItem('oldestPendingCustomerOrderTime');
 
-      // Redirect to home
       router.replace('/');
     } catch (error) {
       console.error('Error in handleCloseTab:', error);
@@ -435,8 +426,6 @@ export default function MenuPage() {
         alert('Failed to approve order');
         return;
       }
-
-      // Real-time subscription will handle the refresh automatically
     } catch (error) {
       console.error('Error in handleApproveOrder:', error);
       alert('An error occurred while approving the order');
@@ -461,8 +450,6 @@ export default function MenuPage() {
         alert('Failed to reject order');
         return;
       }
-
-      // Real-time subscription will handle the refresh automatically
     } catch (error) {
       console.error('Error in handleRejectOrder:', error);
       alert('An error occurred while rejecting the order');
@@ -531,6 +518,8 @@ export default function MenuPage() {
       }));
       const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       const orderSubmissionTime = new Date().toISOString();
+      
+      // ✅ DO NOT SET order_number - let database trigger handle it
       const { error } = await (supabase as any)
         .from('tab_orders')
         .insert({
@@ -545,7 +534,6 @@ export default function MenuPage() {
       sessionStorage.removeItem('cart');
       setCart([]);
       setShowCart(false);
-      // Real-time subscription will refresh orders automatically
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error('Error creating order:', error);
@@ -582,7 +570,6 @@ export default function MenuPage() {
       alert('Payment successful! 🎉');
       setPaymentAmount('');
       setPhoneNumber('');
-      // Real-time subscription will refresh payments automatically
     } catch (error) {
       console.error('Payment error:', error);
       alert('Payment failed');
@@ -666,11 +653,9 @@ export default function MenuPage() {
   }
 
   const parallaxOffset = scrollY * 0.5;
-  const numberedOrders = orders.map((order, index) => ({
-    ...order,
-    number: orders.length - index
-  }));
-  const lastOrder = orders[orders.length - 1];
+  
+  // ✅ FIXED: Use database order_number directly, no client-side numbering
+  const lastOrder = orders[0]; // Most recent order (already sorted desc)
   const lastOrderTotal = lastOrder ? parseFloat(lastOrder.total).toFixed(0) : '0';
   const lastOrderTime = lastOrder ? timeAgo(lastOrder.created_at) : '';
 
@@ -703,7 +688,7 @@ export default function MenuPage() {
         </div>
       )}
 
-      {/* Timer Modal (appears above menu) */}
+      {/* Timer Modal */}
       {(() => {
         const pendingTime = getPendingOrderTime();
         if (!pendingTime) return null;
@@ -711,13 +696,9 @@ export default function MenuPage() {
         const maxTimeSeconds = 900;
         const elapsedPercentage = Math.min((elapsedSeconds / maxTimeSeconds) * 100, 100);
         const getStrokeColor = (percentage: number) => {
-          if (percentage <= 33) {
-            return "url(#gradient-green)";
-          } else if (percentage <= 66) {
-            return "url(#gradient-orange)";
-          } else {
-            return "url(#gradient-red)";
-          }
+          if (percentage <= 33) return "url(#gradient-green)";
+          else if (percentage <= 66) return "url(#gradient-orange)";
+          else return "url(#gradient-red)";
         };
         const circumference = 2 * Math.PI * 45;
         const segmentLength = (elapsedPercentage / 100) * circumference;
@@ -763,7 +744,6 @@ export default function MenuPage() {
                 <div className="text-5xl font-bold text-gray-800 animate-pulse-number">
                   {formatTime(elapsedSeconds)}
                 </div>
-                {/* <p className="text-xs text-gray-500 mt-2">Time elapsed (oldest pending)</p> */}
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-6 text-center max-w-xs">
@@ -777,7 +757,6 @@ export default function MenuPage() {
       <div ref={menuRef} className="bg-white relative overflow-hidden">
         <div className="p-4 border-b bg-gradient-to-r from-orange-50 to-red-50">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Menu</h2>
-          {/* Category Filter Buttons */}
           <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
             {categoryOptions.map((category) => (
               <button
@@ -804,15 +783,12 @@ export default function MenuPage() {
                   <div
                     key={barProduct.id}
                     className="flex-shrink-0 w-64"
-                    style={{
-                      animationDelay: `${index * 50}ms`,
-                    }}
+                    style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <div
                       className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer transform transition-all hover:scale-105 flex flex-col"
                       onClick={() => addToCart(barProduct)}
                     >
-                      {/* 4:5 Aspect Ratio Container (256px wide → 320px tall) */}
                       <div className="w-full pb-[125%] relative bg-gray-100">
                         {displayImage ? (
                           <img
@@ -836,8 +812,6 @@ export default function MenuPage() {
                           </div>
                         )}
                       </div>
-
-                      {/* Product info below image */}
                       <div className="p-4">
                         <h3 className="text-sm font-medium text-gray-900">{product.name || 'Product'}</h3>
                         <p className="text-xs text-gray-500 mt-1">{tempFormatCurrency(barProduct.sale_price)}</p>
@@ -852,12 +826,8 @@ export default function MenuPage() {
       </div>
 
       {/* Orders Section */}
-      <div
-        ref={ordersRef}
-        className="bg-gray-50 p-4"
-      >
+      <div ref={ordersRef} className="bg-gray-50 p-4">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Order History</h2>
-        {/* Order Summary Card */}
         {orders.length > 0 && (
           <div className="flex items-center justify-between mb-4 bg-white rounded-lg border border-gray-100 p-4">
             <div>
@@ -871,22 +841,25 @@ export default function MenuPage() {
             </div>
           </div>
         )}
-        {/* Order History List */}
         <div className="bg-white rounded-lg border border-gray-100 p-4 space-y-0">
           {orders.length === 0 ? (
             <div className="text-center py-8 text-gray-500"><p>No orders yet</p></div>
           ) : (
-            numberedOrders.map((order, index) => {
+            orders.map((order, index) => {
               const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
               const initiatedBy = order.initiated_by || 'customer';
               const isStaffOrder = initiatedBy === 'staff';
               const needsApproval = order.status === 'pending' && isStaffOrder;
+              
+              // ✅ FIXED: Use database order_number directly
+              const orderNumber = order.order_number || '?';
+              
               return (
                 <div key={order.id}>
                   <div className="py-4">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-sm font-medium text-gray-900">Order #{order.number}</span>
+                        <span className="text-sm font-medium text-gray-900">Order #{orderNumber}</span>
                         <span className="text-xs text-gray-400">{timeAgo(order.created_at)}</span>
                       </div>
                       <p className="text-sm font-medium text-gray-900">{tempFormatCurrency(order.total)}</p>
@@ -929,7 +902,7 @@ export default function MenuPage() {
                       </div>
                     )}
                   </div>
-                  {index < numberedOrders.length - 1 && (
+                  {index < orders.length - 1 && (
                     <div className="border-b border-gray-100"></div>
                   )}
                 </div>
@@ -944,7 +917,6 @@ export default function MenuPage() {
         <div ref={paymentRef} className="bg-white p-4">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Payment</h2>
           <div className="bg-white rounded-lg border border-gray-100 p-4">
-            {/* Payment Method Tabs */}
             <div className="flex border-b border-gray-200 mb-4">
               <button
                 onClick={() => setActivePaymentMethod('mpesa')}
@@ -983,7 +955,6 @@ export default function MenuPage() {
                 </div>
               </button>
             </div>
-            {/* Visa Card Header (only visible in Cards tab) */}
             {activePaymentMethod === 'cards' && (
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -1004,7 +975,6 @@ export default function MenuPage() {
                 <p className="text-3xl font-bold text-orange-600">{tempFormatCurrency(balance)}</p>
               </div>
               <div className="space-y-4">
-                {/* M-Pesa Form */}
                 {activePaymentMethod === 'mpesa' && (
                   <>
                     <div>
@@ -1043,7 +1013,6 @@ export default function MenuPage() {
                     </div>
                   </>
                 )}
-                {/* Cards Form */}
                 {activePaymentMethod === 'cards' && (
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
@@ -1070,7 +1039,6 @@ export default function MenuPage() {
                     </div>
                   </div>
                 )}
-                {/* Cash Form */}
                 {activePaymentMethod === 'cash' && (
                   <div className="text-center py-4">
                     <div className="bg-gray-100 rounded-xl p-6 mb-4">

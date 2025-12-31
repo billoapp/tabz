@@ -6,7 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-// Temporary format functions to bypass import issue
+// Temporary format functions
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
   const number = typeof amount === 'string' ? parseFloat(amount) : amount;
   if (isNaN(number)) return 'KSh 0';
@@ -14,6 +14,50 @@ const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(number)}`;
+};
+
+// Real-time timer format for pending orders
+const formatPendingTime = (createdAt: string, currentTime: number): string => {
+  const created = new Date(createdAt).getTime();
+  const elapsed = Math.floor((currentTime - created) / 1000); // seconds
+  
+  const hours = Math.floor(elapsed / 3600);
+  const minutes = Math.floor((elapsed % 3600) / 60);
+  const seconds = elapsed % 60;
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  } else {
+    return `${seconds}s`;
+  }
+};
+
+// Calculate average service time from confirmed orders across all tabs
+const calculateAverageServiceTime = (orders: any[]): string => {
+  const confirmedOrders = orders.filter(o => 
+    o.status === 'confirmed' && 
+    o.confirmed_at && 
+    o.status !== 'cancelled'  
+  );
+  if (confirmedOrders.length === 0) return '0m';
+  
+  const totalTime = confirmedOrders.reduce((sum, order) => {
+    const created = new Date(order.created_at).getTime();
+    const confirmed = new Date(order.confirmed_at).getTime();
+    const serviceTimeSeconds = Math.floor((confirmed - created) / 1000);
+    return sum + serviceTimeSeconds;
+  }, 0);
+  
+  const avgSeconds = Math.floor(totalTime / confirmedOrders.length);
+  const avgMinutes = Math.floor(avgSeconds / 60);
+  
+  if (avgMinutes > 0) {
+    return `${avgMinutes}m`;
+  } else {
+    return '<1m';
+  }
 };
 
 const tempFormatDigitalTime = (seconds: number): string => {
@@ -32,15 +76,25 @@ export default function TabDetailPage() {
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState('');
   const [newOrderNotification, setNewOrderNotification] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
     loadTabData();
   }, [tabId]);
 
+  // Real-time timer for pending orders
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000); // Update every second
+
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (!tabId) return;
 
-    // Subscribe to new orders for this specific tab
+    // Subscribe to new orders
     const orderSubscription = supabase
       .channel(`tab_orders_${tabId}`)
       .on('postgres_changes', 
@@ -53,23 +107,21 @@ export default function TabDetailPage() {
         (payload) => {
           console.log('New order received:', payload.new);
           
-          // Only show notification for customer orders (not staff orders)
+          // Only show notification for customer orders
           if (payload.new.initiated_by === 'customer') {
             setNewOrderNotification(payload.new);
             
-            // Auto-hide notification after 10 seconds
             setTimeout(() => {
               setNewOrderNotification(null);
             }, 10000);
           }
           
-          // Refresh tab data to show the new order
           loadTabData();
         }
       )
       .subscribe();
 
-    // Subscribe to payment changes for this specific tab
+    // Subscribe to payment changes
     const paymentSubscription = supabase
       .channel(`tab_payments_${tabId}`)
       .on('postgres_changes', 
@@ -81,10 +133,6 @@ export default function TabDetailPage() {
         }, 
         (payload) => {
           console.log('🔍 Payment change detected:', payload);
-          console.log('🔍 Payment event type:', payload.eventType);
-          console.log('🔍 Payment data:', payload.new);
-          
-          // Refresh tab data to show the payment
           loadTabData();
         }
       )
@@ -102,16 +150,12 @@ export default function TabDetailPage() {
         }, 
         (payload) => {
           console.log('🔍 Tab status change detected:', payload);
-          console.log('🔍 Old status:', payload.old?.status);
-          console.log('🔍 New status:', payload.new?.status);
           
-          // If tab was closed, show notification
           if (payload.new?.status === 'closed' && payload.old?.status !== 'closed') {
             console.log('🛑 Tab was automatically closed!');
             alert('⚠️ Tab was automatically closed!');
           }
           
-          // Refresh tab data
           loadTabData();
         }
       )
@@ -128,7 +172,6 @@ export default function TabDetailPage() {
     setLoading(true);
     
     try {
-      // First get the tab data
       const { data: tabData, error: tabError } = await supabase
         .from('tabs')
         .select('*')
@@ -137,7 +180,6 @@ export default function TabDetailPage() {
 
       if (tabError) throw tabError;
 
-      // Then get the bar data separately
       const { data: barData, error: barError } = await supabase
         .from('bars')
         .select('id, name, location')
@@ -146,7 +188,7 @@ export default function TabDetailPage() {
 
       if (barError) throw barError;
 
-      // Get orders
+      // ✅ Get orders with order_number
       const { data: ordersResult, error: ordersError } = await supabase
         .from('tab_orders')
         .select('*')
@@ -155,7 +197,6 @@ export default function TabDetailPage() {
 
       if (ordersError) throw ordersError;
 
-      // Get payments
       const { data: paymentsResult, error: paymentsError } = await supabase
         .from('tab_payments')
         .select('*')
@@ -172,8 +213,6 @@ export default function TabDetailPage() {
       };
 
       console.log('✅ Tab loaded:', fullTabData);
-      console.log('🔍 Tab status:', tabData.status);
-      console.log('🔍 Tab balance after reload:', getTabBalance());
       setTab(fullTabData);
 
       let name = `Tab ${tabData.tab_number || 'Unknown'}`;
@@ -203,12 +242,15 @@ export default function TabDetailPage() {
     try {
       const { error } = await supabase
         .from('tab_orders')
-        .update({ status: 'confirmed' })
+        .update({ 
+          status: 'confirmed',
+          confirmed_at: new Date().toISOString()
+        })
         .eq('id', orderId);
 
       if (error) throw error;
 
-      console.log('✅ Order marked as served');
+      console.log('✅ Order marked as served with timestamp');
       loadTabData();
       
     } catch (error) {
@@ -223,7 +265,6 @@ export default function TabDetailPage() {
 
     try {
       console.log('🔍 Adding cash payment:', amount);
-      console.log('🔍 Current balance before payment:', getTabBalance());
       
       const { error } = await supabase
         .from('tab_payments')
@@ -238,7 +279,6 @@ export default function TabDetailPage() {
       if (error) throw error;
 
       console.log('✅ Cash payment added successfully');
-      console.log('🔍 Reloading tab data...');
       loadTabData();
       
     } catch (error) {
@@ -251,7 +291,6 @@ export default function TabDetailPage() {
     const balance = getTabBalance();
     
     if (balance > 0) {
-      // Instead of write-off, push to overdue
       const confirm = window.confirm(`Tab has ${tempFormatCurrency(balance)} outstanding balance. Push to overdue (bad debt)?`);
       if (!confirm) return;
       
@@ -277,7 +316,6 @@ export default function TabDetailPage() {
       return;
     }
     
-    // Only allow closing if balance is zero
     try {
       const { error } = await supabase
         .from('tabs')
@@ -312,7 +350,6 @@ export default function TabDetailPage() {
     const date = new Date(dateStr);
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
     
-    // For payments, always show date/time, never timer
     if (isPayment) {
       return date.toLocaleString('en-US', {
         month: 'short',
@@ -322,7 +359,6 @@ export default function TabDetailPage() {
       });
     }
     
-    // For orders, show timer for recent events
     if (seconds < 60) return tempFormatDigitalTime(seconds);
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     return `${Math.floor(seconds / 3600)}h ago`;
@@ -382,7 +418,6 @@ export default function TabDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center">
-      {/* Main container with responsive width */}
       <div className="w-full lg:max-w-[70%] max-w-full">
         <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
           <div className="flex items-center justify-between mb-4">
@@ -435,7 +470,6 @@ export default function TabDetailPage() {
           </div>
         </div>
 
-        {/* Add this notification banner after line 226 (after the header div) */}
         {newOrderNotification && (
           <div className="bg-green-500 text-white p-4 animate-pulse">
             <div className="flex items-center justify-between">
@@ -446,7 +480,6 @@ export default function TabDetailPage() {
                 <div>
                   <p className="font-bold">New Customer Order!</p>
                   <p className="text-sm opacity-90">
-                    {/* Fixed error handling for items */}
                     {(() => {
                       try {
                         const items = typeof newOrderNotification.items === 'string' 
@@ -454,11 +487,9 @@ export default function TabDetailPage() {
                           : newOrderNotification.items;
                         return Array.isArray(items) ? items.length : 0;
                       } catch (e) {
-                        console.error('Error parsing items:', e);
                         return 0;
                       }
-                    })()} items • 
-                    {tempFormatCurrency(newOrderNotification.total)}
+                    })()} items • {tempFormatCurrency(newOrderNotification.total)}
                   </p>
                 </div>
               </div>
@@ -503,6 +534,9 @@ export default function TabDetailPage() {
                 const initiatedBy = order.initiated_by || 'customer';
                 const orderStyle = getOrderStyle(initiatedBy);
                 
+                // ✅ FIXED: Use database order_number directly
+                const orderNumber = order.order_number || '?';
+                
                 return (
                   <div key={order.id} className={`bg-white rounded-xl p-4 shadow-sm ${orderStyle.borderColor}`}>
                     <div className="flex items-center justify-between mb-2">
@@ -510,6 +544,10 @@ export default function TabDetailPage() {
                         {orderStyle.icon}
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${orderStyle.labelColor}`}>
                           {orderStyle.label}
+                        </span>
+                        {/* ✅ Display database order number */}
+                        <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-1 rounded-full">
+                          #{orderNumber}
                         </span>
                       </div>
                       <div className="text-right">
@@ -572,7 +610,7 @@ export default function TabDetailPage() {
                 onClick={handleAddCashPayment}
                 className="text-sm text-orange-600 font-medium"
               >
-                + Add Cash
+                + Recieve Cash
               </button>
             </div>
             
