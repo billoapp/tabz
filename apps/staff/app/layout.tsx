@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { BarProvider } from '@/contexts/page';
+import { ToastProvider } from '../../../components/ui/Toast';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://staff.tabeza.co.ke'), // Update with your actual domain
+  metadataBase: new URL('https://tabeza.co.ke'), // Update with your actual domain
   
   title: {
     default: 'Tabeza Venue - Bar Management System',
@@ -176,9 +177,11 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased">
-        <BarProvider>
-          {children}
-        </BarProvider>
+        <ToastProvider>
+          <BarProvider>
+            {children}
+          </BarProvider>
+        </ToastProvider>
       </body>
     </html>
   );

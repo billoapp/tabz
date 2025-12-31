@@ -7,11 +7,13 @@ import { Zap, DollarSign, Bell, Shield } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { supabase } from '@/lib/supabase';
 import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
+import { useToast } from '../../../components/ui/Toast';
 
 // Create a separate component that uses useSearchParams
 function LandingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
   const [manualCode, setManualCode] = useState('');
   const [checkingTab, setCheckingTab] = useState(false);
   
@@ -115,7 +117,11 @@ function LandingContent() {
       sessionStorage.setItem('scanned_bar_slug', manualCode.trim());
       console.log('✅ Manual bar slug stored:', manualCode.trim());
     } else {
-      alert('Please enter a valid bar slug');
+      showToast({
+        type: 'warning',
+        title: 'Invalid Bar Code',
+        message: 'Please enter a valid bar slug'
+      });
     }
   };
 
@@ -129,7 +135,11 @@ function LandingContent() {
       checkExistingTab(slug);
     } else {
       // No slug - show error
-      alert('Please scan a QR code or enter a valid bar slug');
+      showToast({
+        type: 'error',
+        title: 'No Bar Code',
+        message: 'Please scan a QR code or enter a valid bar slug'
+      });
     }
   };
 

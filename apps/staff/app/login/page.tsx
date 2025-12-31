@@ -6,9 +6,11 @@ import { useRouter } from 'next/navigation';
 import { Mail, Lock, AlertCircle, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Logo from '@/components/Logo';
+import { useToast } from '../../../../components/ui/Toast';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -71,7 +73,11 @@ export default function LoginPage() {
 
       if (error) throw error;
 
-      alert('Password reset email sent! Please check your inbox.');
+      showToast({
+        type: 'success',
+        title: 'Reset Email Sent',
+        message: 'Password reset email sent! Please check your inbox.'
+      });
     } catch (err: any) {
       setError(err.message || 'Failed to send reset email');
     }

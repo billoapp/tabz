@@ -6,10 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Bell, Store, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
+import { useToast } from '../../../../components/ui/Toast';
 
 function ConsentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
   const [nickname, setNickname] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -107,12 +109,20 @@ function ConsentContent() {
 
   const handleStartTab = async () => {
     if (!termsAccepted) {
-      alert('Please accept the Terms of Use and Privacy Policy to continue');
+      showToast({
+        type: 'warning',
+        title: 'Terms Required',
+        message: 'Please accept the Terms of Use and Privacy Policy to continue'
+      });
       return;
     }
 
     if (!barId) {
-      alert('Bar information not found. Please scan QR code again.');
+      showToast({
+        type: 'error',
+        title: 'Bar Information Missing',
+        message: 'Bar information not found. Please scan QR code again.'
+      });
       return;
     }
 
@@ -265,7 +275,11 @@ function ConsentContent() {
 
     } catch (error: any) {
       console.error('❌ Error creating/loading tab:', error);
-      alert(`Error: ${error.message || 'Please try again'}`);
+      showToast({
+        type: 'error',
+        title: 'Tab Creation Failed',
+        message: error.message || 'Please try again'
+      });
       setCreating(false); // Only reset creating state on error
     }
     // Don't set creating to false on success - let navigation happen

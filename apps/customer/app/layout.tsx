@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';  // ← Make sure this line exists
+import { ToastProvider } from '../../../components/ui/Toast';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,11 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.ico" />
       </head>
-      <body>{children}</body>
+      <body>
+        <ToastProvider>
+          {children}
+        </ToastProvider>
+      </body>
     </html>
   );
 }
