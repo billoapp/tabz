@@ -170,6 +170,9 @@ function ConsentContent() {
         
         console.log('📦 Stored tab data, navigating to menu...');
         
+        // Reset creating state before navigation
+        setCreating(false);
+        
         // Use replace to prevent back button issues
         router.replace('/menu');
         return;
@@ -253,6 +256,9 @@ function ConsentContent() {
       sessionStorage.setItem('barName', barName);
       
       console.log('📦 Stored new tab data, navigating to menu...');
+      
+      // Reset creating state before navigation
+      setCreating(false);
       
       // Use replace to prevent back button issues
       router.replace('/menu');

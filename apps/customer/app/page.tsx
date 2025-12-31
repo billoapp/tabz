@@ -5,12 +5,15 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Zap, DollarSign, Bell, Shield } from 'lucide-react';
 import Logo from '@/components/Logo';
+import { supabase } from '@/lib/supabase';
+import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
 
 // Create a separate component that uses useSearchParams
 function LandingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [manualCode, setManualCode] = useState('');
+  const [checkingTab, setCheckingTab] = useState(false);
   
   useEffect(() => {
     // Check if there's a slug in URL (from QR code scan)
@@ -24,8 +27,88 @@ function LandingContent() {
       // Store slug in sessionStorage for persistence
       sessionStorage.setItem('scanned_bar_slug', slug);
       console.log('✅ Stored bar slug in sessionStorage:', slug);
+      
+      // Check for existing tab with this device ID
+      checkExistingTab(slug);
     }
   }, [searchParams]);
+
+  const checkExistingTab = async (barSlug: string) => {
+    try {
+      setCheckingTab(true);
+      console.log('🔍 Checking for existing tab on landing page...');
+      
+      // Get bar info first
+      const { data: bar, error: barError } = await (supabase as any)
+        .from('bars')
+        .select('id, name, active')
+        .eq('slug', barSlug)
+        .maybeSingle();
+
+      if (barError || !bar || !bar.active) {
+        console.log('❌ Bar not found or inactive:', barError?.message || 'Bar not found');
+        setCheckingTab(false);
+        return;
+      }
+
+      console.log('✅ Bar found:', bar.name);
+
+      // Check for existing open tab with this device
+      const deviceId = getDeviceId();
+      const barDeviceKey = getBarDeviceKey(bar.id);
+      
+      console.log('🔍 Device ID:', deviceId);
+      console.log('🔑 Bar device key:', barDeviceKey);
+
+      const { data: existingTab, error: checkError } = await (supabase as any)
+        .from('tabs')
+        .select('*')
+        .eq('bar_id', bar.id)
+        .eq('owner_identifier', barDeviceKey)
+        .eq('status', 'open')
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing tab:', checkError);
+        setCheckingTab(false);
+        return;
+      }
+
+      if (existingTab) {
+        console.log('✅ Found existing open tab, navigating directly to menu:', existingTab.tab_number);
+        console.log('📱 Device ID enforcement working - bypassing consent page');
+        
+        // Store tab data
+        const displayName = (() => {
+          try {
+            const notes = JSON.parse(existingTab.notes || '{}');
+            return notes.display_name || `Tab ${existingTab.tab_number}`;
+          } catch {
+            return `Tab ${existingTab.tab_number}`;
+          }
+        })();
+
+        sessionStorage.setItem('currentTab', JSON.stringify(existingTab));
+        sessionStorage.setItem('displayName', displayName);
+        sessionStorage.setItem('barName', bar.name);
+        
+        // Navigate directly to menu, bypassing consent page
+        router.replace('/menu');
+        return;
+      } else {
+        console.log('📝 No existing tab found, showing consent page');
+        // No existing tab - go to consent page
+        router.push(`/start?bar=${barSlug}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Error checking existing tab:', error);
+      // On error, still go to consent page
+      router.push(`/start?bar=${barSlug}`);
+    } finally {
+      setCheckingTab(false);
+    }
+  };
 
   const handleManualSubmit = () => {
     if (manualCode.trim()) {
@@ -42,8 +125,8 @@ function LandingContent() {
     console.log('🚀 Start button clicked, bar slug:', slug);
     
     if (slug) {
-      // Navigate to consent/start page WITH slug parameter
-      router.push(`/start?bar=${slug}`);
+      // Check for existing tab first, then navigate accordingly
+      checkExistingTab(slug);
     } else {
       // No slug - show error
       alert('Please scan a QR code or enter a valid bar slug');
@@ -124,9 +207,17 @@ function LandingContent() {
         {/* CTA */}
         <button
           onClick={handleStart}
-          className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-red-700 transition shadow-lg mt-auto"
+          disabled={checkingTab}
+          className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-red-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition shadow-lg mt-auto"
         >
-          Start
+          {checkingTab ? (
+            <>
+              <span className="animate-spin inline-block mr-2">⟳</span>
+              Checking...
+            </>
+          ) : (
+            'Start'
+          )}
         </button>
 
         {/* Footer */}
