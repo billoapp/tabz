@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { BarProvider } from '@/contexts/page';
-import { ToastProvider } from '../../../components/ui/Toast';
+import { ToastProvider } from '@/components/ui/Toast';
 
 export const dynamic = 'force-dynamic';
 

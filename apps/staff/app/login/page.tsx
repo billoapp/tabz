@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Mail, Lock, AlertCircle, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Logo from '@/components/Logo';
-import { useToast } from '../../../../components/ui/Toast';
+import { useToast } from '@/components/ui/Toast';
 
 export default function LoginPage() {
   const router = useRouter();

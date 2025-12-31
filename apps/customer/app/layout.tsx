@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';  // ← Make sure this line exists
-import { ToastProvider } from '../../../components/ui/Toast';
+import { ToastProvider } from '@/components/ui/Toast';
 
 export const dynamic = 'force-dynamic';
 

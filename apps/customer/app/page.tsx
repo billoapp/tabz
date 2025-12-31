@@ -7,7 +7,7 @@ import { Zap, DollarSign, Bell, Shield } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { supabase } from '@/lib/supabase';
 import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
-import { useToast } from '../../../components/ui/Toast';
+import { useToast } from '@/components/ui/Toast';
 
 // Create a separate component that uses useSearchParams
 function LandingContent() {

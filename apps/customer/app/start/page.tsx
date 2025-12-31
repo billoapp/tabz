@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Bell, Store, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
-import { useToast } from '../../../../components/ui/Toast';
+import { useToast } from '@/components/ui/Toast';
 
 function ConsentContent() {
   const router = useRouter();
