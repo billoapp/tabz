@@ -2,6 +2,18 @@
 const path = require('path');
 
 const nextConfig = {
+  // Configure for monorepo
+  transpilePackages: ['@/components', '@/lib'],
+  
+  // Handle static assets from root public directory
+  output: 'standalone',
+  
+  // Ensure proper image optimization
+  images: {
+    unoptimized: true,
+    domains: [],
+  },
+  
   // Turbopack configuration for monorepo - correct syntax for Next.js 16
   turbopack: {
     root: path.resolve(__dirname, '../..')

@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Phone, MapPin, Lock, CheckCircle, AlertCircle, Eye, EyeOff, UserCheck, Shield, Clock, TrendingUp } from 'lucide-react';
+import { Mail, Phone, MapPin, Lock, CheckCircle, AlertCircle, Eye, EyeOff, UserCheck, Shield, Clock, TrendingUp, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Logo from '@/components/Logo';
 
@@ -128,9 +128,7 @@ export default function SignupPage() {
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white py-12 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center mb-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl">
-              <Logo size="lg" variant="white" />
-            </div>
+            <Logo size="lg" variant="white" />
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-center mb-3">Join Tabeza</h1>
           <p className="text-lg md:text-xl text-center text-orange-50 max-w-2xl mx-auto mb-2">
@@ -138,6 +136,16 @@ export default function SignupPage() {
           </p>
           <div className="inline-block bg-white/20 backdrop-blur-sm px-6 py-2 rounded-full">
             <p className="text-lg font-semibold text-white">✨ 100% Free Forever</p>
+          </div>
+          {/* Learn More Link */}
+          <div className="mt-4">
+            <button
+              onClick={() => router.push('/learn-more')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full hover:bg-white/20 transition text-white"
+            >
+              <span>📊 See How It Works</span>
+              <ArrowRight size={16} />
+            </button>
           </div>
         </div>
       </div>

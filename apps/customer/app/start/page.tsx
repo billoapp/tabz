@@ -119,9 +119,13 @@ function ConsentContent() {
     setCreating(true);
 
     try {
+      const deviceId = getDeviceId();
       const barDeviceKey = getBarDeviceKey(barId);
       
-      // Check for existing open tab
+      console.log('🔍 Checking for existing tabs with device ID:', deviceId);
+      console.log('🔑 Bar device key:', barDeviceKey);
+      
+      // Check for existing open tab with this device
       const { data: existingTab, error: checkError } = await (supabase as any)
         .from('tabs')
         .select('*')
@@ -130,7 +134,7 @@ function ConsentContent() {
         .eq('status', 'open')
         .maybeSingle();
 
-      if (checkError) {
+      if (checkError && checkError.code !== 'PGRST116') {
         console.error('Error checking existing tab:', checkError);
         throw checkError;
       }
@@ -138,6 +142,7 @@ function ConsentContent() {
       // If tab exists, reuse it
       if (existingTab) {
         console.log('✅ Found existing open tab, resuming:', existingTab.tab_number);
+        console.log('📱 Device ID enforcement working - preventing multiple tabs');
         
         if (nickname.trim()) {
           const notes = JSON.parse(existingTab.notes || '{}');
@@ -168,6 +173,25 @@ function ConsentContent() {
         // Use replace to prevent back button issues
         router.replace('/menu');
         return;
+      }
+
+      // Additional check: Look for any open tabs from this device (debugging)
+      const { data: allDeviceTabs } = await (supabase as any)
+        .from('tabs')
+        .select('tab_number, status, opened_at')
+        .eq('bar_id', barId)
+        .eq('owner_identifier', barDeviceKey)
+        .order('opened_at', { ascending: false });
+
+      console.log('🔍 All tabs from this device:', allDeviceTabs);
+
+      // If we found any closed tabs from this device, warn user
+      if (allDeviceTabs && allDeviceTabs.length > 0) {
+        const openTabs = allDeviceTabs.filter((tab: { status: string }) => tab.status === 'open');
+        if (openTabs.length > 0) {
+          console.error('🚨 Multiple open tabs detected! This should not happen.');
+          throw new Error('Multiple tabs detected. Please contact support.');
+        }
       }
 
       // Create new tab

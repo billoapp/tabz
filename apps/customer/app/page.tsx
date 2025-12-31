@@ -79,7 +79,7 @@ function LandingContent() {
     <div className="h-screen bg-gradient-to-br from-orange-500 to-red-600 flex flex-col items-center p-4">
       {/* Header with Logo */}
       <div className="text-white text-center mb-6">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl mb-4">
+        <div className="flex items-center justify-center mb-4">
           <Logo size="lg" variant="white" />
         </div>
         <h1 className="text-4xl font-bold mb-2">Tabeza</h1>
