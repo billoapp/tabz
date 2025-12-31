@@ -37,12 +37,11 @@ export default function TabDetailPage() {
     loadTabData();
   }, [tabId]);
 
-  // Add this useEffect after line 21 for real-time notifications
   useEffect(() => {
     if (!tabId) return;
 
     // Subscribe to new orders for this specific tab
-    const subscription = supabase
+    const orderSubscription = supabase
       .channel(`tab_orders_${tabId}`)
       .on('postgres_changes', 
         { 
@@ -70,8 +69,58 @@ export default function TabDetailPage() {
       )
       .subscribe();
 
+    // Subscribe to payment changes for this specific tab
+    const paymentSubscription = supabase
+      .channel(`tab_payments_${tabId}`)
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'tab_payments',
+          filter: `tab_id=eq.${tabId}`
+        }, 
+        (payload) => {
+          console.log('🔍 Payment change detected:', payload);
+          console.log('🔍 Payment event type:', payload.eventType);
+          console.log('🔍 Payment data:', payload.new);
+          
+          // Refresh tab data to show the payment
+          loadTabData();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to tab status changes
+    const tabSubscription = supabase
+      .channel(`tab_status_${tabId}`)
+      .on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'tabs',
+          filter: `id=eq.${tabId}`
+        }, 
+        (payload) => {
+          console.log('🔍 Tab status change detected:', payload);
+          console.log('🔍 Old status:', payload.old?.status);
+          console.log('🔍 New status:', payload.new?.status);
+          
+          // If tab was closed, show notification
+          if (payload.new?.status === 'closed' && payload.old?.status !== 'closed') {
+            console.log('🛑 Tab was automatically closed!');
+            alert('⚠️ Tab was automatically closed!');
+          }
+          
+          // Refresh tab data
+          loadTabData();
+        }
+      )
+      .subscribe();
+
     return () => {
-      subscription.unsubscribe();
+      orderSubscription.unsubscribe();
+      paymentSubscription.unsubscribe();
+      tabSubscription.unsubscribe();
     };
   }, [tabId]);
 
@@ -123,6 +172,8 @@ export default function TabDetailPage() {
       };
 
       console.log('✅ Tab loaded:', fullTabData);
+      console.log('🔍 Tab status:', tabData.status);
+      console.log('🔍 Tab balance after reload:', getTabBalance());
       setTab(fullTabData);
 
       let name = `Tab ${tabData.tab_number || 'Unknown'}`;
@@ -171,6 +222,9 @@ export default function TabDetailPage() {
     if (!amount || isNaN(Number(amount))) return;
 
     try {
+      console.log('🔍 Adding cash payment:', amount);
+      console.log('🔍 Current balance before payment:', getTabBalance());
+      
       const { error } = await supabase
         .from('tab_payments')
         .insert({
@@ -183,7 +237,8 @@ export default function TabDetailPage() {
 
       if (error) throw error;
 
-      console.log('✅ Cash payment added');
+      console.log('✅ Cash payment added successfully');
+      console.log('🔍 Reloading tab data...');
       loadTabData();
       
     } catch (error) {
@@ -196,17 +251,40 @@ export default function TabDetailPage() {
     const balance = getTabBalance();
     
     if (balance > 0) {
-      const confirm = window.confirm(`Tab still has ${tempFormatCurrency(balance)} balance. Write off and close?`);
+      // Instead of write-off, push to overdue
+      const confirm = window.confirm(`Tab has ${tempFormatCurrency(balance)} outstanding balance. Push to overdue (bad debt)?`);
       if (!confirm) return;
+      
+      try {
+        const { error } = await supabase
+          .from('tabs')
+          .update({ 
+            status: 'overdue',
+            moved_to_overdue_at: new Date().toISOString(),
+            overdue_reason: 'Unpaid balance pushed to bad debt'
+          })
+          .eq('id', tabId);
+
+        if (error) throw error;
+
+        alert('Tab pushed to overdue successfully');
+        router.push('/');
+        
+      } catch (error) {
+        console.error('Error pushing to overdue:', error);
+        alert('Failed to push to overdue');
+      }
+      return;
     }
     
+    // Only allow closing if balance is zero
     try {
       const { error } = await supabase
         .from('tabs')
         .update({ 
           status: 'closed', 
           closed_at: new Date().toISOString(),
-          closed_by: 'staff' // ✅ Track that staff closed it
+          closed_by: 'staff'
         })
         .eq('id', tabId);
 
@@ -230,10 +308,22 @@ export default function TabDetailPage() {
     return ordersTotal - paymentsTotal;
   };
 
-  const timeAgo = (dateStr: string) => {
+  const timeAgo = (dateStr: string, isPayment = false) => {
     const date = new Date(dateStr);
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    if (seconds < 60) return tempFormatDigitalTime(seconds); // Show digital time for recent events
+    
+    // For payments, always show date/time, never timer
+    if (isPayment) {
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+    
+    // For orders, show timer for recent events
+    if (seconds < 60) return tempFormatDigitalTime(seconds);
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     return `${Math.floor(seconds / 3600)}h ago`;
   };
@@ -319,6 +409,7 @@ export default function TabDetailPage() {
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${
               tab.status === 'open' ? 'bg-green-500' :
               tab.status === 'closing' ? 'bg-yellow-500' :
+              tab.status === 'overdue' ? 'bg-red-500' :
               'bg-gray-500'
             }`}>
               {tab.status.toUpperCase()}
@@ -506,7 +597,7 @@ export default function TabDetailPage() {
                       )}
                       <div>
                         <p className="font-semibold text-gray-800 capitalize">{payment.method}</p>
-                        <p className="text-sm text-gray-500">{timeAgo(payment.created_at)}</p>
+                        <p className="text-sm text-gray-500">{timeAgo(payment.created_at, true)}</p>
                       </div>
                     </div>
                     <p className="font-bold text-green-600">+ {tempFormatCurrency(payment.amount)}</p>
@@ -525,7 +616,7 @@ export default function TabDetailPage() {
                   : 'bg-orange-500 text-white hover:bg-orange-600'
               }`}
             >
-              {balance === 0 ? 'Close Tab' : `Close Tab (Write Off ${tempFormatCurrency(balance)})`}
+              {balance === 0 ? 'Close Tab' : `Push to Overdue (${tempFormatCurrency(balance)})`}
             </button>
             
             <button className="w-full bg-gray-200 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-300">
