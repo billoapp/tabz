@@ -72,6 +72,7 @@ export default function MenuPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [menuExpanded, setMenuExpanded] = useState(true);
+  const [paymentCollapsed, setPaymentCollapsed] = useState(true);
   const [scrollY, setScrollY] = useState(0);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
@@ -915,78 +916,120 @@ export default function MenuPage() {
       {/* Payment Section */}
       {balance > 0 && (
         <div ref={paymentRef} className="bg-white p-4">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Payment</h2>
-          <div className="bg-white rounded-lg border border-gray-100 p-4">
-            <div className="flex border-b border-gray-200 mb-4">
-              <button
-                onClick={() => setActivePaymentMethod('mpesa')}
-                className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
-                    ? 'text-orange-500 border-b-2 border-orange-500'
-                    : 'text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Phone size={16} />
-                  M-Pesa
-                </div>
-              </button>
-              <button
-                onClick={() => setActivePaymentMethod('cards')}
-                className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
-                    ? 'text-orange-500 border-b-2 border-orange-500'
-                    : 'text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                <div className="flex items-center gap-2">
-                  <CreditCardIcon size={16} />
-                  Cards
-                </div>
-              </button>
-              <button
-                onClick={() => setActivePaymentMethod('cash')}
-                className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
-                    ? 'text-orange-500 border-b-2 border-orange-500'
-                    : 'text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                <div className="flex items-center gap-2">
-                  <DollarSign size={16} />
-                  Cash
-                </div>
-              </button>
+          <div 
+            className="flex items-center justify-between mb-3 cursor-pointer"
+            onClick={() => setPaymentCollapsed(!paymentCollapsed)}
+          >
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-orange-600">{tempFormatCurrency(balance)}</span>
+              {paymentCollapsed ? (
+                <ChevronDown size={16} className="text-gray-400" />
+              ) : (
+                <ChevronUp size={16} className="text-gray-400" />
+              )}
             </div>
-            {activePaymentMethod === 'cards' && (
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-400 rounded flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">VISA</span>
+          </div>
+          
+          {!paymentCollapsed && (
+            <div className="bg-white rounded-lg border border-gray-100 p-4">
+              <div className="flex border-b border-gray-200 mb-4">
+                <button
+                  onClick={() => setActivePaymentMethod('mpesa')}
+                  className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
+                      ? 'text-orange-500 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Phone size={16} />
+                    M-Pesa
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-900">•••• 4242</p>
-                    <p className="text-xs text-gray-400">Expires 12/26</p>
+                </button>
+                <button
+                  onClick={() => setActivePaymentMethod('cards')}
+                  className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
+                      ? 'text-orange-500 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <CreditCardIcon size={16} />
+                    Cards
                   </div>
-                </div>
-                <button className="text-xs text-orange-500 font-medium">Change</button>
+                </button>
+                <button
+                  onClick={() => setActivePaymentMethod('cash')}
+                  className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
+                      ? 'text-orange-500 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <DollarSign size={16} />
+                    Cash
+                  </div>
+                </button>
               </div>
-            )}
-            <div className="border-t border-gray-100 pt-4">
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-                <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
-                <p className="text-3xl font-bold text-orange-600">{tempFormatCurrency(balance)}</p>
-              </div>
-              <div className="space-y-4">
-                {activePaymentMethod === 'mpesa' && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">M-Pesa Number</label>
-                      <input
-                        type="tel"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                        placeholder="0712345678"
-                      />
+              {activePaymentMethod === 'cards' && (
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-400 rounded flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">VISA</span>
                     </div>
+                    <div>
+                      <p className="text-sm text-gray-900">•••• 4242</p>
+                      <p className="text-xs text-gray-400">Expires 12/26</p>
+                    </div>
+                  </div>
+                  <button className="text-xs text-orange-500 font-medium">Change</button>
+                </div>
+              )}
+              <div className="border-t border-gray-100 pt-4">
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+                  <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
+                  <p className="text-3xl font-bold text-orange-600">{tempFormatCurrency(balance)}</p>
+                </div>
+                <div className="space-y-4">
+                  {activePaymentMethod === 'mpesa' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">M-Pesa Number</label>
+                        <input
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                          placeholder="0712345678"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
+                        <input
+                          type="number"
+                          value={paymentAmount}
+                          onChange={(e) => setPaymentAmount(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                          placeholder="0"
+                        />
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => setPaymentAmount((balance / 2).toFixed(0))}
+                            className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
+                          >
+                            Half
+                          </button>
+                          <button
+                            onClick={() => setPaymentAmount(balance.toFixed(0))}
+                            className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
+                          >
+                            Full
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {activePaymentMethod === 'cards' && (
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
                       <input
@@ -1011,57 +1054,31 @@ export default function MenuPage() {
                         </button>
                       </div>
                     </div>
-                  </>
-                )}
-                {activePaymentMethod === 'cards' && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
-                    <input
-                      type="number"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                      placeholder="0"
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        onClick={() => setPaymentAmount((balance / 2).toFixed(0))}
-                        className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
-                      >
-                        Half
-                      </button>
-                      <button
-                        onClick={() => setPaymentAmount(balance.toFixed(0))}
-                        className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
-                      >
-                        Full
-                      </button>
+                  )}
+                  {activePaymentMethod === 'cash' && (
+                    <div className="text-center py-4">
+                      <div className="bg-gray-100 rounded-xl p-6 mb-4">
+                        <DollarSign size={48} className="mx-auto text-gray-400 mb-3" />
+                        <p className="text-gray-600">Please request cash payment from staff</p>
+                        <p className="text-sm text-gray-500 mt-2">Your payment will be confirmed by the restaurant system</p>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {activePaymentMethod === 'cash' && (
-                  <div className="text-center py-4">
-                    <div className="bg-gray-100 rounded-xl p-6 mb-4">
-                      <DollarSign size={48} className="mx-auto text-gray-400 mb-3" />
-                      <p className="text-gray-600">Please request cash payment from staff</p>
-                      <p className="text-sm text-gray-500 mt-2">Your payment will be confirmed by the restaurant system</p>
-                    </div>
-                  </div>
-                )}
-                <button
-                  onClick={processPayment}
-                  disabled={
-                    (activePaymentMethod === 'mpesa' && (!phoneNumber || !paymentAmount)) ||
-                    (activePaymentMethod === 'cards' && !paymentAmount) ||
-                    submittingOrder
-                  }
-                  className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-lg text-sm font-medium disabled:opacity-50"
-                >
-                  {submittingOrder ? 'Processing...' : 'Pay Now'}
-                </button>
+                  )}
+                  <button
+                    onClick={processPayment}
+                    disabled={
+                      (activePaymentMethod === 'mpesa' && (!phoneNumber || !paymentAmount)) ||
+                      (activePaymentMethod === 'cards' && !paymentAmount) ||
+                      submittingOrder
+                    }
+                    className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-lg text-sm font-medium disabled:opacity-50"
+                  >
+                    {submittingOrder ? 'Processing...' : 'Pay Now'}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
       {balance === 0 && orders.filter(order => order.status === 'confirmed').length > 0 && (
