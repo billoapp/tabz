@@ -172,10 +172,10 @@ export default function MenuPage() {
             
             console.log('🔔 Showing acceptance modal...');
             
-            // Show centered floating modal
+            // Show modal instead of toast
             setAcceptanceModal({
               show: true,
-              orderTotal: formatCurrency(payload.new.total),
+              orderTotal: payload.new.total, // Pass the number, not formatted string
               message: 'Your order has been accepted and is being prepared'
             });
           } else {
@@ -285,7 +285,7 @@ export default function MenuPage() {
       paymentsSubscription.unsubscribe();
       tabSubscription.unsubscribe();
     };
-  }, [tab?.id, router]);
+  }, [tab?.id, router, processedOrders]); // Add processedOrders to dependencies
 
   const toggleMenu = () => {
     setMenuExpanded(!menuExpanded);
@@ -744,7 +744,7 @@ export default function MenuPage() {
                 console.log('🧪 Testing acceptance modal');
                 setAcceptanceModal({
                   show: true,
-                  orderTotal: 'KSh 500',
+                  orderTotal: '500', // Pass string number, not formatted
                   message: 'This is a test to verify the modal system works'
                 });
               }}
@@ -1292,7 +1292,7 @@ export default function MenuPage() {
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Accepted! 🎉</h2>
               <p className="text-gray-600 mb-4">{acceptanceModal.message}</p>
-              <div className="text-3xl font-bold text-orange-500 mb-6">{acceptanceModal.orderTotal}</div>
+              <div className="text-3xl font-bold text-orange-500 mb-6">{formatCurrency(parseFloat(acceptanceModal.orderTotal))}</div>
               <button 
                 onClick={() => setAcceptanceModal({ show: false, orderTotal: '', message: '' })}
                 className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition-colors"
