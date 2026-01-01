@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ShoppingCart, Clock, CheckCircle, CreditCard, RefreshCw, User, UserCog, ThumbsUp, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { formatCurrency, formatDigitalTime } from '@/lib/formatUtils';
+import { formatCurrency, formatDigitalTime, timeAgo } from '@/lib/formatUtils';
 import { useToast } from '@/components/ui/Toast';
 
 export default function TabPage() {

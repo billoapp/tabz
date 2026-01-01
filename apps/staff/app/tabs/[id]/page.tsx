@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
+import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
 
 // Temporary format functions
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -587,7 +588,7 @@ export default function TabDetailPage() {
             <div>
               <h1 className="text-3xl font-bold mb-1">{displayName}</h1>
               <p className="text-orange-100">{tab.bar?.name || 'Bar'}</p>
-              <p className="text-sm text-orange-100 mt-1">Opened {timeAgo(tab.opened_at)}</p>
+              <p className="text-sm text-orange-100 mt-1">Opened {kenyaTimeAgo(tab.opened_at)}</p>
             </div>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${
               tab.status === 'open' ? 'bg-green-500' :

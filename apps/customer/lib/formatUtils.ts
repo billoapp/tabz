@@ -56,3 +56,35 @@ export const formatCompactNumber = (num: number): string => {
   if (num < 1000000000) return `${(num / 1000000).toFixed(1)}M`;
   return `${(num / 1000000000).toFixed(1)}B`;
 };
+
+// Time formatting with timezone support (Kenya UTC+3)
+export const timeAgo = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const now = new Date();
+  
+  // Get current time in Kenya timezone (UTC+3)
+  const kenyaTime = new Date(now.getTime() + (3 * 60 * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
+  
+  const seconds = Math.floor((kenyaTime.getTime() - date.getTime()) / 1000);
+  
+  if (seconds < 60) return formatDigitalTime(seconds); // Show digital time for recent events
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+};
+
+// Format time to Kenya local time
+export const formatKenyaTime = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  
+  // Convert to Kenya timezone (UTC+3)
+  const kenyaTime = new Date(date.getTime() + (3 * 60 * 60 * 1000));
+  
+  return kenyaTime.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Africa/Nairobi'
+  });
+};
