@@ -846,7 +846,7 @@ export default function MenuPage() {
           {orders.length === 0 ? (
             <div className="text-center py-8 text-gray-500"><p>No orders yet</p></div>
           ) : (
-            orders.map((order, index) => {
+            orders.filter(order => order.status !== 'cancelled').map((order, index) => {
               const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
               const initiatedBy = order.initiated_by || 'customer';
               const isStaffOrder = initiatedBy === 'staff';
