@@ -267,6 +267,37 @@ export default function TabPage() {
           <button onClick={loadTabData} className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30">
             <RefreshCw size={24} />
           </button>
+          {/* DEBUG: Test toast button */}
+          <button 
+            onClick={() => {
+              console.log('🧪 Testing toast notification');
+              showToast({
+                type: 'success',
+                title: 'Test Notification! 🎉',
+                message: 'This is a test to verify the toast system works',
+                duration: 0
+              });
+            }}
+            className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+          >
+            <CheckCircle size={24} />
+          </button>
+          {/* DEBUG: Reset processed orders button */}
+          <button 
+            onClick={() => {
+              console.log('🔄 Resetting processed orders');
+              setProcessedOrders(new Set());
+              showToast({
+                type: 'info',
+                title: 'Reset Processed Orders',
+                message: 'Will show notifications again for recently accepted orders',
+                duration: 3000
+              });
+            }}
+            className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+          >
+            <RefreshCw size={24} />
+          </button>
         </div>
         
         <h1 className="text-2xl font-bold mb-1">Tab #{tab.tab_number}</h1>
