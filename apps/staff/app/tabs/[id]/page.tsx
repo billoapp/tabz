@@ -717,7 +717,7 @@ export default function TabDetailPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {tab.orders.map((order: any) => {
+                {tab.orders.filter((order: any) => order.status !== 'cancelled').map((order: any) => {
                   const initiatedBy = order.initiated_by || 'customer';
                   const orderStyle = getOrderStyle(initiatedBy);
                   const orderNumber = order.order_number || order.id?.substring(0, 8) || 'N/A';

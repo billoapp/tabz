@@ -1,0 +1,10 @@
+{
+  "name": "Tabeza Staff Dashboard",
+  "short_name": "Tabeza Staff",
+  "description": "Staff tab management dashboard",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ea580c",
+  "orientation": "portrait"
+}
