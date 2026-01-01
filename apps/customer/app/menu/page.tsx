@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/formatUtils';
 import { useVibrate } from '@/hooks/useVibrate';
 import { useSound } from '@/hooks/useSound';
+import { telegramMessageQueries } from '@/lib/telegram-queries';
+import { MessageAlert, InitiatedBy } from '../../../../packages/shared/types';
 
 // Temporary format function to bypass import issue
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -728,32 +730,20 @@ export default function MenuPage() {
     setSendingMessage(true);
     
     try {
-      const { error } = await (supabase as any)
-        .from('tab_telegram_messages')
-        .insert({
-          tab_id: tab.id,
-          message: messageInput.trim(),
-          status: 'pending',
-          initiated_by: 'customer',
-          message_metadata: {
-            type: 'general',
-            urgency: 'normal',
-            character_count: messageInput.trim().length
-          }
-        });
+      const telegram = telegramMessageQueries(supabase);
+      
+      const { error } = await telegram.createMessage(
+        tab.id,
+        messageInput.trim(),
+        'customer',
+        {
+          type: 'general',
+          urgency: 'normal',
+          character_count: messageInput.trim().length
+        }
+      );
       
       if (error) throw error;
-      
-      await (supabase as any)
-        .from('tab_telegram_messages')
-        .update({ 
-          customer_notified: true,
-          customer_notified_at: new Date().toISOString()
-        })
-        .eq('tab_id', tab.id)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(1);
       
       setMessageInput('');
       setShowMessageModal(false);
@@ -777,11 +767,8 @@ export default function MenuPage() {
     if (!tab) return;
     
     try {
-      const { data, error } = await supabase
-        .from('tab_telegram_messages')
-        .select('*')
-        .eq('tab_id', tab.id)
-        .order('created_at', { ascending: false });
+      const telegram = telegramMessageQueries(supabase);
+      const { data, error } = await telegram.getTabMessages(tab.id);
       
       if (!error && data) {
         setTelegramMessages(data);
