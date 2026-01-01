@@ -88,3 +88,25 @@ export const formatKenyaTime = (dateStr: string): string => {
     timeZone: 'Africa/Nairobi'
   });
 };
+
+// Format time ago with detailed format
+export const formatTimeAgoDetailed = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+};
+
+// Get message status color classes
+export const getMessageStatusColor = (status: string): string => {
+  switch (status) {
+    case 'pending': return 'text-yellow-600 bg-yellow-100';
+    case 'acknowledged': return 'text-blue-600 bg-blue-100';
+    case 'completed': return 'text-green-600 bg-green-100';
+    case 'cancelled': return 'text-red-600 bg-red-100';
+    default: return 'text-gray-600 bg-gray-100';
+  }
+};

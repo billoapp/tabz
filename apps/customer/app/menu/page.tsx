@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign } from 'lucide-react';
+import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign, MessageCircle, Send, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/formatUtils';
 import { useVibrate } from '@/hooks/useVibrate';
@@ -86,6 +86,15 @@ export default function MenuPage() {
     message: string;
   }>({ show: false, orderTotal: '', message: '' });
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
+  
+  // Telegram messaging state
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageInput, setMessageInput] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageSentModal, setMessageSentModal] = useState(false);
+  const [telegramMessages, setTelegramMessages] = useState<any[]>([]);
+  const [newMessageAlert, setNewMessageAlert] = useState<any>(null);
+  
   const loadAttempted = useRef(false);
 
   // Helper function to get display image with category fallback
@@ -285,11 +294,77 @@ export default function MenuPage() {
       )
       .subscribe();
 
+    // Subscribe to telegram messages
+    const telegramSubscription = supabase
+      .channel(`tab-telegram-${tab.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tab_telegram_messages',
+          filter: `tab_id=eq.${tab.id}` 
+        },
+        async (payload: any) => {
+          console.log('📩 Telegram message update:', payload);
+          
+          // Refresh messages
+          const { data: messages, error } = await supabase
+            .from('tab_telegram_messages')
+            .select('*')
+            .eq('tab_id', tab.id)
+            .order('created_at', { ascending: false });
+          
+          if (!error && messages) {
+            setTelegramMessages(messages);
+            
+            // Show notification for new staff acknowledgments
+            if (payload.new?.status === 'acknowledged' && 
+                payload.old?.status === 'pending' &&
+                payload.new?.staff_acknowledged_at) {
+              
+              buzz([200]);
+              playAcceptanceSound();
+              
+              setNewMessageAlert({
+                type: 'acknowledged',
+                message: 'Staff has acknowledged your message',
+                timestamp: new Date().toISOString()
+              });
+              
+              setTimeout(() => {
+                setNewMessageAlert(null);
+              }, 5000);
+            }
+            
+            // Show notification for message completed
+            if (payload.new?.status === 'completed' && 
+                payload.old?.status !== 'completed') {
+              
+              buzz([200, 100, 200]);
+              playAcceptanceSound();
+              
+              setNewMessageAlert({
+                type: 'completed',
+                message: 'Your request has been completed!',
+                timestamp: new Date().toISOString()
+              });
+              
+              setTimeout(() => {
+                setNewMessageAlert(null);
+              }, 5000);
+            }
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       console.log('🧹 Cleaning up real-time subscriptions');
       ordersSubscription.unsubscribe();
       paymentsSubscription.unsubscribe();
       tabSubscription.unsubscribe();
+      telegramSubscription.unsubscribe();
     };
   }, [tab?.id, router, processedOrders]); // Add processedOrders to dependencies
 
@@ -638,7 +713,7 @@ export default function MenuPage() {
           reference: `PAY${Date.now()}`
         });
       if (error) throw error;
-      alert('Payment successful! 🎉');
+      alert('Payment successful! ');
       setPaymentAmount('');
       setPhoneNumber('');
     } catch (error) {
@@ -646,6 +721,81 @@ export default function MenuPage() {
       alert('Payment failed');
     }
   };
+
+  const sendTelegramMessage = async () => {
+    if (!messageInput.trim() || !tab) return;
+    
+    setSendingMessage(true);
+    
+    try {
+      const { error } = await (supabase as any)
+        .from('tab_telegram_messages')
+        .insert({
+          tab_id: tab.id,
+          message: messageInput.trim(),
+          status: 'pending',
+          initiated_by: 'customer',
+          message_metadata: {
+            type: 'general',
+            urgency: 'normal',
+            character_count: messageInput.trim().length
+          }
+        });
+      
+      if (error) throw error;
+      
+      await (supabase as any)
+        .from('tab_telegram_messages')
+        .update({ 
+          customer_notified: true,
+          customer_notified_at: new Date().toISOString()
+        })
+        .eq('tab_id', tab.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      setMessageInput('');
+      setShowMessageModal(false);
+      setMessageSentModal(true);
+      
+      buzz([100]);
+      
+      setTimeout(() => {
+        setMessageSentModal(false);
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Failed to send message. Please try again.');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const loadTelegramMessages = async () => {
+    if (!tab) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('tab_telegram_messages')
+        .select('*')
+        .eq('tab_id', tab.id)
+        .order('created_at', { ascending: false });
+      
+      if (!error && data) {
+        setTelegramMessages(data);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (tab?.id) {
+      loadTelegramMessages();
+    }
+  }, [tab?.id]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -852,6 +1002,98 @@ export default function MenuPage() {
           </div>
         );
       })()}
+
+      {/* Telegram Message Section */}
+      <div className="bg-white border-b border-gray-100">
+        {/* Message Header */}
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <MessageCircle size={20} className="text-blue-500" />
+              <h2 className="text-sm font-semibold text-gray-700">Message Staff</h2>
+            </div>
+            <button
+              onClick={() => setShowMessageModal(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100"
+            >
+              <Send size={16} />
+              Send Message
+            </button>
+          </div>
+          
+          {/* Message Stats */}
+          {telegramMessages.length > 0 && (
+            <div className="flex gap-3 text-xs mb-3">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'pending').length} Pending</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'acknowledged').length} Acknowledged</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'completed').length} Completed</span>
+              </div>
+            </div>
+          )}
+          
+          {/* Recent Messages Preview */}
+          {telegramMessages.slice(0, 2).map((msg) => (
+            <div 
+              key={msg.id} 
+              className={`p-3 rounded-lg mb-2 ${
+                msg.status === 'pending' ? 'bg-yellow-50 border border-yellow-100' :
+                msg.status === 'acknowledged' ? 'bg-blue-50 border border-blue-100' :
+                'bg-green-50 border border-green-100'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-800">{msg.message}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {timeAgo(msg.created_at)} • 
+                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                      msg.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                      msg.status === 'acknowledged' ? 'bg-blue-100 text-blue-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      {msg.status}
+                    </span>
+                  </p>
+                </div>
+                {msg.status === 'pending' && (
+                  <Clock size={16} className="text-yellow-500 flex-shrink-0" />
+                )}
+                {msg.status === 'acknowledged' && (
+                  <CheckCircle size={16} className="text-blue-500 flex-shrink-0" />
+                )}
+                {msg.status === 'completed' && (
+                  <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+                )}
+              </div>
+            </div>
+          ))}
+          
+          {telegramMessages.length > 2 && (
+            <button
+              onClick={() => setShowMessageModal(true)}
+              className="w-full text-center text-xs text-blue-600 py-2 hover:text-blue-700"
+            >
+              View all {telegramMessages.length} messages →
+            </button>
+          )}
+          
+          {telegramMessages.length === 0 && (
+            <div className="text-center py-4 text-gray-500">
+              <MessageCircle size={32} className="mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No messages yet</p>
+              <p className="text-xs mt-1">Send a message to staff about special requests</p>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Menu Section */}
       <div ref={menuRef} className="bg-white relative overflow-hidden">
@@ -1302,6 +1544,147 @@ export default function MenuPage() {
                 className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition-colors"
               >
                 OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Message Modal */}
+      {showMessageModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <MessageCircle size={24} className="text-blue-500" />
+                <h2 className="text-xl font-bold text-gray-900">Message Staff</h2>
+              </div>
+              <button onClick={() => setShowMessageModal(false)}>
+                <X size={24} className="text-gray-400 hover:text-gray-600" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-3">
+                Send a message to the staff about special requests, questions, or anything else you need.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <button
+                  onClick={() => setMessageInput('Can I get some extra napkins?')}
+                  className="text-xs p-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-left"
+                >
+                  Extra napkins
+                </button>
+                <button
+                  onClick={() => setMessageInput('Can we have the bill split?')}
+                  className="text-xs p-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-left"
+                >
+                  Split bill
+                </button>
+                <button
+                  onClick={() => setMessageInput('Table needs cleaning')}
+                  className="text-xs p-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-left"
+                >
+                  Clean table
+                </button>
+                <button
+                  onClick={() => setMessageInput('Can I get a recommendation?')}
+                  className="text-xs p-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-left"
+                >
+                  Recommendations
+                </button>
+              </div>
+              
+              <textarea
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                placeholder="Type your message here... (e.g., 'Can we get more water?', 'Special dietary request', etc.)"
+                className="w-full h-32 p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none resize-none"
+                maxLength={500}
+              />
+              <div className="text-right mt-1">
+                <span className={`text-xs ${messageInput.length > 450 ? 'text-red-500' : 'text-gray-400'}`}>
+                  {messageInput.length}/500
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowMessageModal(false)}
+                className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={sendTelegramMessage}
+                disabled={!messageInput.trim() || sendingMessage}
+                className="flex-1 py-3 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {sendingMessage ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send size={18} />
+                    Send Message
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Message Sent Confirmation Modal */}
+      {messageSentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 max-w-sm w-full mx-4 text-center animate-fadeIn">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle size={32} className="text-green-500" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Message Sent!</h3>
+            <p className="text-gray-600 mb-4">
+              Your message has been sent to staff. They will respond shortly.
+            </p>
+            <button
+              onClick={() => setMessageSentModal(false)}
+              className="w-full bg-green-500 text-white py-3 rounded-xl font-medium hover:bg-green-600"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* New Message Alert */}
+      {newMessageAlert && (
+        <div className="fixed top-4 right-4 z-50 animate-slideIn">
+          <div className={`rounded-xl shadow-lg p-4 max-w-sm ${
+            newMessageAlert.type === 'acknowledged' ? 'bg-blue-500 text-white' :
+            newMessageAlert.type === 'completed' ? 'bg-green-500 text-white' :
+            'bg-yellow-500 text-white'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className="bg-white bg-opacity-20 rounded-full p-2">
+                {newMessageAlert.type === 'acknowledged' ? (
+                  <CheckCircle size={20} />
+                ) : (
+                  <AlertCircle size={20} />
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold">{newMessageAlert.message}</p>
+                <p className="text-xs opacity-90">{timeAgo(newMessageAlert.timestamp)}</p>
+              </div>
+              <button
+                onClick={() => setNewMessageAlert(null)}
+                className="p-1 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+              >
+                <X size={16} />
               </button>
             </div>
           </div>
