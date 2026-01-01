@@ -31,6 +31,8 @@ export default function TabPage() {
     const currentTab = JSON.parse(tabData);
     const tabId = currentTab.id;
 
+    console.log('🔗 Setting up real-time subscription for tab:', tabId);
+
     // Subscribe to order changes for this tab
     const subscription = supabase
       .channel(`tab_orders_${tabId}`)
@@ -42,7 +44,14 @@ export default function TabPage() {
           filter: `tab_id=eq.${tabId}`
         }, 
         (payload: any) => {
-          console.log('Real-time order update:', payload);
+          console.log('📡 Real-time order update received:', payload);
+          console.log('📊 Payload details:', {
+            eventType: payload.eventType,
+            new: payload.new,
+            old: payload.old,
+            table: payload.table,
+            schema: payload.schema
+          });
           
           // Check if staff accepted an order (multiple scenarios)
           const isStaffAcceptance = (
@@ -56,11 +65,16 @@ export default function TabPage() {
              payload.old?.status !== 'confirmed')
           );
           
+          console.log('🤖 Is staff acceptance?', isStaffAcceptance);
+          console.log('📋 Processed orders:', Array.from(processedOrders));
+          
           if (isStaffAcceptance && !processedOrders.has(payload.new.id)) {
             console.log('🎉 Staff accepted order:', payload.new.id);
             
             // Mark this order as processed to avoid duplicate notifications
             setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+            
+            console.log('🔔 Showing toast notification...');
             
             // Show persistent toast notification
             showToast({
@@ -69,14 +83,25 @@ export default function TabPage() {
               message: `Your order of ${formatCurrency(payload.new.total)} has been accepted and is being prepared`,
               duration: 0 // Persistent - won't auto-dismiss
             });
+          } else {
+            console.log('❌ Not showing toast - conditions not met:', {
+              isStaffAcceptance,
+              alreadyProcessed: processedOrders.has(payload.new?.id),
+              orderId: payload.new?.id
+            });
           }
           
           loadTabData(); // Refresh data when any order changes
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Subscription status:', status);
+      });
+
+    console.log('✅ Real-time subscription set up successfully');
 
     return () => {
+      console.log('🔌 Unsubscribing from real-time updates');
       subscription.unsubscribe();
     };
   }, [processedOrders]);
@@ -314,6 +339,63 @@ export default function TabPage() {
             className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
           >
             <RefreshCw size={24} />
+          </button>
+          {/* DEBUG: Simulate staff acceptance */}
+          <button 
+            onClick={() => {
+              console.log('🎭 Simulating staff order acceptance...');
+              
+              // Find a pending customer order to simulate acceptance
+              const pendingOrder = orders.find(o => 
+                o.status === 'pending' && 
+                o.initiated_by === 'customer'
+              );
+              
+              if (pendingOrder) {
+                console.log('📦 Found pending order to simulate:', pendingOrder.id);
+                
+                // Simulate the payload that would come from real-time
+                const simulatedPayload = {
+                  eventType: 'UPDATE',
+                  new: {
+                    ...pendingOrder,
+                    status: 'confirmed',
+                    updated_at: new Date().toISOString()
+                  },
+                  old: pendingOrder
+                };
+                
+                // Manually trigger the real-time handler
+                console.log('🎭 Triggering simulated real-time update...');
+                
+                // Mark as processed and show toast
+                if (!processedOrders.has(pendingOrder.id)) {
+                  setProcessedOrders(prev => new Set([...prev, pendingOrder.id]));
+                  
+                  showToast({
+                    type: 'success',
+                    title: 'Order Accepted! 🎉',
+                    message: `Your order of ${formatCurrency(pendingOrder.total)} has been accepted and is being prepared`,
+                    duration: 0
+                  });
+                  
+                  console.log('✅ Simulated acceptance complete');
+                } else {
+                  console.log('⚠️ Order already processed');
+                }
+              } else {
+                console.log('❌ No pending customer orders found to simulate');
+                showToast({
+                  type: 'warning',
+                  title: 'No Pending Orders',
+                  message: 'Create a customer order first to simulate acceptance',
+                  duration: 3000
+                });
+              }
+            }}
+            className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+          >
+            <CheckCircle size={24} />
           </button>
         </div>
         
