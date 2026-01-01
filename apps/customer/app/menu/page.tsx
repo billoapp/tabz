@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/formatUtils';
+import { useToast } from '@/components/ui/Toast';
 
 // Temporary format function to bypass import issue
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -54,6 +55,7 @@ interface Tab {
 
 export default function MenuPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [tab, setTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,6 +77,7 @@ export default function MenuPage() {
   const [paymentCollapsed, setPaymentCollapsed] = useState(true);
   const [scrollY, setScrollY] = useState(0);
   const [currentTime, setCurrentTime] = useState(Date.now()); // Add this state for real-time updates
+  const [processedOrders, setProcessedOrders] = useState<Set<string>>(new Set()); // Track processed orders for notifications
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
   const loadAttempted = useRef(false);
 
@@ -131,8 +134,54 @@ export default function MenuPage() {
           table: 'tab_orders',
           filter: `tab_id=eq.${tab.id}`
         },
-        async (payload) => {
-          console.log('📦 Real-time order update:', payload);
+        async (payload: any) => {
+          console.log('📦 Real-time order update received:', payload);
+          console.log('📊 Payload details:', {
+            eventType: payload.eventType,
+            new: payload.new,
+            old: payload.old,
+            table: payload.table,
+            schema: payload.schema
+          });
+          
+          // Check if staff accepted an order (multiple scenarios)
+          const isStaffAcceptance = (
+            // Scenario 1: pending -> confirmed (staff accepts customer order)
+            (payload.new?.status === 'confirmed' && 
+             payload.old?.status === 'pending' && 
+             payload.new?.initiated_by === 'customer') ||
+            // Scenario 2: Any change to confirmed status for customer orders
+            (payload.new?.status === 'confirmed' && 
+             payload.new?.initiated_by === 'customer' &&
+             payload.old?.status !== 'confirmed')
+          );
+          
+          console.log('🤖 Is staff acceptance?', isStaffAcceptance);
+          console.log('📋 Processed orders:', Array.from(processedOrders));
+          
+          if (isStaffAcceptance && !processedOrders.has(payload.new.id)) {
+            console.log('🎉 Staff accepted order:', payload.new.id);
+            
+            // Mark this order as processed to avoid duplicate notifications
+            setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+            
+            console.log('🔔 Showing toast notification...');
+            
+            // Show persistent toast notification
+            showToast({
+              type: 'success',
+              title: 'Order Accepted! 🎉',
+              message: `Your order of ${formatCurrency(payload.new.total)} has been accepted and is being prepared`,
+              duration: 0 // Persistent - won't auto-dismiss
+            });
+          } else {
+            console.log('❌ Not showing toast - conditions not met:', {
+              isStaffAcceptance,
+              alreadyProcessed: processedOrders.has(payload.new?.id),
+              orderId: payload.new?.id
+            });
+          }
+          
           // Refresh orders data
           const { data: ordersData, error } = await supabase
             .from('tab_orders')
@@ -685,6 +734,37 @@ export default function MenuPage() {
             <button onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Menu</button>
             <button onClick={() => ordersRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Orders</button>
             <button onClick={() => paymentRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Pay</button>
+            {/* DEBUG: Test toast button */}
+            <button 
+              onClick={() => {
+                console.log('🧪 Testing toast notification');
+                showToast({
+                  type: 'success',
+                  title: 'Test Notification! 🎉',
+                  message: 'This is a test to verify the toast system works',
+                  duration: 0
+                });
+              }}
+              className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm"
+            >
+              Test
+            </button>
+            {/* DEBUG: Reset processed orders button */}
+            <button 
+              onClick={() => {
+                console.log('🔄 Resetting processed orders');
+                setProcessedOrders(new Set());
+                showToast({
+                  type: 'info',
+                  title: 'Reset Processed Orders',
+                  message: 'Will show notifications again for recently accepted orders',
+                  duration: 3000
+                });
+              }}
+              className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm"
+            >
+              Reset
+            </button>
           </div>
         </div>
       </div>
