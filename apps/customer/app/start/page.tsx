@@ -23,21 +23,17 @@ function ConsentContent() {
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    console.log('🔍 Start page loaded');
     
     // Try to get bar slug from URL first, then sessionStorage
     let slug = searchParams?.get('bar') || searchParams?.get('slug');
     
     if (!slug) {
       slug = sessionStorage.getItem('scanned_bar_slug');
-      console.log('📦 Retrieved bar slug from sessionStorage:', slug);
     } else {
-      console.log('🔗 Retrieved bar slug from URL:', slug);
       sessionStorage.setItem('scanned_bar_slug', slug);
     }
 
     if (!slug) {
-      console.error('❌ No bar slug found, redirecting to landing');
       router.replace('/');
       return;
     }
@@ -48,7 +44,6 @@ function ConsentContent() {
 
   const loadBarInfo = async (slug: string) => {
     try {
-      console.log('🔍 Loading bar info for slug:', slug);
       
       const { data: bar, error: barError } = await (supabase as any)
         .from('bars')
@@ -56,10 +51,8 @@ function ConsentContent() {
         .eq('slug', slug)
         .maybeSingle();
 
-      console.log('📊 Bar query result:', { bar, barError });
 
       if (barError) {
-        console.error('❌ Supabase error:', barError);
         setError(`Database error: ${barError.message}`);
         setLoading(false);
         return;
@@ -81,7 +74,6 @@ function ConsentContent() {
 
       setBarId(bar.id);
       setBarName(bar.name || 'Bar');
-      console.log('✅ Bar loaded successfully:', bar.name, 'ID:', bar.id);
       
       // Check for existing open tab at this bar
       const tabData = sessionStorage.getItem('currentTab');
@@ -95,7 +87,6 @@ function ConsentContent() {
             }
           }
         } catch (e) {
-          console.log('No valid existing tab found');
         }
       }
 
@@ -132,9 +123,6 @@ function ConsentContent() {
       const deviceId = getDeviceId();
       const barDeviceKey = getBarDeviceKey(barId);
       
-      console.log('🔍 Checking for existing tabs with device ID:', deviceId);
-      console.log('🔑 Bar device key:', barDeviceKey);
-      
       // Check for existing open tab with this device
       const { data: existingTab, error: checkError } = await (supabase as any)
         .from('tabs')
@@ -145,15 +133,11 @@ function ConsentContent() {
         .maybeSingle();
 
       if (checkError && checkError.code !== 'PGRST116') {
-        console.error('Error checking existing tab:', checkError);
         throw checkError;
       }
 
       // If tab exists, reuse it
       if (existingTab) {
-        console.log('✅ Found existing open tab, resuming:', existingTab.tab_number);
-        console.log('📱 Device ID enforcement working - preventing multiple tabs');
-        
         if (nickname.trim()) {
           const notes = JSON.parse(existingTab.notes || '{}');
           notes.display_name = nickname.trim();
@@ -178,7 +162,6 @@ function ConsentContent() {
         sessionStorage.setItem('displayName', displayName);
         sessionStorage.setItem('barName', barName);
         
-        console.log('📦 Stored tab data, navigating to menu...');
         
         // Reset creating state before navigation
         setCreating(false);
@@ -188,7 +171,6 @@ function ConsentContent() {
         return;
       }
 
-      // Additional check: Look for any open tabs from this device (debugging)
       const { data: allDeviceTabs } = await (supabase as any)
         .from('tabs')
         .select('tab_number, status, opened_at')
@@ -196,13 +178,11 @@ function ConsentContent() {
         .eq('owner_identifier', barDeviceKey)
         .order('opened_at', { ascending: false });
 
-      console.log('🔍 All tabs from this device:', allDeviceTabs);
 
       // If we found any closed tabs from this device, warn user
       if (allDeviceTabs && allDeviceTabs.length > 0) {
         const openTabs = allDeviceTabs.filter((tab: { status: string }) => tab.status === 'open');
         if (openTabs.length > 0) {
-          console.error('🚨 Multiple open tabs detected! This should not happen.');
           throw new Error('Multiple tabs detected. Please contact support.');
         }
       }
@@ -231,7 +211,6 @@ function ConsentContent() {
         tabNumber = nextNumber;
       }
 
-      console.log('🆕 Creating NEW tab for bar:', barId);
 
       const { data: tab, error: tabError } = await (supabase as any)
         .from('tabs')
@@ -258,14 +237,12 @@ function ConsentContent() {
         throw tabError;
       }
 
-      console.log('✅ New tab created successfully:', tab);
 
       // Store tab data before navigation
       sessionStorage.setItem('currentTab', JSON.stringify(tab));
       sessionStorage.setItem('displayName', displayName);
       sessionStorage.setItem('barName', barName);
       
-      console.log('📦 Stored new tab data, navigating to menu...');
       
       // Reset creating state before navigation
       setCreating(false);
@@ -307,15 +284,6 @@ function ConsentContent() {
             </div>
             <h1 className="text-2xl font-bold text-gray-800 mb-2">QR Code Error</h1>
             <p className="text-gray-700 mb-4">{error}</p>
-            
-            <div className="bg-gray-50 p-3 rounded-lg text-left mb-4">
-              <p className="text-sm font-mono text-gray-600 break-all">
-                <strong>Debug Info:</strong><br/>
-                Bar Slug from QR: {barSlug || 'None found'}<br/>
-                SessionStorage: {sessionStorage.getItem('scanned_bar_slug') || 'None'}<br/>
-                URL Param: {searchParams?.get('bar') || searchParams?.get('slug') || 'None'}
-              </p>
-            </div>
           </div>
           
           <button
