@@ -36,19 +36,28 @@ export default function TabPage() {
       .channel(`tab_orders_${tabId}`)
       .on('postgres_changes', 
         { 
-          event: 'UPDATE', // Listen to updates (when staff accepts orders)
+          event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
           schema: 'public', 
           table: 'tab_orders',
           filter: `tab_id=eq.${tabId}`
         }, 
-        (payload) => {
+        (payload: any) => {
           console.log('Real-time order update:', payload);
           
-          // Check if staff accepted an order
-          if (payload.new?.status === 'confirmed' && 
-              payload.old?.status === 'pending' && 
-              payload.new?.initiated_by === 'customer' &&
-              !processedOrders.has(payload.new.id)) {
+          // Check if staff accepted an order (multiple scenarios)
+          const isStaffAcceptance = (
+            // Scenario 1: pending -> confirmed (staff accepts customer order)
+            (payload.new?.status === 'confirmed' && 
+             payload.old?.status === 'pending' && 
+             payload.new?.initiated_by === 'customer') ||
+            // Scenario 2: Any change to confirmed status for customer orders
+            (payload.new?.status === 'confirmed' && 
+             payload.new?.initiated_by === 'customer' &&
+             payload.old?.status !== 'confirmed')
+          );
+          
+          if (isStaffAcceptance && !processedOrders.has(payload.new.id)) {
+            console.log('🎉 Staff accepted order:', payload.new.id);
             
             // Mark this order as processed to avoid duplicate notifications
             setProcessedOrders(prev => new Set([...prev, payload.new.id]));
@@ -76,6 +85,9 @@ export default function TabPage() {
   useEffect(() => {
     if (!orders.length) return;
     
+    console.log('🔍 Checking for recently accepted orders...');
+    console.log('📋 Current processed orders:', Array.from(processedOrders));
+    
     // Find orders that were recently accepted by staff (within last 30 seconds)
     const recentlyAccepted = orders.filter(order => {
       if (order.status !== 'confirmed' || order.initiated_by !== 'customer') return false;
@@ -84,11 +96,16 @@ export default function TabPage() {
       const now = Date.now();
       const timeDiff = (now - orderTime) / 1000; // seconds
       
+      console.log(`🕐 Order ${order.id}: timeDiff=${timeDiff}s, processed=${processedOrders.has(order.id)}`);
+      
       return timeDiff <= 30 && !processedOrders.has(order.id);
     });
 
+    console.log('🎯 Recently accepted orders:', recentlyAccepted);
+
     // Show notification for each recently accepted order
     recentlyAccepted.forEach(order => {
+      console.log('🔔 Showing notification for order:', order.id);
       setProcessedOrders(prev => new Set([...prev, order.id]));
       
       showToast({
