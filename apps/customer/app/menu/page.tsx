@@ -78,6 +78,11 @@ export default function MenuPage() {
   const [scrollY, setScrollY] = useState(0);
   const [currentTime, setCurrentTime] = useState(Date.now()); // Add this state for real-time updates
   const [processedOrders, setProcessedOrders] = useState<Set<string>>(new Set()); // Track processed orders for notifications
+  const [acceptanceModal, setAcceptanceModal] = useState<{
+    show: boolean;
+    orderTotal: string;
+    message: string;
+  }>({ show: false, orderTotal: '', message: '' });
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
   const loadAttempted = useRef(false);
 
@@ -165,17 +170,16 @@ export default function MenuPage() {
             // Mark this order as processed to avoid duplicate notifications
             setProcessedOrders(prev => new Set([...prev, payload.new.id]));
             
-            console.log('🔔 Showing toast notification...');
+            console.log('🔔 Showing acceptance modal...');
             
-            // Show persistent toast notification
-            showToast({
-              type: 'success',
-              title: 'Order Accepted! 🎉',
-              message: `Your order of ${formatCurrency(payload.new.total)} has been accepted and is being prepared`,
-              duration: 0 // Persistent - won't auto-dismiss
+            // Show centered floating modal
+            setAcceptanceModal({
+              show: true,
+              orderTotal: formatCurrency(payload.new.total),
+              message: 'Your order has been accepted and is being prepared'
             });
           } else {
-            console.log('❌ Not showing toast - conditions not met:', {
+            console.log('❌ Not showing modal - conditions not met:', {
               isStaffAcceptance,
               alreadyProcessed: processedOrders.has(payload.new?.id),
               orderId: payload.new?.id
@@ -734,15 +738,14 @@ export default function MenuPage() {
             <button onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Menu</button>
             <button onClick={() => ordersRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Orders</button>
             <button onClick={() => paymentRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Pay</button>
-            {/* DEBUG: Test toast button */}
+            {/* DEBUG: Test modal button */}
             <button 
               onClick={() => {
-                console.log('🧪 Testing toast notification');
-                showToast({
-                  type: 'success',
-                  title: 'Test Notification! 🎉',
-                  message: 'This is a test to verify the toast system works',
-                  duration: 0
+                console.log('🧪 Testing acceptance modal');
+                setAcceptanceModal({
+                  show: true,
+                  orderTotal: 'KSh 500',
+                  message: 'This is a test to verify the modal system works'
                 });
               }}
               className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm"
@@ -1279,6 +1282,26 @@ export default function MenuPage() {
           <span className="font-bold">{cartCount}</span>
           <span className="ml-2 font-bold">{tempFormatCurrency(cartTotal)}</span>
         </button>
+      )}
+      {acceptanceModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl transform animate-fadeIn">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle size={32} className="text-green-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Accepted! 🎉</h2>
+              <p className="text-gray-600 mb-4">{acceptanceModal.message}</p>
+              <div className="text-3xl font-bold text-orange-500 mb-6">{acceptanceModal.orderTotal}</div>
+              <button 
+                onClick={() => setAcceptanceModal({ show: false, orderTotal: '', message: '' })}
+                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
