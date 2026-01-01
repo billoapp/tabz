@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/formatUtils';
-import { useToast } from '@/components/ui/Toast';
 import { useVibrate } from '@/hooks/useVibrate';
 import { useSound } from '@/hooks/useSound';
 
@@ -57,9 +56,8 @@ interface Tab {
 
 export default function MenuPage() {
   const router = useRouter();
-  const { showToast } = useToast();
-  const { buzz } = useVibrate();
-  const playAcceptanceSound = useSound('/sounds/acceptance.mp3');
+  const { buzz } = useVibrate(); 
+  const playAcceptanceSound = useSound(); // Use synthetic beep by default
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [tab, setTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
@@ -768,12 +766,7 @@ export default function MenuPage() {
               onClick={() => {
                 console.log('🔄 Resetting processed orders');
                 setProcessedOrders(new Set());
-                showToast({
-                  type: 'info',
-                  title: 'Reset Processed Orders',
-                  message: 'Will show notifications again for recently accepted orders',
-                  duration: 3000
-                });
+                console.log('✅ Processed orders reset - will show notifications again');
               }}
               className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm"
             >
