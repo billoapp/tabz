@@ -12,6 +12,8 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Environment check:', { 
       hasUrl: !!supabaseUrl, 
       hasKey: !!supabaseKey,
+      keyPrefix: supabaseKey?.substring(0, 10) + '...',
+      keyLength: supabaseKey?.length,
       urlPrefix: supabaseUrl?.substring(0, 20) + '...'
     });
 
