@@ -664,7 +664,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="text-left">
                     <p className="font-semibold text-gray-800">Send Feedback</p>
-                    <p className="text-sm text-gray-500">support@Tabeza.com</p>
+                    <p className="text-sm text-gray-500">conversationapps@gmail.com</p>
                   </div>
                 </div>
                 <ArrowRight size={20} className="text-gray-400" />

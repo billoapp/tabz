@@ -46,8 +46,8 @@ export default function LearnMorePage() {
     {
       icon: <BarChart3 className="w-6 h-6" />,
       title: "Real-Time Analytics",
-      description: "Track sales, peak hours, and popular items with live dashboards.",
-      benefits: ["Live sales data", "Peak hour insights", "Popular items tracking"]
+      description: "Track orders, service speed, and payments with live dashboards.",
+      benefits: ["Number of visitors", "Live ordering data", "Average service times"]
     },
     {
       icon: <Users className="w-6 h-6" />,
@@ -59,7 +59,7 @@ export default function LearnMorePage() {
       icon: <CreditCard className="w-6 h-6" />,
       title: "Multiple Payment Options",
       description: "Support for cash, card, mobile money, and split payments.",
-      benefits: ["Cash payments", "Card processing", "Mobile money", "Split bills"]
+      benefits: ["Cash payments", "Card processing", "Mobile money"]
     }
   ];
 
