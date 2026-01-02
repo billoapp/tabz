@@ -1203,9 +1203,12 @@ export default function MenuManagementPage() {
             )}
           </div>
 
-          {/* Static Menu Management */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
+          // Add this section in your page.tsx BEFORE the "Add Custom Item" section
+// Replace the existing "Static Menu Management" section with this:
+
+          {/* Static Menu Management - ALWAYS VISIBLE */}
+          <div className="bg-white rounded-xl shadow-sm p-4 border-2 border-purple-200">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                 <FileText size={20} className="text-purple-600" />
                 Static Menu (PDF/Image)
@@ -1220,113 +1223,165 @@ export default function MenuManagementPage() {
             
             {!staticMenuCollapsed && (
               <div className="space-y-4">
+                {/* Current Status */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm font-medium text-blue-800 mb-1">
+                    Current Menu Type: <span className="font-bold">{barSettings?.menu_type || 'interactive'}</span>
+                  </p>
+                  {barSettings?.static_menu_url ? (
+                    <p className="text-xs text-blue-600">
+                      ✅ Static menu uploaded ({barSettings.static_menu_type?.toUpperCase()})
+                    </p>
+                  ) : (
+                    <p className="text-xs text-blue-600">
+                      ℹ️ No static menu uploaded yet
+                    </p>
+                  )}
+                </div>
+
                 {/* Menu Type Toggle */}
-                <div className="bg-white rounded-xl p-4 shadow-sm">
-                  <h3 className="font-semibold text-gray-800 mb-3">Menu Type</h3>
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-3">Select Menu Type</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => handleMenuTypeChange('interactive')}
-                      className={`p-3 rounded-lg border-2 transition-all ${
+                      className={`p-4 rounded-lg border-2 transition-all ${
                         barSettings?.menu_type === 'interactive'
-                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          ? 'border-orange-500 bg-orange-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
-                      <ShoppingCart size={20} className="mx-auto mb-2" />
-                      <p className="font-medium">Interactive</p>
-                      <p className="text-xs text-gray-500">Product-based ordering</p>
+                      <ShoppingCart size={24} className="mx-auto mb-2 text-orange-500" />
+                      <p className="font-medium text-gray-800">Interactive</p>
+                      <p className="text-xs text-gray-500 mt-1">Product-based ordering</p>
                     </button>
                     <button
                       onClick={() => handleMenuTypeChange('static')}
-                      className={`p-3 rounded-lg border-2 transition-all ${
+                      disabled={!barSettings?.static_menu_url}
+                      className={`p-4 rounded-lg border-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                         barSettings?.menu_type === 'static'
-                          ? 'border-purple-500 bg-purple-50 text-purple-700'
+                          ? 'border-purple-500 bg-purple-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
-                      <FileText size={20} className="mx-auto mb-2" />
-                      <p className="font-medium">Static</p>
-                      <p className="text-xs text-gray-500">PDF/Image menu</p>
+                      <FileText size={24} className="mx-auto mb-2 text-purple-500" />
+                      <p className="font-medium text-gray-800">Static</p>
+                      <p className="text-xs text-gray-500 mt-1">PDF/Image menu</p>
+                      {!barSettings?.static_menu_url && (
+                        <p className="text-xs text-red-500 mt-1">Upload file first</p>
+                      )}
                     </button>
                   </div>
                 </div>
 
-                {/* PDF/Image Upload */}
-                <div className="bg-white rounded-xl p-4 shadow-sm">
-                  <h3 className="font-semibold text-gray-800 mb-3">Upload Menu File</h3>
-                  
-                  {barSettings?.static_menu_url ? (
-                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                          {barSettings.static_menu_type === 'pdf' ? (
-                            <FileText size={16} className="text-green-600" />
-                          ) : (
-                            <ImageIcon size={16} className="text-green-600" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-green-800">
-                            Menu uploaded ({barSettings.static_menu_type?.toUpperCase()})
-                          </p>
-                          <p className="text-xs text-green-600">Customers can view this menu</p>
-                        </div>
+                {/* Current Upload Status */}
+                {barSettings?.static_menu_url && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        {barSettings.static_menu_type === 'pdf' ? (
+                          <FileText size={20} className="text-green-600" />
+                        ) : (
+                          <ImageIcon size={20} className="text-green-600" />
+                        )}
                       </div>
-                      
-                      {barSettings.static_menu_type === 'image' && (
+                      <div className="flex-1">
+                        <p className="font-medium text-green-800">
+                          {barSettings.static_menu_type?.toUpperCase()} Menu Uploaded
+                        </p>
+                        <p className="text-xs text-green-600 mt-1">
+                          Customers can view this menu when static mode is active
+                        </p>
+                        <a
+                          href={barSettings.static_menu_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-green-700 underline mt-2 inline-block"
+                        >
+                          Preview Menu →
+                        </a>
+                      </div>
+                    </div>
+                    
+                    {barSettings.static_menu_type === 'image' && (
+                      <div className="mt-3">
                         <img 
                           src={barSettings.static_menu_url} 
                           alt="Menu preview" 
-                          className="w-full max-h-48 object-contain rounded-lg border border-gray-200"
+                          className="w-full max-h-48 object-contain rounded-lg border border-gray-200 bg-white"
                         />
-                      )}
-                    </div>
-                  ) : (
-                    <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                      <p className="text-sm text-gray-600">
-                        No static menu uploaded. Upload a PDF or image to enable static menu mode.
-                      </p>
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
+                {/* Upload New Menu */}
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-800 mb-3">
+                    {barSettings?.static_menu_url ? 'Replace Menu File' : 'Upload Menu File'}
+                  </h3>
+                  
                   <div className="space-y-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Select File (PDF or Image)
+                        Select File
                       </label>
                       <input
                         type="file"
                         accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp"
                         onChange={handleMenuFileChange}
-                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Max 10MB. Supports PDF, JPEG, PNG, WebP
+                        📄 PDF, JPEG, PNG, or WebP • Max 10MB
                       </p>
                     </div>
 
-                    {menuPreview && (
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
-                        <img 
-                          src={menuPreview} 
-                          alt="Menu preview" 
-                          className="w-full max-h-48 object-contain rounded-lg border border-gray-200"
-                        />
+                    {/* Preview */}
+                    {menuFile && (
+                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-sm font-medium text-gray-700 mb-2">
+                          Selected: {menuFile.name}
+                        </p>
+                        {menuPreview && (
+                          <img 
+                            src={menuPreview} 
+                            alt="Preview" 
+                            className="w-full max-h-48 object-contain rounded-lg border border-gray-300 bg-white mt-2"
+                          />
+                        )}
                       </div>
                     )}
 
+                    {/* Upload Button */}
                     {menuFile && (
                       <button
                         onClick={handleMenuUpload}
                         disabled={menuUploadLoading}
-                        className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold hover:bg-purple-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                        className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
-                        <Upload size={20} />
-                        {menuUploadLoading ? 'Uploading...' : 'Upload Menu'}
+                        {menuUploadLoading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={20} />
+                            Upload Menu
+                          </>
+                        )}
                       </button>
                     )}
                   </div>
+                </div>
+
+                {/* Help Text */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-sm text-yellow-800">
+                    💡 <strong>Tip:</strong> Upload a PDF for multi-page menus or an image for simple single-page menus. 
+                    After uploading, switch to "Static" mode to display it to customers.
+                  </p>
                 </div>
               </div>
             )}
