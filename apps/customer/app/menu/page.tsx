@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign, MessageCircle, Send, AlertCircle, FileText } from 'lucide-react';
+import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign, MessageCircle, Send, AlertCircle, FileText, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/formatUtils';
 import { useVibrate } from '@/hooks/useVibrate';
@@ -104,6 +104,8 @@ export default function MenuPage() {
   const [staticMenuUrl, setStaticMenuUrl] = useState<string | null>(null);
   const [staticMenuType, setStaticMenuType] = useState<'pdf' | 'image' | null>(null);
   const [showStaticMenu, setShowStaticMenu] = useState(false);
+  const [imageScale, setImageScale] = useState(1);
+  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
 
   const loadAttempted = useRef(false);
 
@@ -412,6 +414,42 @@ export default function MenuPage() {
     setMenuExpanded(!menuExpanded);
   };
 
+  // Image zoom handlers
+  const handleImageZoomIn = () => {
+    setImageScale(prev => Math.min(prev + 0.25, 3));
+  };
+
+  const handleImageZoomOut = () => {
+    setImageScale(prev => Math.max(prev - 0.25, 0.5));
+  };
+
+  const handleImageFitWidth = () => {
+    setImageScale(1);
+  };
+
+  // Menu toggle functions - can both be closed, but never open at same time
+  const toggleInteractiveMenu = () => {
+    if (!interactiveMenuCollapsed) {
+      // Collapsing interactive menu - just collapse it
+      setInteractiveMenuCollapsed(true);
+    } else {
+      // Opening interactive menu - close static menu
+      setInteractiveMenuCollapsed(false);
+      setShowStaticMenu(false);
+    }
+  };
+
+  const toggleStaticMenu = () => {
+    if (!showStaticMenu) {
+      // Opening static menu - close interactive menu
+      setShowStaticMenu(true);
+      setInteractiveMenuCollapsed(true);
+    } else {
+      // Closing static menu - just collapse it
+      setShowStaticMenu(false);
+    }
+  };
+
   const getPendingOrderTime = () => {
     const pendingCustomerOrders = orders.filter(o => o.status === 'pending' && o.initiated_by === 'customer');
     if (pendingCustomerOrders.length === 0) {
@@ -450,25 +488,17 @@ export default function MenuPage() {
 
   const loadTabData = async () => {
     console.log('📋 Menu page: loadTabData called');
-    await new Promise(resolve => setTimeout(resolve, 100));
     const tabData = sessionStorage.getItem('currentTab');
     console.log('📦 Menu page: Retrieved tab data from sessionStorage:', tabData ? 'Found' : 'Not found');
     if (!tabData) {
       console.error('❌ Menu page: No tab data found in sessionStorage');
       console.log('📦 All sessionStorage keys:', Object.keys(sessionStorage));
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const retryTabData = sessionStorage.getItem('currentTab');
-      if (!retryTabData) {
-        console.error('❌ Menu page: Still no tab data after retry, redirecting to home');
-        router.replace('/');
-        return;
-      }
-      console.log('✅ Menu page: Found tab data on retry');
+      router.replace('/');
+      return;
     }
-    const finalTabData = tabData || sessionStorage.getItem('currentTab');
     let currentTab;
     try {
-      currentTab = JSON.parse(finalTabData!);
+      currentTab = JSON.parse(tabData);
       console.log('✅ Menu page: Parsed tab data:', currentTab.id);
       if (!currentTab?.id) {
         throw new Error('Invalid tab data - missing ID');
@@ -1186,125 +1216,206 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Static Menu Viewer (PDF or Image) */}
-      {showStaticMenu && staticMenuUrl && (
-        <div className="fixed inset-0 z-50 bg-black">
-          <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 flex items-center justify-between z-10">
-            <div>
-              <h1 className="text-lg font-bold">{displayName}</h1>
-              <p className="text-sm text-orange-100">{barName} Menu</p>
-            </div>
-            <button
-              onClick={() => setShowStaticMenu(false)}
-              className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
-            >
-              <X size={24} />
-            </button>
-          </div>
-          <div className="pt-16 h-full">
-            {staticMenuType === 'pdf' ? (
-              <PDFViewer pdfUrl={staticMenuUrl} />
-            ) : (
-              // Image viewer with zoom
-              <div className="w-full h-full overflow-auto bg-gray-900 flex items-center justify-center">
-                <img 
-                  src={staticMenuUrl} 
-                  alt="Menu" 
-                  className="max-w-full max-h-full object-contain"
-                />
+      
+      
+      {/* Interactive Menu - Collapsible with fluid animations */}
+      {barProducts.length > 0 && (
+        <div className="bg-gray-50 px-4">
+          <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
+            {/* Interactive Menu Header */}
+            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
+              <div>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Interactive Menu</h2>
+                <p className="text-sm text-gray-600 mt-1">Browse products & add to cart</p>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Menu Type Toggle */}
-      {staticMenuUrl && menuType === 'static' && !showStaticMenu && (
-        <div className="bg-white border-b border-gray-100 p-4">
-          <button
-            onClick={() => setShowStaticMenu(true)}
-            className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-purple-700 flex items-center justify-center gap-2"
-          >
-            <FileText size={20} />
-            View Menu {staticMenuType === 'pdf' ? '(PDF)' : '(Image)'}
-          </button>
-        </div>
-      )}
-
-      {menuType === 'interactive' && (
-      <div ref={menuRef} className="bg-white relative overflow-hidden">
-        <div className="p-4 border-b bg-gradient-to-r from-orange-50 to-red-50">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Menu</h2>
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
-            {categoryOptions.map((category) => (
               <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${selectedCategory === category
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                onClick={toggleInteractiveMenu}
+                className="text-orange-600 hover:text-orange-700 p-2 transform transition-transform duration-200 hover:scale-110"
               >
-                {category}
+                <ChevronDown 
+                  size={20} 
+                  className={`transform transition-transform duration-300 ease-in-out ${
+                    interactiveMenuCollapsed ? 'rotate-0' : 'rotate-180'
+                  }`}
+                />
               </button>
-            ))}
-          </div>
-        </div>
-        <div className="relative">
-          <div className="overflow-x-auto scrollbar-hide px-4 pb-4">
-            <div className="flex gap-4 pb-4" style={{ paddingLeft: '16px' }}>
-              {filteredProducts.map((barProduct, index) => {
-                const product = barProduct.product;
-                if (!product) return null;
-                const displayImage = product ? getDisplayImage(product, product.category) : null;
-                return (
-                  <div
-                    key={barProduct.id}
-                    className="flex-shrink-0 w-64"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <div
-                      className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer transform transition-all hover:scale-105 flex flex-col"
-                      onClick={() => addToCart(barProduct)}
-                    >
-                      <div className="w-full pb-[125%] relative bg-gray-100">
-                        {displayImage ? (
-                          <img
-                            src={displayImage}
-                            alt={product.name || 'Product'}
-                            className="absolute inset-0 w-full h-full object-contain"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) {
-                                const fallback = document.createElement('div');
-                                fallback.className = 'absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300';
-                                fallback.textContent = product.category?.charAt(0) || 'P';
-                                parent.appendChild(fallback);
-                              }
+            </div>
+            
+            {/* Interactive Menu Content */}
+            <div 
+              className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                interactiveMenuCollapsed 
+                  ? 'max-h-0 opacity-0' 
+                  : 'max-h-[1000px] opacity-100'
+              }`}
+            >
+              <div ref={menuRef} className="relative overflow-hidden">
+                <div className="p-4 border-b">
+                  <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
+                    {categoryOptions.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transform transition-all duration-200 hover:scale-105 ${
+                          selectedCategory === category
+                            ? 'bg-orange-500 text-white scale-105 shadow-lg'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="relative">
+                  <div className="overflow-x-auto scrollbar-hide px-4 pb-4">
+                    <div className="flex gap-4 pb-4" style={{ paddingLeft: '16px' }}>
+                      {filteredProducts.map((barProduct, index) => {
+                        const product = barProduct.product;
+                        if (!product) return null;
+                        const displayImage = product ? getDisplayImage(product, product.category) : null;
+                        return (
+                          <div
+                            key={barProduct.id}
+                            className="flex-shrink-0 w-64 transform transition-all duration-300 hover:scale-105"
+                            style={{ 
+                              animationDelay: `${index * 50}ms`,
+                              opacity: interactiveMenuCollapsed ? 0 : 1,
+                              transform: `translateY(${interactiveMenuCollapsed ? '20px' : '0'})`
                             }}
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300">
-                            {product.category?.charAt(0) || 'P'}
+                          >
+                            <div
+                              className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300"
+                              onClick={() => addToCart(barProduct)}
+                            >
+                              <div className="w-full pb-[125%] relative bg-gray-100">
+                                {displayImage ? (
+                                  <img
+                                    src={displayImage}
+                                    alt={product.name || 'Product'}
+                                    className="absolute inset-0 w-full h-full object-contain transition-transform duration-300"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      const parent = e.currentTarget.parentElement;
+                                      if (parent) {
+                                        const fallback = document.createElement('div');
+                                        fallback.className = 'absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300';
+                                        fallback.textContent = product.category?.charAt(0) || 'P';
+                                        parent.appendChild(fallback);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300">
+                                    {product.category?.charAt(0) || 'P'}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="p-4">
+                                <h3 className="text-sm font-medium text-gray-900">{product.name || 'Product'}</h3>
+                                <p className="text-xs text-gray-500 mt-1">{tempFormatCurrency(barProduct.sale_price)}</p>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                      <div className="p-4">
-                        <h3 className="text-sm font-medium text-gray-900">{product.name || 'Product'}</h3>
-                        <p className="text-xs text-gray-500 mt-1">{tempFormatCurrency(barProduct.sale_price)}</p>
-                      </div>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
       )}
 
-      {/* Orders Section */}
+      {/* Static Menu Viewer - Collapsible with fluid animations */}
+      {staticMenuUrl && (
+        <div className="bg-gray-50 px-4">
+          <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
+            {/* Static Menu Header */}
+            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-purple-50 to-purple-100">
+              <div>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Static Menu</h2>
+                <p className="text-sm text-gray-600 mt-1">View {staticMenuType === 'pdf' ? 'PDF' : 'Image'} menu</p>
+              </div>
+              <button
+                onClick={toggleStaticMenu}
+                className="text-purple-600 hover:text-purple-700 p-2 transform transition-transform duration-200 hover:scale-110"
+              >
+                <ChevronDown 
+                  size={20} 
+                  className={`transform transition-transform duration-300 ease-in-out ${
+                    !showStaticMenu ? 'rotate-0' : 'rotate-180'
+                  }`}
+                />
+              </button>
+            </div>
+            
+            {/* Static Menu Content */}
+            <div 
+              className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                !showStaticMenu 
+                  ? 'max-h-0 opacity-0' 
+                  : 'max-h-[50vh] opacity-100'
+              }`}
+            >
+              <div className="relative z-40 bg-gray-900 bg-opacity-95 flex flex-col h-[50vh] min-h-[300px]">
+                {/* Content */}
+                <div className="flex-1 overflow-hidden">
+                  {staticMenuType === 'pdf' ? (
+                    <PDFViewer pdfUrl={staticMenuUrl} />
+                  ) : (
+                    // Image viewer with zoom
+                    <div className="w-full h-full bg-gray-100 flex flex-col overflow-hidden">
+                      {/* Image Content */}
+                      <div className="flex-1 overflow-auto flex items-center justify-center p-4">
+                        <img 
+                          src={staticMenuUrl} 
+                          alt="Menu" 
+                          className="max-w-full max-h-full object-contain rounded-lg shadow-lg transition-all duration-300"
+                          style={{ 
+                            transform: `scale(${imageScale})`, 
+                            transformOrigin: 'center',
+                            filter: showStaticMenu ? 'brightness(1)' : 'brightness(0.8)'
+                          }}
+                        />
+                      </div>
+                      
+                      {/* Image Zoom Controls */}
+                      <div className="bg-white border-t border-gray-200 p-2 flex items-center justify-center gap-2 shrink-0">
+                        <button
+                          onClick={handleImageZoomOut}
+                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transform transition-all duration-200 hover:scale-110"
+                          title="Zoom out"
+                        >
+                          <ZoomOut size={14} />
+                        </button>
+                        <span className="text-xs text-gray-600 min-w-[40px] text-center">
+                          {Math.round(imageScale * 100)}%
+                        </span>
+                        <button
+                          onClick={handleImageZoomIn}
+                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transform transition-all duration-200 hover:scale-110"
+                          title="Zoom in"
+                        >
+                          <ZoomIn size={14} />
+                        </button>
+                        <button
+                          onClick={handleImageFitWidth}
+                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transform transition-all duration-200 hover:scale-110"
+                          title="Fit to width"
+                        >
+                          <Maximize2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div ref={ordersRef} className="bg-gray-50 p-4">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Order History</h2>
         {orders.length > 0 && (
@@ -1317,6 +1428,7 @@ export default function MenuPage() {
             <div className="text-right">
               <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Orders</p>
               <p className="text-2xl font-bold text-orange-500">{tempFormatCurrency(tabTotal)}</p>
+              <p className="text-xs text-transparent mt-1">-</p>
             </div>
           </div>
         )}

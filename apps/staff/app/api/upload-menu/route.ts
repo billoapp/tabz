@@ -14,20 +14,16 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
 
 export async function POST(request: NextRequest) {
   try {
+    console.info('ENTRY upload-menu handler, method=', request.method);
+    console.info('SUPABASE_URL present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.info('SUPABASE_SECRET_KEY prefix:', process.env.SUPABASE_SECRET_KEY ? process.env.SUPABASE_SECRET_KEY.slice(0, 10) : null);
+    console.info('Incoming Content-Type:', request.headers.get('content-type'));
+    console.info('Incoming Origin:', request.headers.get('origin'));
+    console.info('Has Authorization header:', !!request.headers.get('authorization'));
+
     if (request.method !== 'POST') {
       return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
     }
-
-    // Masked env check
-    console.info('SUPABASE_URL present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
-    console.info('SUPABASE_SECRET_KEY prefix:', process.env.SUPABASE_SECRET_KEY ? process.env.SUPABASE_SECRET_KEY.slice(0, 10) : null);
-    
-    // Log incoming content-type and whether an Authorization header exists (do NOT log header value)
-    console.info('Incoming Content-Type:', request.headers.get('content-type'));
-    console.info('Incoming Authorization header present:', !!request.headers.get('authorization'));
-
-    // Masked debug: show prefix of key we are using (do not log full key)
-    console.info('Using SUPABASE_SECRET_KEY prefix:', SUPABASE_SECRET_KEY ? SUPABASE_SECRET_KEY.slice(0, 8) : null);
 
     const formData = await request.formData();
     const file = formData.get('file') as File;

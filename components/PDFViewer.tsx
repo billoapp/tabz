@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, X, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, X } from 'lucide-react';
 
 interface PDFViewerProps {
   pdfUrl: string;
@@ -12,7 +12,6 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
   const [numPages, setNumPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Simple PDF viewer using iframe as fallback
   // In a production environment, you might want to use react-pdf or PDF.js
@@ -34,19 +33,6 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
     setScale(1);
   };
 
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = pdfUrl;
-    link.download = 'menu.pdf';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
-  };
-
   if (error) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-900">
@@ -60,101 +46,26 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
   }
 
   return (
-    <div className={`w-full h-full bg-gray-900 flex flex-col ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
-      {/* Header Controls */}
-      <div className="bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h3 className="text-white font-medium">Menu Viewer</h3>
-          
-          {/* Page Navigation */}
-          <div className="flex items-center gap-2 text-white text-sm">
-            <button
-              onClick={() => setPageNum(prev => Math.max(prev - 1, 1))}
-              disabled={pageNum <= 1}
-              className="p-1 hover:bg-gray-700 rounded disabled:opacity-50"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="min-w-[60px] text-center">
-              Page {pageNum} of {numPages || '?'}
-            </span>
-            <button
-              onClick={() => setPageNum(prev => Math.min(prev + 1, numPages || 1))}
-              disabled={pageNum >= (numPages || 1)}
-              className="p-1 hover:bg-gray-700 rounded disabled:opacity-50"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Zoom Controls */}
-          <div className="flex items-center gap-1 bg-gray-700 rounded-lg p-1">
-            <button
-              onClick={handleZoomOut}
-              className="p-1 hover:bg-gray-600 rounded text-white"
-              title="Zoom out"
-            >
-              <ZoomOut size={16} />
-            </button>
-            <span className="text-white text-sm min-w-[50px] text-center">
-              {Math.round(scale * 100)}%
-            </span>
-            <button
-              onClick={handleZoomIn}
-              className="p-1 hover:bg-gray-600 rounded text-white"
-              title="Zoom in"
-            >
-              <ZoomIn size={16} />
-            </button>
-            <button
-              onClick={handleFitWidth}
-              className="p-1 hover:bg-gray-600 rounded text-white"
-              title="Fit to width"
-            >
-              <Maximize2 size={16} />
-            </button>
-          </div>
-
-          {/* Download and Fullscreen */}
-          <button
-            onClick={handleDownload}
-            className="p-2 hover:bg-gray-700 rounded text-white"
-            title="Download PDF"
-          >
-            <Download size={16} />
-          </button>
-          
-          {isFullscreen && (
-            <button
-              onClick={toggleFullscreen}
-              className="p-2 hover:bg-gray-700 rounded text-white"
-              title="Exit fullscreen"
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* PDF Content */}
-      <div className="flex-1 overflow-auto flex items-center justify-center p-4">
+    <div className="w-full h-full bg-gray-100 flex flex-col overflow-hidden">
+      {/* PDF Content - Full height without header */}
+      <div className="flex-1 overflow-hidden flex items-center justify-center p-2">
         {loading ? (
-          <div className="text-center text-white">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
-            <p>Loading PDF...</p>
+          <div className="text-center text-gray-600">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600 mx-auto mb-2"></div>
+            <p className="text-xs">Loading PDF...</p>
           </div>
         ) : (
-          <div className="bg-white shadow-2xl" style={{ transform: `scale(${scale})`, transformOrigin: 'center' }}>
+          <div className="bg-white shadow-lg rounded" style={{ transform: `scale(${scale})`, transformOrigin: 'center' }}>
             <iframe
-              src={pdfUrl}
-              className="border-0"
+              src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+              className="border-0 rounded"
               style={{
-                width: '600px',
-                height: '800px',
-                minWidth: '300px',
-                minHeight: '400px'
+                width: '400px',
+                height: '250px',
+                minWidth: '250px',
+                minHeight: '150px',
+                maxWidth: '100%',
+                maxHeight: '100%'
               }}
               title="Menu PDF"
               onError={() => setError('Failed to load PDF file')}
@@ -163,16 +74,33 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
         )}
       </div>
 
-      {/* Fullscreen Toggle (when not in fullscreen) */}
-      {!isFullscreen && (
+      {/* Simple controls at bottom */}
+      <div className="bg-white border-t border-gray-200 p-2 flex items-center justify-center gap-2 shrink-0">
         <button
-          onClick={toggleFullscreen}
-          className="absolute bottom-4 right-4 bg-gray-800 text-white p-3 rounded-full shadow-lg hover:bg-gray-700"
-          title="Enter fullscreen"
+          onClick={handleZoomOut}
+          className="p-1 hover:bg-gray-100 rounded text-gray-600"
+          title="Zoom out"
         >
-          <Maximize2 size={20} />
+          <ZoomOut size={14} />
         </button>
-      )}
+        <span className="text-xs text-gray-600 min-w-[40px] text-center">
+          {Math.round(scale * 100)}%
+        </span>
+        <button
+          onClick={handleZoomIn}
+          className="p-1 hover:bg-gray-100 rounded text-gray-600"
+          title="Zoom in"
+        >
+          <ZoomIn size={14} />
+        </button>
+        <button
+          onClick={handleFitWidth}
+          className="p-1 hover:bg-gray-100 rounded text-gray-600"
+          title="Fit to width"
+        >
+          <Maximize2 size={14} />
+        </button>
+      </div>
     </div>
   );
 }

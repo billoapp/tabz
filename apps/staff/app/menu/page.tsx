@@ -1203,15 +1203,12 @@ export default function MenuManagementPage() {
             )}
           </div>
 
-          // Add this section in your page.tsx BEFORE the "Add Custom Item" section
-// Replace the existing "Static Menu Management" section with this:
-
           {/* Static Menu Management - ALWAYS VISIBLE */}
           <div className="bg-white rounded-xl shadow-sm p-4 border-2 border-purple-200">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                 <FileText size={20} className="text-purple-600" />
-                Static Menu (PDF/Image)
+                Static Menu (PDF/Image) - Additional Menu Option
               </h2>
               <button
                 onClick={() => setStaticMenuCollapsed(!staticMenuCollapsed)}
@@ -1226,52 +1223,17 @@ export default function MenuManagementPage() {
                 {/* Current Status */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <p className="text-sm font-medium text-blue-800 mb-1">
-                    Current Menu Type: <span className="font-bold">{barSettings?.menu_type || 'interactive'}</span>
+                    Static Menu Status
                   </p>
                   {barSettings?.static_menu_url ? (
                     <p className="text-xs text-blue-600">
-                      ✅ Static menu uploaded ({barSettings.static_menu_type?.toUpperCase()})
+                      ✅ Static menu uploaded ({barSettings.static_menu_type?.toUpperCase()}) - Customers can view this alongside the interactive menu
                     </p>
                   ) : (
                     <p className="text-xs text-blue-600">
-                      ℹ️ No static menu uploaded yet
+                      ℹ️ No static menu uploaded yet - Upload a PDF or image to provide customers with an additional menu viewing option
                     </p>
                   )}
-                </div>
-
-                {/* Menu Type Toggle */}
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-3">Select Menu Type</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => handleMenuTypeChange('interactive')}
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        barSettings?.menu_type === 'interactive'
-                          ? 'border-orange-500 bg-orange-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <ShoppingCart size={24} className="mx-auto mb-2 text-orange-500" />
-                      <p className="font-medium text-gray-800">Interactive</p>
-                      <p className="text-xs text-gray-500 mt-1">Product-based ordering</p>
-                    </button>
-                    <button
-                      onClick={() => handleMenuTypeChange('static')}
-                      disabled={!barSettings?.static_menu_url}
-                      className={`p-4 rounded-lg border-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                        barSettings?.menu_type === 'static'
-                          ? 'border-purple-500 bg-purple-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <FileText size={24} className="mx-auto mb-2 text-purple-500" />
-                      <p className="font-medium text-gray-800">Static</p>
-                      <p className="text-xs text-gray-500 mt-1">PDF/Image menu</p>
-                      {!barSettings?.static_menu_url && (
-                        <p className="text-xs text-red-500 mt-1">Upload file first</p>
-                      )}
-                    </button>
-                  </div>
                 </div>
 
                 {/* Current Upload Status */}
@@ -1290,7 +1252,7 @@ export default function MenuManagementPage() {
                           {barSettings.static_menu_type?.toUpperCase()} Menu Uploaded
                         </p>
                         <p className="text-xs text-green-600 mt-1">
-                          Customers can view this menu when static mode is active
+                          Customers can view this menu alongside the interactive product menu
                         </p>
                         <a
                           href={barSettings.static_menu_url}
@@ -1328,7 +1290,7 @@ export default function MenuManagementPage() {
                       </label>
                       <input
                         type="file"
-                        accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp"
+                        accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
                         onChange={handleMenuFileChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
                       />
@@ -1379,8 +1341,7 @@ export default function MenuManagementPage() {
                 {/* Help Text */}
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                   <p className="text-sm text-yellow-800">
-                    💡 <strong>Tip:</strong> Upload a PDF for multi-page menus or an image for simple single-page menus. 
-                    After uploading, switch to "Static" mode to display it to customers.
+                    💡 <strong>Tip:</strong> The static menu complements your interactive menu. Customers can switch between browsing products and viewing the static menu. Upload a PDF for multi-page menus or an image for simple single-page menus.
                   </p>
                 </div>
               </div>
