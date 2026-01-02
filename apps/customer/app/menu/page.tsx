@@ -1303,7 +1303,6 @@ export default function MenuPage() {
         </div>
       </div>
       )}
-      )}
 
       {/* Orders Section */}
       <div ref={ordersRef} className="bg-gray-50 p-4">
