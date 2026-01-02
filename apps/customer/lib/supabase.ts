@@ -4,8 +4,8 @@ let supabaseClient: ReturnType<typeof createClient> | null = null;
 
 export const getSupabaseClient = () => {
   if (!supabaseClient) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    const supabaseUrl = process.env.PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY;
     
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Missing Supabase environment variables');

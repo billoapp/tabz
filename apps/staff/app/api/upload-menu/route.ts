@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
     console.log(' Upload API called');
     
     // Check environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseUrl = process.env.PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SECRET_KEY;
     
     console.log(' Environment check:', { 
@@ -24,7 +24,12 @@ export async function POST(request: NextRequest) {
 
     // Initialize Supabase client inside the function
     const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      }
+    });
     
     const formData = await request.formData();
     const file = formData.get('file') as File;
