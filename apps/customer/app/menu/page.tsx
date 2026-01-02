@@ -412,6 +412,32 @@ export default function MenuPage() {
     setMenuExpanded(!menuExpanded);
   };
 
+  const getPendingOrderTime = () => {
+    const pendingCustomerOrders = orders.filter(o => o.status === 'pending' && o.initiated_by === 'customer');
+    if (pendingCustomerOrders.length === 0) {
+      sessionStorage.removeItem('oldestPendingCustomerOrderTime');
+      return null;
+    }
+    const oldestPendingOrder = pendingCustomerOrders.reduce((oldest, current) => {
+      return new Date(current.created_at) < new Date(oldest.created_at) ? current : oldest;
+    }, pendingCustomerOrders[0]);
+    const storedSubmissionTimeStr = sessionStorage.getItem('oldestPendingCustomerOrderTime');
+    let orderTime;
+    if (storedSubmissionTimeStr) {
+      orderTime = new Date(storedSubmissionTimeStr).getTime();
+    } else {
+      orderTime = new Date(oldestPendingOrder.created_at).getTime();
+      sessionStorage.setItem('oldestPendingCustomerOrderTime', new Date(orderTime).toISOString());
+    }
+    const currentTime = Date.now();
+    const elapsedSeconds = Math.floor((currentTime - orderTime) / 1000);
+    return {
+      elapsed: elapsedSeconds,
+      orderTime: orderTime,
+      submissionTime: new Date(orderTime).toISOString()
+    };
+  };
+
   useEffect(() => {
     if (loadAttempted.current) {
       console.log('⏭️ Load already attempted, skipping...');
@@ -552,14 +578,44 @@ export default function MenuPage() {
           .select('*')
           .eq('tab_id', currentTab.id)
           .order('created_at', { ascending: false });
-      
-      // Auto-show static menu if menu type is static
-      if ((barData as any).menu_type === 'static' && (barData as any).static_menu_url) {
-        setShowStaticMenu(true);
+        if (!paymentsError) setPayments(paymentsData || []);
+      } catch (error) {
+        console.error('Error loading payments:', error);
       }
+      
+      // Load bar settings (menu type, static menu URL and type)
+      if ((fullTab as any).bar?.id) {
+        try {
+          const { data: barData, error: barError } = await supabase
+            .from('bars')
+            .select('menu_type, static_menu_url, static_menu_type')
+            .eq('id', (fullTab as any).bar.id)
+            .single();
+
+          if (!barError && barData) {
+            setMenuType((barData as any).menu_type || 'interactive');
+            setStaticMenuUrl((barData as any).static_menu_url);
+            setStaticMenuType((barData as any).static_menu_type);
+            
+            // Auto-show static menu if menu type is static
+            if ((barData as any).menu_type === 'static' && (barData as any).static_menu_url) {
+              setShowStaticMenu(true);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading bar settings:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading tab:', error);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error loading bar settings:', error);
+    getPendingOrderTime();
+  };
+
+  const handleCloseTab = async () => {
+    try {
       if (!tab) {
         console.error('No tab to close');
         return;
@@ -893,32 +949,6 @@ export default function MenuPage() {
     if (seconds < 60) return 'Just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     return `${Math.floor(seconds / 3600)}h ago`;
-  };
-
-  const getPendingOrderTime = () => {
-    const pendingCustomerOrders = orders.filter(o => o.status === 'pending' && o.initiated_by === 'customer');
-    if (pendingCustomerOrders.length === 0) {
-      sessionStorage.removeItem('oldestPendingCustomerOrderTime');
-      return null;
-    }
-    const oldestPendingOrder = pendingCustomerOrders.reduce((oldest, current) => {
-      return new Date(current.created_at) < new Date(oldest.created_at) ? current : oldest;
-    }, pendingCustomerOrders[0]);
-    const storedSubmissionTimeStr = sessionStorage.getItem('oldestPendingCustomerOrderTime');
-    let orderTime;
-    if (storedSubmissionTimeStr) {
-      orderTime = new Date(storedSubmissionTimeStr).getTime();
-    } else {
-      orderTime = new Date(oldestPendingOrder.created_at).getTime();
-      sessionStorage.setItem('oldestPendingCustomerOrderTime', new Date(orderTime).toISOString());
-    }
-    const now = currentTime; // Use currentTime state instead of Date.now()
-    const elapsedSeconds = Math.floor((now - orderTime) / 1000);
-    return {
-      elapsed: elapsedSeconds,
-      orderId: oldestPendingOrder.id,
-      orderTime: new Date(orderTime).toISOString()
-    };
   };
 
   if (loading) {
