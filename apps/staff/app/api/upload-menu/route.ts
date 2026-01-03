@@ -4,34 +4,50 @@ import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== UPLOAD-MENU API CALLED ===');
+    console.log('Request method:', request.method);
+    console.log('Request headers:', Object.fromEntries(request.headers.entries()));
+    
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 
+    console.log('Environment check:');
+    console.log('- SUPABASE_URL exists:', !!SUPABASE_URL);
+    console.log('- SUPABASE_SECRET_KEY exists:', !!SUPABASE_SECRET_KEY);
+    console.log('- SUPABASE_URL value:', SUPABASE_URL?.substring(0, 20) + '...');
+    console.log('- SUPABASE_SECRET_KEY value:', SUPABASE_SECRET_KEY?.substring(0, 10) + '...');
+
     if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
-      console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in env');
+      console.error('❌ Missing environment variables');
       return NextResponse.json({ 
-        error: 'Server configuration error: Missing environment variables' 
+        error: 'Server configuration error: Missing environment variables',
+        debug: {
+          hasSupabaseUrl: !!SUPABASE_URL,
+          hasSupabaseKey: !!SUPABASE_SECRET_KEY
+        }
       }, { status: 500 });
     }
 
+    console.log('Creating Supabase client...');
     const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
+    console.log('✅ Supabase client created');
 
-    console.info('ENTRY upload-menu handler, method=', request.method);
-    console.info('SUPABASE_URL present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
-    console.info('SUPABASE_SECRET_KEY prefix:', process.env.SUPABASE_SECRET_KEY ? process.env.SUPABASE_SECRET_KEY.slice(0, 10) : null);
-    console.info('Incoming Content-Type:', request.headers.get('content-type'));
-    console.info('Incoming Origin:', request.headers.get('origin'));
-    console.info('Has Authorization header:', !!request.headers.get('authorization'));
-
-    if (request.method !== 'POST') {
-      return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
-    }
-
+    console.log('Parsing form data...');
     const formData = await request.formData();
+    console.log('Form data entries:', Array.from(formData.keys()));
+    
     const file = formData.get('file') as File;
     const barId = formData.get('barId') as string;
+    
+    console.log('Parsed data:');
+    console.log('- File exists:', !!file);
+    console.log('- File name:', file?.name);
+    console.log('- File size:', file?.size);
+    console.log('- File type:', file?.type);
+    console.log('- Bar ID:', barId);
 
     if (!file) {
+      console.error('❌ No file provided');
       return NextResponse.json({ 
         error: 'No file provided (field name must be "file")' 
       }, { status: 400 });
