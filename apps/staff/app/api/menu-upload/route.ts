@@ -8,6 +8,20 @@ export async function POST(request: NextRequest) {
     console.log('Request method:', request.method);
     console.log('Request headers:', Object.fromEntries(request.headers.entries()));
     
+    // Test: Handle both FormData and regular requests
+    const contentType = request.headers.get('content-type');
+    console.log('Content-Type:', contentType);
+    
+    if (!contentType?.includes('multipart/form-data') && !contentType?.includes('application/x-www-form-urlencoded')) {
+      console.log('No form data - returning test response');
+      return NextResponse.json({
+        message: 'Menu-upload API working (test mode)',
+        timestamp: new Date().toISOString(),
+        contentType: contentType,
+        note: 'This endpoint expects FormData with file and barId'
+      });
+    }
+    
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 
