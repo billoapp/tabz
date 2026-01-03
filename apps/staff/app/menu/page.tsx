@@ -900,9 +900,9 @@ export default function MenuManagementPage() {
             <ArrowRight size={24} className="transform rotate-180" />
           </button>
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-2xl font-bold">Static Menu Management</h1>
+            <h1 className="text-2xl font-bold">Menu Management</h1>
           </div>
-          <p className="text-orange-100 text-sm">Manage your PDF/image menu</p>
+          <p className="text-orange-100 text-sm">Manage your menu here</p>
         </div>
         <div className="p-4 space-y-6">
           {/* Notice about interactive menu being disabled */}
@@ -912,10 +912,9 @@ export default function MenuManagementPage() {
                 <Settings size={20} className="text-blue-600" />
               </div>
               <div>
-                <h3 className="font-bold text-blue-800 text-lg mb-1">Interactive Menu Temporarily Disabled</h3>
+                <h3 className="font-bold text-blue-800 text-lg mb-1">Interactive Menu</h3>
                 <p className="text-blue-700">
-                  The interactive product catalog, custom products, and menu management features are currently disabled.
-                  You can only manage your static PDF/image menu at this time.
+                  Coming soon.
                 </p>
               </div>
             </div>
@@ -1297,7 +1296,7 @@ export default function MenuManagementPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                 <FileText size={20} className="text-purple-600" />
-                Static Menu (PDF/Image)
+                Static Menu (Image)
               </h2>
               <button
                 onClick={() => setStaticMenuCollapsed(!staticMenuCollapsed)}
@@ -1309,7 +1308,7 @@ export default function MenuManagementPage() {
             
             {!staticMenuCollapsed && (
               <div className="space-y-4">
-                {/* Current Status */}
+                {/* Current Status
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <p className="text-sm font-medium text-blue-800 mb-1">
                     Static Menu Status
@@ -1323,7 +1322,7 @@ export default function MenuManagementPage() {
                       ℹ️ No static menu uploaded yet - Upload a PDF or image for customers to view
                     </p>
                   )}
-                </div>
+                </div> */}
 
                 {/* Current Upload Status */}
                 {barSettings?.static_menu_url && (
@@ -1375,7 +1374,7 @@ export default function MenuManagementPage() {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Select File
+                        
                       </label>
                       <input
                         type="file"
@@ -1384,7 +1383,7 @@ export default function MenuManagementPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        🖼️ JPEG, PNG, or WebP images only • Max 10MB • PDF support temporarily disabled
+                        🖼️ JPEG, PNG, or WebP images only • Max 10MB 
                       </p>
                     </div>
 
@@ -1427,12 +1426,12 @@ export default function MenuManagementPage() {
                   </div>
                 </div>
 
-                {/* Help Text */}
+                {/* Help Text
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                   <p className="text-sm text-yellow-800">
                     💡 <strong>Tip:</strong> Upload a PDF for multi-page menus or an image for simple single-page menus.
                   </p>
-                </div>
+                </div> */}
               </div>
             )}
           </div>
