@@ -207,6 +207,10 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Storage upload successful:', uploadData);
 
+    // Create public URL
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/menu-files/${uploadData.path}`;
+    console.log('✅ Upload complete! Public URL:', publicUrl);
+
     // Update bar record in database
     const fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
     console.log('💾 Updating bar record...');
@@ -214,7 +218,7 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabase
       .from('bars')
       .update({
-        static_menu_url: uploadData.path,
+        static_menu_url: publicUrl, // Store the full public URL, not just the path
         static_menu_type: fileType,
         menu_type: 'static'
       })
@@ -253,10 +257,6 @@ export async function POST(request: NextRequest) {
     } else {
       console.log('✅ Database updated successfully');
     }
-
-    // Create public URL
-    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/menu-files/${uploadData.path}`;
-    console.log('✅ Upload complete! Public URL:', publicUrl);
     
     // Return success response
     return NextResponse.json({
