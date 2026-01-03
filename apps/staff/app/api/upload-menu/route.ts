@@ -35,12 +35,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (!barId) {
-      return NextResponse.json({ 
-        error: 'No barId provided' 
-      }, { status: 400 });
-    }
-
     // Validate file type - accept PDFs and images
     const allowedTypes = [
       'application/pdf',
@@ -86,41 +80,60 @@ export async function POST(request: NextRequest) {
         .from('menu-files')
         .upload(bucketPath, buffer, {
           contentType: file.type,
-          upsert: false,
+          upsert: true
         });
 
       if (error) {
-        console.error('Storage upload error message:', error.message || error);
+        console.error('Storage upload error message:', error.message);
         console.error('Storage upload error details:', JSON.stringify(error, null, 2));
-        // If you get "Invalid Compact JWS" here, verify this server code runs and the SUPABASE_SECRET_KEY slice above printed an sb_secret_ prefix.
         return NextResponse.json({ 
           error: 'Storage upload failed', 
-          details: error 
+          details: error.message 
         }, { status: 500 });
       }
 
-      // Generate public URL (bucket is public)
-      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/menu-files/${bucketPath}`;
-
-      // Determine file type for database
+      // Update bar settings to replace existing menu
       const fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
+      
+      const { error: updateError } = await supabase
+        .from('bars')
+        .update({
+          id: barId,
+          static_menu_url: data.path,
+          static_menu_type: fileType,
+          menu_type: 'static'
+        })
+        .eq('id', barId);
+
+      if (updateError) {
+        console.error('Database update error:', updateError);
+        return NextResponse.json({ 
+          error: 'Failed to update menu settings', 
+          details: updateError.message 
+        }, { status: 500 });
+      }
+
+      console.log('✅ Menu uploaded successfully:', {
+        bucketPath,
+        fileType,
+        publicUrl: `${SUPABASE_URL}/storage/v1/object/public/menu-files/${data.path}`
+      });
 
       return NextResponse.json({
-        message: 'Upload successful',
+        message: 'Menu uploaded successfully',
         path: data.path,
-        url: publicUrl,
+        url: `${SUPABASE_URL}/storage/v1/object/public/menu-files/${data.path}`,
         fileType: fileType,
         mimeType: file.type
       });
 
-    } catch (e) {
-      console.error('Upload handler exception', e);
+    } catch (e: any) {
+      console.error('Upload handler exception:', e);
       return NextResponse.json({ 
         error: 'Upload exception', 
         details: String(e) 
       }, { status: 500 });
     }
-
   } catch (error: any) {
     console.error('❌ API Error:', error);
     return NextResponse.json(

@@ -107,7 +107,7 @@ export default function TabDetailPage() {
           table: 'tab_orders',
           filter: `tab_id=eq.${tabId}`
         }, 
-        (payload) => {
+        (payload: any) => {
           if (payload.new.initiated_by === 'customer') {
             setNewOrderNotification(payload.new);
             
@@ -130,7 +130,7 @@ export default function TabDetailPage() {
           table: 'tab_payments',
           filter: `tab_id=eq.${tabId}`
         }, 
-        (payload) => {
+        (payload: any) => {
           loadTabData();
         }
       )
@@ -147,7 +147,7 @@ export default function TabDetailPage() {
           table: 'tab_telegram_messages',
           filter: `tab_id=eq.${tabId}` 
         },
-        (payload) => {
+        (payload: any) => {
           console.log('📨 Telegram update in detail page:', payload.eventType);
           loadTelegramMessages();
         }
@@ -163,7 +163,7 @@ export default function TabDetailPage() {
           table: 'tabs',
           filter: `id=eq.${tabId}`
         }, 
-        (payload) => {
+        (payload: any) => {
           if (payload.new?.status === 'closed' && payload.old?.status !== 'closed') {
             showToast({
               type: 'warning',
@@ -835,25 +835,9 @@ export default function TabDetailPage() {
         {newOrderNotification && (
           <div className="bg-green-500 text-white p-4 animate-pulse">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-white bg-opacity-20 rounded-full p-2">
-                  <Plus size={20} />
-                </div>
-                <div>
-                  <p className="font-bold">New Customer Order!</p>
-                  <p className="text-sm opacity-90">
-                    {(() => {
-                      try {
-                        const items = typeof newOrderNotification.items === 'string' 
-                          ? JSON.parse(newOrderNotification.items) 
-                          : newOrderNotification.items;
-                        return Array.isArray(items) ? items.length : 0;
-                      } catch (e) {
-                        return 0;
-                      }
-                    })()} items • {tempFormatCurrency(newOrderNotification.total)}
-                  </p>
-                </div>
+              <div className="flex-1">
+                <h3 className="font-bold mb-1">New Order!</h3>
+                <p className="text-sm">Customer ordered {tempFormatCurrency(newOrderNotification.total)}</p>
               </div>
               <div className="flex gap-2">
                 <button
@@ -913,7 +897,7 @@ export default function TabDetailPage() {
             <div className="p-4">
               {telegramMessages.length > 0 ? (
                 <div className="space-y-3">
-                  {telegramMessages.map((msg) => (
+                  {telegramMessages.map((msg: any) => (
                     <div key={msg.id} className={`p-4 rounded-lg border ${
                       msg.status === 'pending' ? 'bg-yellow-50 border-yellow-100' :
                       msg.status === 'acknowledged' ? 'bg-blue-50 border-blue-100' :
@@ -924,7 +908,7 @@ export default function TabDetailPage() {
                         <div className="flex-1">
                           <p className="text-sm text-gray-800">{msg.message}</p>
                           <p className="text-xs text-gray-500 mt-1">
-                            {kenyaTimeAgo(msg.created_at)} • 
+                            {timeAgo(msg.created_at)} • 
                             <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
                               msg.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
                               msg.status === 'acknowledged' ? 'bg-blue-100 text-blue-700' :
