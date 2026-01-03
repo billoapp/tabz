@@ -1,49 +1,81 @@
-// app/start/page.tsx - FIXED Navigation
+// app/start/page.tsx - COMPLETE WITH DEVICE VALIDATION
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Shield, Bell, Store, AlertCircle } from 'lucide-react';
+import { Shield, Bell, Store, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
+import { 
+  getDeviceId, 
+  getBarDeviceKey, 
+  validateDeviceForNewTab, 
+  storeActiveTab 
+} from '@/lib/deviceId';
 import { useToast } from '@/components/ui/Toast';
 
 function ConsentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
+  
+  // Form states
   const [nickname, setNickname] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  
+  // Loading states
   const [creating, setCreating] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [validating, setValidating] = useState(false);
+  
+  // Bar data
   const [barSlug, setBarSlug] = useState<string | null>(null);
   const [barId, setBarId] = useState<string | null>(null);
   const [barName, setBarName] = useState<string>('');
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  
+  // Device validation
+  const [deviceValidation, setDeviceValidation] = useState<{
+    valid: boolean;
+    reason?: string;
+    existingTab?: any;
+  } | null>(null);
 
   useEffect(() => {
-    
-    // Try to get bar slug from URL first, then sessionStorage
-    let slug = searchParams?.get('bar') || searchParams?.get('slug');
-    
-    if (!slug) {
-      slug = sessionStorage.getItem('scanned_bar_slug');
-    } else {
-      sessionStorage.setItem('scanned_bar_slug', slug);
-    }
+    initializeConsent();
+  }, []);
 
-    if (!slug) {
-      router.replace('/');
-      return;
-    }
+  const initializeConsent = async () => {
+    try {
+      // Get bar slug from URL or sessionStorage
+      let slug = searchParams?.get('bar') || searchParams?.get('slug');
+      
+      if (!slug) {
+        slug = sessionStorage.getItem('scanned_bar_slug');
+      } else {
+        sessionStorage.setItem('scanned_bar_slug', slug);
+      }
 
-    setBarSlug(slug);
-    loadBarInfo(slug);
-  }, []); // Remove searchParams from dependencies to prevent re-runs
+      if (!slug) {
+        console.log('❌ No bar slug found, redirecting to home');
+        router.replace('/');
+        return;
+      }
+
+      console.log('🔍 Initializing consent for bar:', slug);
+      setBarSlug(slug);
+      
+      await loadBarInfo(slug);
+    } catch (error) {
+      console.error('❌ Error initializing consent:', error);
+      setError('Failed to load bar information. Please try again.');
+      setLoading(false);
+    }
+  };
 
   const loadBarInfo = async (slug: string) => {
     try {
+      console.log('📡 Loading bar info for:', slug);
       
       const { data: bar, error: barError } = await (supabase as any)
         .from('bars')
@@ -51,14 +83,15 @@ function ConsentContent() {
         .eq('slug', slug)
         .maybeSingle();
 
-
       if (barError) {
+        console.error('❌ Database error:', barError);
         setError(`Database error: ${barError.message}`);
         setLoading(false);
         return;
       }
 
       if (!bar) {
+        console.log('❌ Bar not found with slug:', slug);
         setError(`Bar not found with slug: "${slug}". Please scan a valid QR code.`);
         setLoading(false);
         return;
@@ -67,34 +100,82 @@ function ConsentContent() {
       const isActive = bar.active !== false;
       
       if (!isActive) {
+        console.log('❌ Bar is inactive:', bar.name);
         setError('This bar is currently unavailable. Please contact staff.');
         setLoading(false);
         return;
       }
 
+      console.log('✅ Bar loaded:', bar.name);
       setBarId(bar.id);
       setBarName(bar.name || 'Bar');
       
-      // Check for existing open tab at this bar
-      const tabData = sessionStorage.getItem('currentTab');
-      if (tabData) {
-        try {
-          const existingTab = JSON.parse(tabData);
-          if (existingTab.bar_id === bar.id && existingTab.status === 'open') {
-            if (confirm(`You already have an open tab at ${bar.name}. Continue to your tab?`)) {
-              router.replace('/menu'); // Use replace instead of push
-              return;
-            }
-          }
-        } catch (e) {
-        }
-      }
+      // IMPORTANT: Validate device before showing form
+      await validateDevice(bar.id);
 
     } catch (error) {
       console.error('❌ Error loading bar:', error);
       setError('Error loading bar information. Please try again.');
-    } finally {
       setLoading(false);
+    }
+  };
+
+  const validateDevice = async (barId: string) => {
+    try {
+      setValidating(true);
+      console.log('🔒 Validating device for bar:', barId);
+      console.log('🆔 Device ID:', getDeviceId());
+      
+      const validation = await validateDeviceForNewTab(barId, supabase as any);
+      
+      console.log('✅ Device validation result:', validation);
+      setDeviceValidation(validation);
+      
+      // If device has existing tab at this bar, redirect immediately
+      if (!validation.valid && validation.reason === 'EXISTING_TAB_AT_BAR') {
+        console.log('🔄 Existing tab found, redirecting to menu');
+        
+        const existingTab = validation.existingTab;
+        
+        // Parse display name
+        let displayName = `Tab ${existingTab.tab_number}`;
+        try {
+          const notes = JSON.parse(existingTab.notes || '{}');
+          displayName = notes.display_name || displayName;
+        } catch (e) {
+          console.warn('Failed to parse tab notes:', e);
+        }
+
+        // Store tab data
+        storeActiveTab(barId, existingTab);
+        sessionStorage.setItem('currentTab', JSON.stringify(existingTab));
+        sessionStorage.setItem('displayName', displayName);
+        sessionStorage.setItem('barName', barName);
+        
+        showToast({
+          type: 'success',
+          title: 'Tab Found!',
+          message: `Continuing to your ${displayName}`
+        });
+
+        // Redirect to menu
+        setTimeout(() => {
+          router.replace('/menu');
+        }, 500);
+        
+        return; // Don't set loading to false, we're redirecting
+      }
+      
+      // Device is valid, show consent form
+      setLoading(false);
+      setValidating(false);
+      
+    } catch (error) {
+      console.error('❌ Error validating device:', error);
+      // On validation error, still allow form to show
+      setDeviceValidation({ valid: true });
+      setLoading(false);
+      setValidating(false);
     }
   };
 
@@ -120,25 +201,27 @@ function ConsentContent() {
     setCreating(true);
 
     try {
+      console.log('🚀 Starting tab creation process');
+      console.log('🆔 Device ID:', getDeviceId());
+      console.log('🏪 Bar ID:', barId);
+      console.log('👤 Nickname:', nickname || '(none)');
+      
       const deviceId = getDeviceId();
       const barDeviceKey = getBarDeviceKey(barId);
       
-      // Check for existing open tab with this device
-      const { data: existingTab, error: checkError } = await (supabase as any)
-        .from('tabs')
-        .select('*')
-        .eq('bar_id', barId)
-        .eq('owner_identifier', barDeviceKey)
-        .eq('status', 'open')
-        .maybeSingle();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        throw checkError;
-      }
-
-      // If tab exists, reuse it
-      if (existingTab) {
+      console.log('🔑 Bar Device Key:', barDeviceKey);
+      
+      // Re-validate device before creating tab (double-check)
+      const validation = await validateDeviceForNewTab(barId, supabase as any);
+      
+      if (!validation.valid && validation.reason === 'EXISTING_TAB_AT_BAR') {
+        console.log('🔄 Existing tab found during creation, reusing it');
+        
+        const existingTab = validation.existingTab;
+        
+        // Update nickname if provided
         if (nickname.trim()) {
+          console.log('📝 Updating existing tab with new nickname');
           const notes = JSON.parse(existingTab.notes || '{}');
           notes.display_name = nickname.trim();
           
@@ -157,44 +240,38 @@ function ConsentContent() {
           }
         })();
 
-        // Store tab data before navigation
+        // Store tab data
+        storeActiveTab(barId, existingTab);
         sessionStorage.setItem('currentTab', JSON.stringify(existingTab));
         sessionStorage.setItem('displayName', displayName);
         sessionStorage.setItem('barName', barName);
         
+        showToast({
+          type: 'success',
+          title: 'Welcome Back!',
+          message: `Continuing to your ${displayName}`
+        });
         
-        // Reset creating state before navigation
-        setCreating(false);
+        // Navigate to menu
+        setTimeout(() => {
+          router.replace('/menu');
+        }, 300);
         
-        // Use replace to prevent back button issues
-        router.replace('/menu');
         return;
       }
 
-      const { data: allDeviceTabs } = await (supabase as any)
-        .from('tabs')
-        .select('tab_number, status, opened_at')
-        .eq('bar_id', barId)
-        .eq('owner_identifier', barDeviceKey)
-        .order('opened_at', { ascending: false });
-
-
-      // If we found any closed tabs from this device, warn user
-      if (allDeviceTabs && allDeviceTabs.length > 0) {
-        const openTabs = allDeviceTabs.filter((tab: { status: string }) => tab.status === 'open');
-        if (openTabs.length > 0) {
-          throw new Error('Multiple tabs detected. Please contact support.');
-        }
-      }
-
-      // Create new tab
+      // No existing tab - create new one
+      console.log('✨ Creating new tab');
+      
       let displayName: string;
       let tabNumber: number | null;
       
       if (nickname.trim()) {
         displayName = nickname.trim();
-        tabNumber = null;
+        tabNumber = null; // Named tabs don't need numbers
+        console.log('👤 Creating named tab:', displayName);
       } else {
+        // Get next tab number
         const { data: existingTabs } = await (supabase as any)
           .from('tabs')
           .select('tab_number')
@@ -209,9 +286,10 @@ function ConsentContent() {
         
         displayName = `Tab ${nextNumber}`;
         tabNumber = nextNumber;
+        console.log('🔢 Creating numbered tab:', displayName);
       }
 
-
+      // Create tab in database
       const { data: tab, error: tabError } = await (supabase as any)
         .from('tabs')
         .insert({
@@ -222,58 +300,82 @@ function ConsentContent() {
           notes: JSON.stringify({
             display_name: displayName,
             has_nickname: !!nickname.trim(),
-            device_id: getDeviceId(),
+            device_id: deviceId,
             notifications_enabled: notificationsEnabled,
             terms_accepted: termsAccepted,
             accepted_at: new Date().toISOString(),
-            bar_name: barName
+            bar_name: barName,
+            created_via: 'consent_page'
           })
         })
         .select()
         .single();
 
       if (tabError) {
-        console.error('Error creating tab:', tabError);
-        throw tabError;
+        console.error('❌ Error creating tab:', tabError);
+        throw new Error(tabError.message || 'Failed to create tab');
       }
 
+      console.log('✅ Tab created successfully:', tab.id);
+      console.log('📋 Tab details:', {
+        id: tab.id,
+        tab_number: tab.tab_number,
+        owner_identifier: tab.owner_identifier,
+        status: tab.status
+      });
 
-      // Store tab data before navigation
+      // Store tab data in session
+      storeActiveTab(barId, tab);
       sessionStorage.setItem('currentTab', JSON.stringify(tab));
       sessionStorage.setItem('displayName', displayName);
       sessionStorage.setItem('barName', barName);
       
+      showToast({
+        type: 'success',
+        title: 'Tab Created!',
+        message: `Welcome to ${barName}, ${displayName}!`
+      });
       
-      // Reset creating state before navigation
-      setCreating(false);
+      console.log('🎉 Navigating to menu');
       
-      // Use replace to prevent back button issues
-      router.replace('/menu');
+      // Navigate to menu
+      setTimeout(() => {
+        router.replace('/menu');
+      }, 300);
 
     } catch (error: any) {
-      console.error('❌ Error creating/loading tab:', error);
+      console.error('❌ Error creating tab:', error);
       showToast({
         type: 'error',
         title: 'Tab Creation Failed',
-        message: error.message || 'Please try again'
+        message: error.message || 'Please try again or contact staff'
       });
-      setCreating(false); // Only reset creating state on error
+      setCreating(false);
     }
-    // Don't set creating to false on success - let navigation happen
+    // Don't set creating to false on success - navigation will happen
   };
 
-  if (loading) {
+  // Loading state
+  if (loading || validating) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
         <div className="text-center text-white">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading bar information...</p>
-          {barSlug && <p className="text-sm mt-2 font-mono">{barSlug}</p>}
+          <p className="text-lg font-medium">
+            {validating ? 'Checking for existing tabs...' : 'Loading bar information...'}
+          </p>
+          {barSlug && <p className="text-sm mt-2 font-mono opacity-75">{barSlug}</p>}
+          {validating && (
+            <p className="text-xs mt-3 opacity-75">
+              🔒 Validating device to prevent duplicate tabs
+            </p>
+          )}
         </div>
       </div>
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
@@ -291,7 +393,7 @@ function ConsentContent() {
               sessionStorage.clear();
               router.replace('/');
             }}
-            className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600"
+            className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition"
           >
             Go Back Home
           </button>
@@ -304,6 +406,7 @@ function ConsentContent() {
     );
   }
 
+  // Main consent form
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
@@ -316,6 +419,16 @@ function ConsentContent() {
           <h2 className="text-2xl font-bold text-gray-800 mb-1">{barName}</h2>
           <p className="text-sm text-gray-600">Ready to start your tab</p>
         </div>
+
+        {/* Device Validation Success */}
+        {deviceValidation?.valid && (
+          <div className="mb-6 p-3 bg-green-50 rounded-xl border border-green-200 flex items-center gap-3">
+            <CheckCircle size={20} className="text-green-600 flex-shrink-0" />
+            <p className="text-sm text-green-800">
+              Device verified • No duplicate tabs detected
+            </p>
+          </div>
+        )}
 
         {/* Trust Statement */}
         <div className="text-center mb-6">
@@ -339,7 +452,8 @@ function ConsentContent() {
             onChange={(e) => setNickname(e.target.value)}
             placeholder="Mary or John"
             maxLength={20}
-            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+            disabled={creating}
+            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition"
           />
           <p className="text-xs text-gray-500 mt-1">
             If left blank, we'll assign you a tab number
@@ -358,7 +472,8 @@ function ConsentContent() {
               type="checkbox"
               checked={notificationsEnabled}
               onChange={(e) => setNotificationsEnabled(e.target.checked)}
-              className="mt-0.5 w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+              disabled={creating}
+              className="mt-0.5 w-5 h-5 text-orange-500 rounded focus:ring-orange-500 disabled:cursor-not-allowed"
             />
             <div className="flex-1">
               <p className="text-sm font-medium text-gray-700 mb-1">
@@ -380,7 +495,8 @@ function ConsentContent() {
               type="checkbox"
               checked={termsAccepted}
               onChange={(e) => setTermsAccepted(e.target.checked)}
-              className="mt-0.5 w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+              disabled={creating}
+              className="mt-0.5 w-5 h-5 text-orange-500 rounded focus:ring-orange-500 disabled:cursor-not-allowed"
             />
             <div className="flex-1">
               <p className="text-sm text-gray-700">
@@ -388,6 +504,7 @@ function ConsentContent() {
                 <button 
                   onClick={() => window.open('/terms', '_blank')}
                   className="text-orange-600 underline hover:text-orange-700"
+                  type="button"
                 >
                   Terms of Use
                 </button>
@@ -395,6 +512,7 @@ function ConsentContent() {
                 <button 
                   onClick={() => window.open('/privacy', '_blank')}
                   className="text-orange-600 underline hover:text-orange-700"
+                  type="button"
                 >
                   Privacy Policy
                 </button>
@@ -424,6 +542,11 @@ function ConsentContent() {
           <p className="text-xs text-gray-500">
             🔒 Your privacy is protected
           </p>
+          {process.env.NODE_ENV === 'development' && (
+            <p className="text-xs text-gray-400 mt-2 font-mono">
+              Device: {getDeviceId().slice(0, 20)}...
+            </p>
+          )}
         </div>
       </div>
     </div>
