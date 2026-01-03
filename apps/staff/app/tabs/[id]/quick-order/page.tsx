@@ -372,6 +372,7 @@ export default function QuickOrderPage() {
                   }}
                   onKeyPress={(e) => handleKeyPress(e, 'name')}
                   onFocus={() => setShowRecent(true)}
+                  onBlur={() => setShowRecent(false)}
                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                   placeholder="e.g., Tusker, Nyama Choma"
                   autoComplete="off"
@@ -527,7 +528,7 @@ export default function QuickOrderPage() {
         {/* Instructions */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <h3 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
-            <ShoppingCart size={16} />
+            <Plus size={16} />
             How to use:
           </h3>
           <ul className="text-sm text-blue-700 space-y-1">
