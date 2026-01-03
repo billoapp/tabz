@@ -2,18 +2,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.PUBLIC_SUPABASE_URL;
-const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
-  console.error('Missing PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in env');
-  throw new Error('Missing required environment variables');
-}
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
-
 export async function POST(request: NextRequest) {
   try {
+    const SUPABASE_URL = process.env.PUBLIC_SUPABASE_URL;
+    const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+
+    if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
+      console.error('Missing PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in env');
+      return NextResponse.json({ 
+        error: 'Server configuration error: Missing environment variables' 
+      }, { status: 500 });
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
+
     console.info('ENTRY upload-menu handler, method=', request.method);
     console.info('SUPABASE_URL present:', !!process.env.PUBLIC_SUPABASE_URL);
     console.info('SUPABASE_SECRET_KEY prefix:', process.env.SUPABASE_SECRET_KEY ? process.env.SUPABASE_SECRET_KEY.slice(0, 10) : null);
