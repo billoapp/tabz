@@ -127,17 +127,27 @@ function ConsentContent() {
       const deviceId = getDeviceId();
       const { data: existingDeviceTabs, error: deviceCheckError } = await (supabase as any)
         .from('tabs')
-        .select('id, status, created_at, tab_number')
+        .select('id, status, created_at, tab_number, notes')
         .eq('bar_id', barId)
-        .eq('status', 'open')
-        .contains('notes', `"device_id":"${deviceId}"`);
+        .eq('status', 'open');
 
       if (deviceCheckError && deviceCheckError.code !== 'PGRST116') {
         console.error('Error checking device tabs:', deviceCheckError);
       }
 
-      if (existingDeviceTabs && existingDeviceTabs.length > 0) {
-        const existingTab = existingDeviceTabs[0];
+      // Filter tabs by device ID in JavaScript since contains() might not work as expected
+      const deviceTabs = existingDeviceTabs?.filter(tab => {
+        if (!tab.notes) return false;
+        try {
+          const notes = JSON.parse(tab.notes);
+          return notes.device_id === deviceId;
+        } catch (e) {
+          return false;
+        }
+      }) || [];
+
+      if (deviceTabs.length > 0) {
+        const existingTab = deviceTabs[0];
         throw new Error(`This device already has an open tab (Tab ${existingTab.tab_number}) at this location. Please close your existing tab first or contact staff for assistance.`);
       }
 
