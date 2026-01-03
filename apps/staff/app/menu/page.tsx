@@ -394,7 +394,7 @@ export default function MenuManagementPage() {
 
       const response = await fetch('/api/upload-menu', {
         method: 'POST',
-        body: formData,
+        body: formData
       });
 
       if (!response.ok) {
