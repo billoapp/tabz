@@ -363,7 +363,13 @@ export default function QuickOrderPage() {
                   id="productName"
                   type="text"
                   value={currentName}
-                  onChange={(e) => setCurrentName(e.target.value)}
+                  onChange={(e) => {
+                    setCurrentName(e.target.value);
+                    // Hide recent products when field is empty
+                    if (!e.target.value.trim()) {
+                      setShowRecent(false);
+                    }
+                  }}
                   onKeyPress={(e) => handleKeyPress(e, 'name')}
                   onFocus={() => setShowRecent(true)}
                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
