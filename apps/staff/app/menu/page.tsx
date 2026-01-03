@@ -392,7 +392,7 @@ export default function MenuManagementPage() {
       formData.append('file', menuFile);
       formData.append('barId', barId);
 
-      const response = await fetch('/api/menu-upload', {
+      const response = await fetch('/api/upload-menu', {
         method: 'POST',
         body: formData,
       });

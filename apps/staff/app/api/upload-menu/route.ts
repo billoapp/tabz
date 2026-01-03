@@ -32,6 +32,20 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
     console.log('✅ Supabase client created');
 
+    // Test: Handle both FormData and regular requests
+    const contentType = request.headers.get('content-type');
+    console.log('Content-Type:', contentType);
+    
+    if (!contentType?.includes('multipart/form-data') && !contentType?.includes('application/x-www-form-urlencoded')) {
+      console.log('No form data - returning test response');
+      return NextResponse.json({
+        message: 'Upload-menu API working (test mode)',
+        timestamp: new Date().toISOString(),
+        contentType: contentType,
+        note: 'This endpoint expects FormData with file and barId'
+      });
+    }
+
     console.log('Parsing form data...');
     const formData = await request.formData();
     console.log('Form data entries:', Array.from(formData.keys()));
