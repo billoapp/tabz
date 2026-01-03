@@ -9,6 +9,7 @@ import { useSound } from '@/hooks/useSound';
 import { telegramMessageQueries } from '@/lib/telegram-queries';
 import { MessageAlert, InitiatedBy } from '../../../../packages/shared/types';
 import PDFViewer from '../../../../components/PDFViewer';
+import MessagePanel from './MessagePanel';
 
 // Temporary format function to bypass import issue
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -98,6 +99,7 @@ export default function MenuPage() {
   const [telegramMessages, setTelegramMessages] = useState<any[]>([]);
   const [newMessageAlert, setNewMessageAlert] = useState<any>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [showMessagePanel, setShowMessagePanel] = useState(false);
   
   // Static menu states
   const [menuType, setMenuType] = useState<'interactive' | 'static'>('interactive');
@@ -1030,19 +1032,6 @@ export default function MenuPage() {
             <button onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Menu</button>
             <button onClick={() => ordersRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Orders</button>
             <button onClick={() => paymentRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Pay</button>
-            
-            {/* Message button with unread badge */}
-            {unreadMessagesCount > 0 && (
-              <div className="relative">
-                <button onClick={() => setShowMessageModal(true)} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm flex items-center gap-2">
-                  <MessageCircle size={18} />
-                  Messages
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
-                    {unreadMessagesCount}
-                  </span>
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -1124,95 +1113,91 @@ export default function MenuPage() {
         );
       })()}
 
-      {/* Telegram Message Section */}
-      <div className="bg-white border-b border-gray-100">
-        {/* Message Header */}
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <MessageCircle size={20} className="text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-700">Message Staff</h2>
-            </div>
+      {/* Telegram Message Section - UPDATED */}
+      <div className="p-4">
+        {/* Section Header */}
+        <div className="mb-3">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">MESSAGES</h2>
+          <p className="text-sm text-gray-600 mt-1">Chat with staff about requests or questions</p>
+        </div>
+
+        <div className="bg-white border border-gray-100 rounded-lg">
+          <div className="p-4">
+            {/* Message Stats */}
+            {telegramMessages.length > 0 && (
+              <div className="flex gap-3 text-xs mb-3">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                  <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'pending').length} Pending</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'acknowledged').length} Acknowledged</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'completed').length} Completed</span>
+                </div>
+              </div>
+            )}
+            
+            {/* Recent Messages Preview */}
+            {telegramMessages.slice(0, 2).map((msg) => (
+              <div 
+                key={msg.id} 
+                className={`p-3 rounded-lg mb-2 ${
+                  msg.status === 'pending' ? 'bg-yellow-50 border border-yellow-100' :
+                  msg.status === 'acknowledged' ? 'bg-blue-50 border border-blue-100' :
+                  'bg-green-50 border border-green-100'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-800">{msg.message}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {timeAgo(msg.created_at)} • 
+                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                        msg.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                        msg.status === 'acknowledged' ? 'bg-blue-100 text-blue-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {msg.status}
+                      </span>
+                    </p>
+                  </div>
+                  {msg.status === 'pending' && (
+                    <Clock size={16} className="text-yellow-500 flex-shrink-0" />
+                  )}
+                  {msg.status === 'acknowledged' && (
+                    <CheckCircle size={16} className="text-blue-500 flex-shrink-0" />
+                  )}
+                  {msg.status === 'completed' && (
+                    <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {/* "View All Messages" Button */}
+            {telegramMessages.length > 0 && (
+              <button
+                onClick={() => setShowMessagePanel(true)}
+                className="w-full text-center text-sm text-blue-600 py-3 hover:text-blue-700 font-medium flex items-center justify-center gap-2 border-t border-gray-100 mt-3"
+              >
+                <MessageCircle size={16} />
+                View all {telegramMessages.length} messages
+              </button>
+            )}
+            
+            {/* New Message Button */}
             <button
-              onClick={() => setShowMessageModal(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100"
+              onClick={() => setShowMessagePanel(true)}
+              className="w-full mt-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 rounded-lg text-sm font-medium hover:from-blue-600 hover:to-blue-700 flex items-center justify-center gap-2"
             >
               <Send size={16} />
-              Send Message
+              Send New Message
             </button>
           </div>
-          
-          {/* Message Stats */}
-          {telegramMessages.length > 0 && (
-            <div className="flex gap-3 text-xs mb-3">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'pending').length} Pending</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'acknowledged').length} Acknowledged</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'completed').length} Completed</span>
-              </div>
-            </div>
-          )}
-          
-          {/* Recent Messages Preview */}
-          {telegramMessages.slice(0, 2).map((msg) => (
-            <div 
-              key={msg.id} 
-              className={`p-3 rounded-lg mb-2 ${
-                msg.status === 'pending' ? 'bg-yellow-50 border border-yellow-100' :
-                msg.status === 'acknowledged' ? 'bg-blue-50 border border-blue-100' :
-                'bg-green-50 border border-green-100'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm text-gray-800">{msg.message}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {timeAgo(msg.created_at)} • 
-                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                      msg.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                      msg.status === 'acknowledged' ? 'bg-blue-100 text-blue-700' :
-                      'bg-green-100 text-green-700'
-                    }`}>
-                      {msg.status}
-                    </span>
-                  </p>
-                </div>
-                {msg.status === 'pending' && (
-                  <Clock size={16} className="text-yellow-500 flex-shrink-0" />
-                )}
-                {msg.status === 'acknowledged' && (
-                  <CheckCircle size={16} className="text-blue-500 flex-shrink-0" />
-                )}
-                {msg.status === 'completed' && (
-                  <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
-                )}
-              </div>
-            </div>
-          ))}
-          
-          {telegramMessages.length > 2 && (
-            <button
-              onClick={() => setShowMessageModal(true)}
-              className="w-full text-center text-xs text-blue-600 py-2 hover:text-blue-700"
-            >
-              View all {telegramMessages.length} messages →
-            </button>
-          )}
-          
-          {telegramMessages.length === 0 && (
-            <div className="text-center py-4 text-gray-500">
-              <MessageCircle size={32} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No messages yet</p>
-              <p className="text-xs mt-1">Send a message to staff about special requests</p>
-            </div>
-          )}
         </div>
       </div>
 
@@ -1326,19 +1311,25 @@ export default function MenuPage() {
         </div>
       )} */}
 
-      {/* Static Menu Viewer - Collapsible with fluid animations */}
+      {/* Menu Viewer - RENAMED from "Static Menu" */}
       {staticMenuUrl && (
-        <div className="bg-gray-50 px-4">
-          <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
-            {/* Static Menu Header */}
-            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-purple-50 to-purple-100">
+        <div className="p-4">
+          {/* Section Header - NEW */}
+          <div className="mb-3">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">MENU</h2>
+            <p className="text-sm text-gray-600 mt-1">View menu items</p>
+          </div>
+          
+          <div className="bg-white border border-gray-100 overflow-hidden rounded-lg">
+            {/* Menu Header - UPDATED text */}
+            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
               <div>
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Static Menu</h2>
-                <p className="text-sm text-gray-600 mt-1">View {staticMenuType === 'pdf' ? 'PDF' : 'Image'} menu</p>
+                <h2 className="text-sm font-semibold text-gray-700">Menu Viewer</h2>
+                <p className="text-xs text-gray-500">View {staticMenuType === 'pdf' ? 'PDF' : 'Image'} menu</p>
               </div>
               <button
                 onClick={toggleStaticMenu}
-                className="text-purple-600 hover:text-purple-700 p-2 transform transition-transform duration-200 hover:scale-110"
+                className="text-orange-600 hover:text-orange-700 p-2 transform transition-transform duration-200 hover:scale-110"
               >
                 <ChevronDown 
                   size={20} 
@@ -1414,8 +1405,13 @@ export default function MenuPage() {
           </div>
         </div>
       )}
-      <div ref={ordersRef} className="bg-gray-50 p-4">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Order History</h2>
+      <div ref={ordersRef} className="p-4">
+        {/* Section Header - NEW */}
+        <div className="mb-3">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">ORDER HISTORY</h2>
+          <p className="text-sm text-gray-600 mt-1">View all your orders and their status</p>
+        </div>
+        
         {orders.length > 0 && (
           <div className="flex items-center justify-between mb-4 bg-white rounded-lg border border-gray-100 p-4">
             <div>
@@ -1503,12 +1499,17 @@ export default function MenuPage() {
 
       {/* Payment Section */}
       {balance > 0 && (
-        <div ref={paymentRef} className="bg-white p-4">
+        <div ref={paymentRef} className="p-4">
+          {/* Section Header - NEW */}
+          <div className="mb-3">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PAYMENT</h2>
+            <p className="text-sm text-gray-600 mt-1">Pay your outstanding balance</p>
+          </div>
+          
           <div 
             className="flex items-center justify-between mb-3 cursor-pointer"
             onClick={() => setPaymentCollapsed(!paymentCollapsed)}
           >
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</h2>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-orange-600">{tempFormatCurrency(balance)}</span>
               {paymentCollapsed ? (
@@ -1937,6 +1938,15 @@ export default function MenuPage() {
           </div>
         </div>
       )}
+      
+      {/* Message Panel Slide-in */}
+      <MessagePanel
+        isOpen={showMessagePanel}
+        onClose={() => setShowMessagePanel(false)}
+        tabId={tab!.id}
+        initialMessages={telegramMessages}
+        onMessageSent={loadTelegramMessages}
+      />
     </div>
   );
 }
