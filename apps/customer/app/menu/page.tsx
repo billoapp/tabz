@@ -1118,7 +1118,7 @@ export default function MenuPage() {
         {/* Section Header */}
         <div className="mb-3">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">MESSAGES</h2>
-          <p className="text-sm text-gray-600 mt-1">Chat with staff about requests or questions</p>
+          <p className="text-sm text-gray-600 mt-1">Chat with staff about orders</p>
         </div>
 
         <div className="bg-white border border-gray-100 rounded-lg">
@@ -1324,7 +1324,7 @@ export default function MenuPage() {
             {/* Menu Header - UPDATED text */}
             <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
               <div>
-                <h2 className="text-sm font-semibold text-gray-700">Menu Viewer</h2>
+                <h2 className="text-sm font-semibold text-gray-700">Viewer</h2>
                 <p className="text-xs text-gray-500">View {staticMenuType === 'pdf' ? 'PDF' : 'Image'} menu</p>
               </div>
               <button
@@ -1409,7 +1409,7 @@ export default function MenuPage() {
         {/* Section Header - NEW */}
         <div className="mb-3">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">ORDER HISTORY</h2>
-          <p className="text-sm text-gray-600 mt-1">View all your orders and their status</p>
+          <p className="text-sm text-gray-600 mt-1">View order history</p>
         </div>
         
         {orders.length > 0 && (

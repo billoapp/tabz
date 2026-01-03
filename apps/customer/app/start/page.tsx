@@ -123,6 +123,24 @@ function ConsentContent() {
       const deviceId = getDeviceId();
       const barDeviceKey = getBarDeviceKey(barId);
       
+      // Check for existing open tabs with the same device at the same bar (fraud prevention)
+      const deviceId = getDeviceId();
+      const { data: existingDeviceTabs, error: deviceCheckError } = await (supabase as any)
+        .from('tabs')
+        .select('id, status, created_at, tab_number')
+        .eq('bar_id', barId)
+        .eq('status', 'open')
+        .contains('notes', `"device_id":"${deviceId}"`);
+
+      if (deviceCheckError && deviceCheckError.code !== 'PGRST116') {
+        console.error('Error checking device tabs:', deviceCheckError);
+      }
+
+      if (existingDeviceTabs && existingDeviceTabs.length > 0) {
+        const existingTab = existingDeviceTabs[0];
+        throw new Error(`This device already has an open tab (Tab ${existingTab.tab_number}) at this location. Please close your existing tab first or contact staff for assistance.`);
+      }
+
       // Check for existing open tab with this device
       const { data: existingTab, error: checkError } = await (supabase as any)
         .from('tabs')

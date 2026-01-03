@@ -11,19 +11,19 @@ FROM storage.buckets
 WHERE name = 'menu-files';
 
 -- 2. Check storage policies for menu-files bucket
-SELECT 
-  schemaname,
-  tablename,
-  policyname,
-  permissive,
-  roles,
-  cmd,
-  qual,
-  with_check
-FROM pg_policies 
-WHERE tablename = 'objects' 
-AND schemaname = 'storage'
-AND policyname LIKE '%menu%';
+    SELECT 
+    schemaname,
+    tablename,
+    policyname,
+    permissive,
+    roles,
+    cmd,
+    qual,
+    with_check
+    FROM pg_policies 
+    WHERE tablename = 'objects' 
+    AND schemaname = 'storage'
+    AND policyname LIKE '%menu%';
 
 -- 3. Test if we can query the bars table (this tests database connection)
 SELECT 

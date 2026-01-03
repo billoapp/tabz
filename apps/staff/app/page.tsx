@@ -203,17 +203,23 @@ export default function TabsPage() {
                          tab.owner_identifier?.includes(searchQuery);
     const matchesFilter = filterStatus === 'all' || tab.status === filterStatus;
     
-    // Special handling for 'pending' filter - show tabs with pending orders
+    // Special handling for 'pending' filter - show tabs with pending orders OR messages
     const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending');
-    const matchesPendingFilter = filterStatus !== 'pending' || hasPendingOrders;
+    const hasPendingMessages = (tab.unreadMessages || 0) > 0;
+    const matchesPendingFilter = filterStatus !== 'pending' || hasPendingOrders || hasPendingMessages;
     
     return matchesSearch && matchesFilter && matchesPendingFilter;
   }).sort((a, b) => {
-    // Priority sorting: pending orders first, then by status priority, then by tab number
-    const aHasPending = a.orders?.some((o: any) => o.status === 'pending');
-    const bHasPending = b.orders?.some((o: any) => o.status === 'pending');
+    // Priority sorting: pending items first, then by status priority, then by tab number
+    const aHasPendingOrders = a.orders?.some((o: any) => o.status === 'pending');
+    const bHasPendingOrders = b.orders?.some((o: any) => o.status === 'pending');
+    const aHasPendingMessages = (a.unreadMessages || 0) > 0;
+    const bHasPendingMessages = (b.unreadMessages || 0) > 0;
     
-    // Tabs with pending orders come first
+    const aHasPending = aHasPendingOrders || aHasPendingMessages;
+    const bHasPending = bHasPendingOrders || bHasPendingMessages;
+    
+    // Tabs with pending items come first
     if (aHasPending && !bHasPending) return -1;
     if (!aHasPending && bHasPending) return 1;
     
@@ -234,7 +240,12 @@ export default function TabsPage() {
       sum + (tab.orders?.reduce((s: number, o: any) => s + parseFloat(o.total), 0) || 0), 0),
     pendingOrders: tabs.reduce((sum, tab) => 
       sum + (tab.orders?.filter((o: any) => o.status === 'pending').length || 0), 0),
+    pendingMessages: tabs.reduce((sum, tab) => 
+      sum + (tab.unreadMessages || 0), 0),
   };
+
+  // Total pending items (orders + messages)
+  const totalPending = stats.pendingOrders + stats.pendingMessages;
 
   if (authLoading) {
     return (
@@ -304,7 +315,10 @@ export default function TabsPage() {
                 <AlertCircle size={16} className="text-red-100 animate-pulse" />
                 <span className="text-sm text-red-100 font-semibold">Pending</span>
               </div>
-              <p className="text-2xl font-bold text-white">{stats.pendingOrders}</p>
+              <p className="text-2xl font-bold text-white">{totalPending}</p>
+              <p className="text-xs text-red-100 mt-1">
+                {stats.pendingOrders} orders, {stats.pendingMessages} messages
+              </p>
             </div>
             <div className="bg-green-500 bg-opacity-30 backdrop-blur-sm rounded-xl p-4 border border-green-300">
               <div className="flex items-center gap-2 mb-1">
@@ -378,7 +392,7 @@ export default function TabsPage() {
                     : 'bg-gray-100 text-gray-700'
                 }`}
               >
-                {status === 'pending' ? '⚡ Pending' : status.charAt(0).toUpperCase() + status.slice(1)}
+                {status === 'pending' ? `⚡ Pending (${totalPending})` : status.charAt(0).toUpperCase() + status.slice(1)}
               </button>
             ))}
           </div>
@@ -396,6 +410,8 @@ export default function TabsPage() {
               {filteredTabs.map(tab => {
                 const balance = getTabBalance(tab);
                 const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending');
+                const hasPendingMessages = (tab.unreadMessages || 0) > 0;
+                const hasPending = hasPendingOrders || hasPendingMessages;
                 
                 return (
                   <div 
@@ -415,7 +431,7 @@ export default function TabsPage() {
                               </span>
                             </div>
                           )}
-                          {hasPendingOrders && (
+                          {hasPending && (
                             <span className="flex items-center justify-center w-6 h-6 bg-yellow-400 rounded-full animate-pulse">
                               <AlertCircle size={14} className="text-yellow-900" />
                             </span>
@@ -435,11 +451,11 @@ export default function TabsPage() {
                     <div className="flex items-center justify-between text-xs text-gray-600 pt-3 border-t border-gray-100">
                       <span>{tab.orders?.length || 0} orders</span>
                       <div className="text-right">
-                        {tab.orders?.filter((o: any) => o.status === 'pending').length > 0 ? (
+                        {hasPending ? (
                           <div className="text-yellow-600 font-medium">
                             <div className="flex items-center gap-1">
                               <AlertCircle size={10} />
-                              {tab.orders
+                              {hasPendingOrders && tab.orders
                                 .filter((o: any) => o.status === 'pending')
                                 .slice(0, 1) // Show only the oldest pending order time
                                 .map((pendingOrder: any) => (
@@ -449,7 +465,7 @@ export default function TabsPage() {
                                 ))}
                             </div>
                             <div className="text-xs">
-                              {tab.orders?.filter((o: any) => o.status === 'pending').length || 0} pending
+                              {(tab.orders?.filter((o: any) => o.status === 'pending').length || 0) + (tab.unreadMessages || 0)} pending
                             </div>
                           </div>
                         ) : (
