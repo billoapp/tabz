@@ -404,18 +404,6 @@ export default function MenuManagementPage() {
 
       const data = await response.json();
 
-      // Update bar settings
-      const { error: updateError } = await supabase
-        .from('bars')
-        .update({
-          static_menu_url: data.url,
-          static_menu_type: data.fileType,
-          menu_type: 'static',
-        })
-        .eq('id', barId);
-
-      if (updateError) throw updateError;
-
       await loadBarSettings();
       setMenuFile(null);
       setMenuPreview(null);
