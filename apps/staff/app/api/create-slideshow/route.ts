@@ -1,4 +1,4 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
@@ -7,16 +7,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(req: NextRequest) {
   try {
-    const { barId, imageUrls, settings } = req.body;
+    const { barId, imageUrls, settings } = await req.json();
 
     if (!barId) {
-      return res.status(400).json({ error: 'barId is required' });
+      return NextResponse.json({ error: 'barId is required' }, { status: 400 });
     }
 
     // Update bar settings to use slideshow
@@ -63,15 +59,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw insertError;
     }
 
-    res.status(200).json({ 
+    return NextResponse.json({ 
       success: true,
       message: 'Slideshow created successfully'
     });
 
   } catch (error: any) {
     console.error('Slideshow creation error:', error);
-    res.status(500).json({ 
+    return NextResponse.json({ 
       error: error.message || 'Failed to create slideshow' 
-    });
+    }, { status: 500 });
   }
 }

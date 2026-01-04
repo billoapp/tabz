@@ -1,4 +1,4 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
@@ -7,17 +7,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(req: NextRequest) {
   try {
     const formidable = require('formidable');
     const fs = require('fs');
@@ -34,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const file = files.file?.[0];
 
     if (!file || !barId) {
-      return res.status(400).json({ error: 'Missing file or barId' });
+      return NextResponse.json({ error: 'Missing file or barId' }, { status: 400 });
     }
 
     // Generate unique filename
@@ -79,15 +69,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Clean up temp file
     fs.unlinkSync(filePath);
 
-    res.status(200).json({ 
+    return NextResponse.json({ 
       url: publicUrl,
       order: parseInt(order) || 0
     });
 
   } catch (error: any) {
     console.error('Error uploading menu image:', error);
-    res.status(500).json({ 
+    return NextResponse.json({ 
       error: error.message || 'Upload failed' 
-    });
+    }, { status: 500 });
   }
 }

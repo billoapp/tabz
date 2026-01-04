@@ -1,4 +1,4 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
@@ -7,16 +7,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function GET(req: NextRequest) {
   try {
-    const { barId } = req.query;
+    const { searchParams } = new URL(req.url);
+    const barId = searchParams.get('barId');
 
     if (!barId) {
-      return res.status(400).json({ error: 'barId is required' });
+      return NextResponse.json({ error: 'barId is required' }, { status: 400 });
     }
 
     // Get slideshow images
@@ -49,15 +46,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       transitionSpeed: 3000,
     };
 
-    res.status(200).json({
+    return NextResponse.json({
       images: imageUrls,
       settings: settings
     });
 
   } catch (error: any) {
     console.error('Slideshow fetch error:', error);
-    res.status(500).json({ 
+    return NextResponse.json({ 
       error: error.message || 'Failed to fetch slideshow' 
-    });
+    }, { status: 500 });
   }
 }
