@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many files (max 5)' }, { status: 400 });
     }
 
-    const uploadedItems: Array<{ url: string; order: number }> = [];
+    const uploadedItems: Array<{ url: string; order: number; display_order?: number }> = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -99,21 +99,38 @@ export async function POST(req: NextRequest) {
       console.log('🔗 Public URL:', publicUrl);
 
       // Insert record in slideshow_images
-      const { error: dbError } = await supabase
-        .from('slideshow_images')
-        .insert({
-          bar_id: barId,
-          image_url: publicUrl,
-          order: i,
-          active: true,
-        });
+      let dbError = null;
+
+      const insertPayload = {
+        bar_id: barId,
+        image_url: publicUrl,
+        display_order: i,
+        active: true,
+      } as any;
+
+      // Try inserting with `display_order` first
+      let res = await supabase.from('slideshow_images').insert(insertPayload);
+      dbError = (res as any).error;
 
       if (dbError) {
-        console.error('❌ DB insert error:', dbError);
-        return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
+        const msg = (dbError?.message || '').toLowerCase();
+        // If the schema doesn't have `display_order` or `order` (older DB), retry without it
+        if (msg.includes("could not find the 'display_order'") || msg.includes("could not find the 'order'") || msg.includes('unknown column') || msg.includes('column "display_order"') || msg.includes('column "order"')) {
+          console.warn('⚠️ slideshow_images table is missing `display_order` column in DB schema. Retrying insert without the ordering column. Please run the slideshow migration to add the column.');
+          const payloadNoOrder = { bar_id: barId, image_url: publicUrl, active: true };
+          const res2 = await supabase.from('slideshow_images').insert(payloadNoOrder);
+          dbError = (res2 as any).error;
+          if (dbError) {
+            console.error('❌ DB insert error after retry without ordering column:', dbError);
+            return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
+          }
+        } else {
+          console.error('❌ DB insert error:', dbError);
+          return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
+        }
       }
 
-      uploadedItems.push({ url: publicUrl, order: i });
+      uploadedItems.push({ url: publicUrl, order: i, display_order: i });
     }
 
     // Optionally update bars static menu type here OR let the client do it

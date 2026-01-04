@@ -53,17 +53,30 @@ export async function POST(req: NextRequest) {
     const slideshowImages = imageUrls.map((url: string, index: number) => ({
       bar_id: barId,
       image_url: url,
-      order: index,
+      display_order: index,
       active: true,
     }));
 
-    const { error: insertError } = await supabase
-      .from('slideshow_images')
-      .insert(slideshowImages);
+    // Try inserting with `display_order`; if the DB is missing it, retry without ordering column and warn
+    let insertError = null;
+    let res = await supabase.from('slideshow_images').insert(slideshowImages);
+    insertError = (res as any).error;
 
     if (insertError) {
-      console.error('Insert error:', insertError);
-      throw insertError;
+      const msg = (insertError?.message || '').toLowerCase();
+      if (msg.includes("could not find the 'display_order'") || msg.includes("could not find the 'order'") || msg.includes('unknown column') || msg.includes('column "display_order"') || msg.includes('column "order"')) {
+        console.warn('⚠️ slideshow_images table is missing `display_order` column in DB schema. Retrying insert without ordering column. Please run the slideshow migration to add the column.');
+        const slideshowImagesNoOrder = imageUrls.map((url: string) => ({ bar_id: barId, image_url: url, active: true }));
+        const res2 = await supabase.from('slideshow_images').insert(slideshowImagesNoOrder);
+        insertError = (res2 as any).error;
+        if (insertError) {
+          console.error('Insert error after retry without ordering column:', insertError);
+          throw insertError;
+        }
+      } else {
+        console.error('Insert error:', insertError);
+        throw insertError;
+      }
     }
 
     return NextResponse.json({ 

@@ -76,22 +76,37 @@ export async function POST(req: NextRequest) {
 
     // Store in database
     console.log('💾 Storing in database...');
-    const { error: dbError } = await supabase
-      .from('slideshow_images')
-      .insert({
-        bar_id: barId,
-        image_url: publicUrl,
-        order: parseInt(orderStr) || 0,
-        active: true,
-      });
+
+    // Try inserting with `order` field; if the column doesn't exist in DB, retry without it
+    let dbError = null;
+    const payloadWithOrder = {
+      bar_id: barId,
+      image_url: publicUrl,
+      display_order: parseInt(orderStr) || 0,
+      active: true,
+    } as any;
+
+    let res = await supabase.from('slideshow_images').insert(payloadWithOrder);
+    dbError = (res as any).error;
 
     if (dbError) {
-      console.error('❌ Database error:', dbError);
-      return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
+      const msg = (dbError?.message || '').toLowerCase();
+      if (msg.includes("could not find the 'display_order'") || msg.includes("could not find the 'order'") || msg.includes('unknown column') || msg.includes('column "display_order"') || msg.includes('column "order"')) {
+        console.warn('⚠️ slideshow_images table is missing `display_order` column in DB schema. Retrying insert without the ordering column. Please run the slideshow migration to add the column.');
+        const payloadNoOrder = { bar_id: barId, image_url: publicUrl, active: true };
+        const res2 = await supabase.from('slideshow_images').insert(payloadNoOrder);
+        dbError = (res2 as any).error;
+        if (dbError) {
+          console.error('❌ Database error after retry without ordering column:', dbError);
+          return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
+        }
+      } else {
+        console.error('❌ Database error:', dbError);
+        return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
+      }
     }
 
     console.log('✅ Database insert successful');
-
     console.log('🎉 Upload completed successfully');
 
     return NextResponse.json({ 

@@ -3,11 +3,11 @@ CREATE TABLE IF NOT EXISTS slideshow_images (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   bar_id UUID REFERENCES bars(id) ON DELETE CASCADE,
   image_url TEXT NOT NULL,
-  order INTEGER NOT NULL,
+  display_order INTEGER NOT NULL,
   active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(bar_id, order)
+  UNIQUE(bar_id, display_order)
 );
 
 -- Add slideshow_settings column to bars table if it doesn't exist
@@ -31,73 +31,89 @@ ON CONFLICT (id) DO NOTHING;
 -- Set up Row Level Security (RLS) for the new table
 ALTER TABLE slideshow_images ENABLE ROW LEVEL SECURITY;
 
--- Create policy for slideshow images
-CREATE POLICY "Users can view slideshow images for their bar"
-ON slideshow_images FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM bars 
-    WHERE bars.id = slideshow_images.bar_id 
-    AND bars.id IN (
-      SELECT bar_id FROM user_bar_permissions 
-      WHERE user_id = auth.uid()
-    )
-  )
-);
+-- Create policy for slideshow images (only if user_bar_permissions exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='user_bar_permissions') THEN
 
-CREATE POLICY "Users can manage slideshow images for their bar"
-ON slideshow_images FOR ALL
-USING (
-  EXISTS (
-    SELECT 1 FROM bars 
-    WHERE bars.id = slideshow_images.bar_id 
-    AND bars.id IN (
-      SELECT bar_id FROM user_bar_permissions 
-      WHERE user_id = auth.uid()
-    )
-  )
-);
+    CREATE POLICY "Users can view slideshow images for their bar"
+    ON slideshow_images FOR SELECT
+    USING (
+      EXISTS (
+        SELECT 1 FROM bars 
+        WHERE bars.id = slideshow_images.bar_id 
+        AND bars.id IN (
+          SELECT bar_id FROM user_bar_permissions 
+          WHERE user_id = auth.uid()
+        )
+      )
+    );
+
+    CREATE POLICY "Users can manage slideshow images for their bar"
+    ON slideshow_images FOR ALL
+    USING (
+      EXISTS (
+        SELECT 1 FROM bars 
+        WHERE bars.id = slideshow_images.bar_id 
+        AND bars.id IN (
+          SELECT bar_id FROM user_bar_permissions 
+          WHERE user_id = auth.uid()
+        )
+      )
+    );
+
+  END IF;
+END $$;
 
 -- Create storage policies
 CREATE POLICY "Menu images are publicly accessible"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'menu-images');
 
-CREATE POLICY "Users can upload menu images for their bar"
-ON storage.objects FOR INSERT
-WITH CHECK (
-  bucket_id = 'menu-images' AND
-  auth.role() = 'authenticated' AND
-  (storage.foldername(name))[1] IN (
-    SELECT bar_id::text FROM user_bar_permissions 
-    WHERE user_id = auth.uid()
-  )
-);
+-- Create upload/update/delete policies only if user_bar_permissions exists
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='user_bar_permissions') THEN
 
-CREATE POLICY "Users can update menu images for their bar"
-ON storage.objects FOR UPDATE
-USING (
-  bucket_id = 'menu-images' AND
-  auth.role() = 'authenticated' AND
-  (storage.foldername(name))[1] IN (
-    SELECT bar_id::text FROM user_bar_permissions 
-    WHERE user_id = auth.uid()
-  )
-);
+    CREATE POLICY "Users can upload menu images for their bar"
+    ON storage.objects FOR INSERT
+    WITH CHECK (
+      bucket_id = 'menu-images' AND
+      auth.role() = 'authenticated' AND
+      (storage.foldername(name))[1] IN (
+        SELECT bar_id::text FROM user_bar_permissions 
+        WHERE user_id = auth.uid()
+      )
+    );
 
-CREATE POLICY "Users can delete menu images for their bar"
-ON storage.objects FOR DELETE
-USING (
-  bucket_id = 'menu-images' AND
-  auth.role() = 'authenticated' AND
-  (storage.foldername(name))[1] IN (
-    SELECT bar_id::text FROM user_bar_permissions 
-    WHERE user_id = auth.uid()
-  )
-);
+    CREATE POLICY "Users can update menu images for their bar"
+    ON storage.objects FOR UPDATE
+    USING (
+      bucket_id = 'menu-images' AND
+      auth.role() = 'authenticated' AND
+      (storage.foldername(name))[1] IN (
+        SELECT bar_id::text FROM user_bar_permissions 
+        WHERE user_id = auth.uid()
+      )
+    );
+
+    CREATE POLICY "Users can delete menu images for their bar"
+    ON storage.objects FOR DELETE
+    USING (
+      bucket_id = 'menu-images' AND
+      auth.role() = 'authenticated' AND
+      (storage.foldername(name))[1] IN (
+        SELECT bar_id::text FROM user_bar_permissions 
+        WHERE user_id = auth.uid()
+      )
+    );
+
+  END IF;
+END $$;
+
 
 -- Create index for better performance
-CREATE INDEX IF NOT EXISTS idx_slideshow_images_bar_order ON slideshow_images(bar_id, "order");
+CREATE INDEX IF NOT EXISTS idx_slideshow_images_bar_display_order ON slideshow_images(bar_id, display_order);
 CREATE INDEX IF NOT EXISTS idx_slideshow_images_active ON slideshow_images(active);
 
 -- Add trigger to update updated_at timestamp
