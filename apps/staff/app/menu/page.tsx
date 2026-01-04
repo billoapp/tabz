@@ -1570,11 +1570,13 @@ export default function MenuManagementPage() {
                         <div className="grid grid-cols-3 gap-2">
                           {menuPreviews.map((preview, index) => (
                             <div key={index} className="relative">
-                              <img 
-                                src={preview} 
-                                alt={`Slide ${index + 1}`} 
-                                className="w-full h-24 object-cover rounded-lg border border-green-300"
-                              />
+                              <div className="aspect-[4/5] rounded-lg overflow-hidden border border-green-300">
+                                <img 
+                                  src={preview} 
+                                  alt={`Slide ${index + 1}`} 
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
                               <div className="absolute bottom-1 left-1 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
                                 {index + 1}
                               </div>
@@ -1682,11 +1684,13 @@ export default function MenuManagementPage() {
                         <div className="grid grid-cols-3 gap-2">
                           {menuPreviews.map((preview, index) => (
                             <div key={index} className="relative">
-                              <img 
-                                src={preview} 
-                                alt={`Preview ${index + 1}`} 
-                                className="w-full h-24 object-cover rounded-lg border border-gray-300"
-                              />
+                              <div className="aspect-[4/5] rounded-lg overflow-hidden border border-gray-300">
+                                <img 
+                                  src={preview} 
+                                  alt={`Preview ${index + 1}`} 
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
                               <button
                                 onClick={() => removeSlideshowImage(index)}
                                 className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
