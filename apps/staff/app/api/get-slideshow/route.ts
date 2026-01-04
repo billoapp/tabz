@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Get slideshow images. Prefer `display_order` but fall back to legacy `order` if necessary.
-    let images: any = null;
+    type SlideRow = { image_url: string; display_order?: number } | { image_url: string; order?: number };
+    let images: SlideRow[] | null = null;
     let imagesError: any = null;
 
     // Try using display_order first
@@ -72,7 +73,7 @@ export async function GET(req: NextRequest) {
       throw barError;
     }
 
-    const imageUrls = images?.map(img => img.image_url) || [];
+    const imageUrls = images?.map((img: SlideRow) => img.image_url) || [];
     const settings = barData?.slideshow_settings || {
       transitionSpeed: 3000,
     };
