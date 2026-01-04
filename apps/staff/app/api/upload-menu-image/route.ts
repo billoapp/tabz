@@ -18,51 +18,46 @@ export async function POST(req: NextRequest) {
   console.log('🚀 UPLOAD-MENU-IMAGE API STARTED');
   
   try {
-    const formidable = require('formidable');
-    const fs = require('fs');
-    
-    const form = formidable({
-      multiples: false,
-      maxFileSize: 10 * 1024 * 1024, // 10MB
-      uploadDir: '/tmp',
-    });
+    // Use the native Next Request formData API (compatible with fetch FormData)
+    const formData = await req.formData();
+    const file = formData.get('file') as File | null;
+    const barId = (formData.get('barId') as string) || null;
+    const orderStr = (formData.get('order') as string) || '0';
 
-    console.log('📋 Parsing form data...');
-    const [fields, files] = await form.parse(req);
-    const barId = fields.barId?.[0];
-    const order = fields.order?.[0];
-    const file = files.file?.[0];
-
-    console.log('📊 Form data received:');
+    console.log('📋 FormData parsed');
     console.log('- barId:', barId);
-    console.log('- order:', order);
-    console.log('- file name:', file?.originalFilename);
-    console.log('- file size:', file?.size);
+    console.log('- order:', orderStr);
+    console.log('- file provided:', !!file);
 
     if (!file || !barId) {
       console.error('❌ Missing file or barId');
       return NextResponse.json({ error: 'Missing file or barId' }, { status: 400 });
     }
 
-    // Generate unique filename
-    const fileName = `menu-${barId}-${Date.now()}-${file.originalFilename}`;
-    const filePath = file.filepath;
+    if (file.size > 10 * 1024 * 1024) {
+      console.error('❌ File too large');
+      return NextResponse.json({ error: 'Image too large (max 10MB)' }, { status: 400 });
+    }
+
+    // Read file into buffer
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Generate unique filename (normalize original name)
+    const originalName = (file.name || 'unknown').replace(/[^a-zA-Z0-9_.-]/g, '-');
+    const fileName = `menu-${barId}-${Date.now()}-${originalName}`;
 
     console.log('📤 Uploading to Supabase Storage:', fileName);
 
-    // Read file and upload to Supabase Storage
-    const fileBuffer = fs.readFileSync(filePath);
-    
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('menu-images')
-      .upload(fileName, fileBuffer, {
-        contentType: file.mimetype,
+      .upload(fileName, buffer, {
+        contentType: file.type || 'application/octet-stream',
         upsert: false,
       });
 
     if (uploadError) {
       console.error('❌ Upload error:', uploadError);
-      throw uploadError;
+      return NextResponse.json({ error: uploadError.message || 'Storage upload failed' }, { status: 500 });
     }
 
     console.log('✅ Storage upload successful');
@@ -81,25 +76,22 @@ export async function POST(req: NextRequest) {
       .insert({
         bar_id: barId,
         image_url: publicUrl,
-        order: parseInt(order) || 0,
+        order: parseInt(orderStr) || 0,
         active: true,
       });
 
     if (dbError) {
       console.error('❌ Database error:', dbError);
-      throw dbError;
+      return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
     }
 
     console.log('✅ Database insert successful');
-
-    // Clean up temp file
-    fs.unlinkSync(filePath);
 
     console.log('🎉 Upload completed successfully');
 
     return NextResponse.json({ 
       url: publicUrl,
-      order: parseInt(order) || 0
+      order: parseInt(orderStr) || 0
     });
 
   } catch (error: any) {

@@ -439,56 +439,61 @@ export default function MenuManagementPage() {
     setMenuPreviews(newPreviews);
   };
 
-  // NEW: Handle slideshow upload
+  // NEW: Handle slideshow upload (batch/multi-file)
   const handleSlideshowUpload = async () => {
-    console.log('🚀 Slideshow upload started');
+    console.log('🚀 Slideshow batch upload started');
     console.log('📁 Files to upload:', menuFiles.length);
     console.log('🏷️ Bar ID:', barId);
-    
+
     if (!menuFiles.length || !barId) {
       alert('Please select at least one image to upload');
       return;
     }
 
+    if (menuFiles.length > 5) {
+      alert('Please select up to 5 images');
+      return;
+    }
+
     setMenuUploadLoading(true);
     try {
-      const uploadedUrls: string[] = [];
-      
-      // Upload each image
-      for (let i = 0; i < menuFiles.length; i++) {
-        console.log(`📤 Uploading image ${i + 1}/${menuFiles.length}:`, menuFiles[i].name);
-        
-        const formData = new FormData();
-        formData.append('file', menuFiles[i]);
-        formData.append('barId', barId);
-        formData.append('order', i.toString());
+      const formData = new FormData();
+      formData.append('barId', barId);
+      // Send slideshowSettings as JSON string if present
+      formData.append('slideshowSettings', JSON.stringify(slideshowSettings || {}));
 
-        const response = await fetch('/api/upload-menu-image', {
-          method: 'POST',
-          body: formData
-        });
+      menuFiles.forEach((f) => {
+        formData.append('files', f);
+      });
 
-        console.log(`📊 Response status for image ${i + 1}:`, response.status);
+      console.log('📤 Sending batch upload request to /api/upload-menu-slideshow');
 
-        if (!response.ok) {
-          const error = await response.json();
-          console.error(`❌ Error uploading image ${i + 1}:`, error);
-          throw new Error(error.error || 'Upload failed');
-        }
+      const response = await fetch('/api/upload-menu-slideshow', {
+        method: 'POST',
+        body: formData,
+      });
 
-        const data = await response.json();
-        console.log(`✅ Image ${i + 1} uploaded successfully:`, data.url);
-        uploadedUrls.push(data.url);
+      console.log('📊 Response status:', response.status);
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ Batch upload failed:', err);
+        throw new Error(err.error || 'Batch upload failed');
       }
 
-      console.log('🎯 All images uploaded, creating slideshow...');
+      const data = await response.json();
+      console.log('✅ Batch upload response:', data);
+
+      if (!data?.uploaded || !Array.isArray(data.uploaded)) {
+        throw new Error('Unexpected response from upload endpoint');
+      }
 
       // Update bar settings to use slideshow
       const { error: updateError } = await supabase
         .from('bars')
         .update({
           static_menu_type: 'slideshow',
-          slideshow_settings: slideshowSettings
+          slideshow_settings: slideshowSettings,
         })
         .eq('id', barId);
 
@@ -497,15 +502,14 @@ export default function MenuManagementPage() {
         throw updateError;
       }
 
-      console.log('✅ Bar settings updated');
-
       await loadBarSettings();
       setMenuFiles([]);
       setMenuPreviews([]);
-      alert(`✅ ${menuFiles.length} images uploaded successfully! Slideshow created.`);
+
+      alert(`✅ ${data.uploaded.length} images uploaded successfully! Slideshow created.`);
     } catch (error: any) {
-      console.error('❌ Error uploading slideshow:', error);
-      alert('Failed to upload slideshow: ' + error.message);
+      console.error('❌ Error uploading slideshow (batch):', error);
+      alert('Failed to upload slideshow: ' + (error?.message || 'Unknown error'));
     } finally {
       setMenuUploadLoading(false);
     }
