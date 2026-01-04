@@ -375,6 +375,7 @@ export default function MenuManagementPage() {
   };
 
   // KEEP ACTIVE: Handle menu file change
+  // Update the handleMenuFileChange function
   const handleMenuFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -383,7 +384,15 @@ export default function MenuManagementPage() {
       // Create preview for images
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
-        reader.onload = (e) => setMenuPreview(e.target?.result as string);
+        reader.onload = (e) => {
+          const result = e.target?.result;
+          // Explicitly check that result is a string
+          if (typeof result === 'string') {
+            setMenuPreview(result);
+          } else {
+            setMenuPreview(null);
+          }
+        };
         reader.readAsDataURL(file);
       } else {
         setMenuPreview(null);
@@ -409,8 +418,11 @@ export default function MenuManagementPage() {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (e) => {
-          const result = e.target?.result as string;
-          setMenuPreviews(prev => [...prev, result]);
+          const result = e.target?.result;
+          // Explicitly check that result is a string
+          if (typeof result === 'string') {
+            setMenuPreviews(prev => [...prev, result]);
+          }
         };
         reader.readAsDataURL(file);
       }
@@ -1569,20 +1581,22 @@ export default function MenuManagementPage() {
                     )}
 
                     {/* Single Image Preview */}
-                    {menuFile && menuFiles.length === 0 && (
-                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <p className="text-sm font-medium text-gray-700 mb-2">
-                          Selected: {menuFile.name}
-                        </p>
-                        {menuPreview && (
-                          <img 
-                            src={menuPreview} 
-                            alt="Preview" 
-                            className="w-full max-h-48 object-contain rounded-lg border border-gray-300 bg-white mt-2"
-                          />
-                        )}
-                      </div>
-                    )}
+                      {menuFile && menuFiles.length === 0 && (
+                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <p className="text-sm font-medium text-gray-700 mb-2">
+                            Selected: {menuFile.name}
+                          </p>
+
+                          {menuPreview && (
+                            <img
+                              src={menuPreview}
+                              alt="Preview"
+                              className="w-full max-h-48 object-contain rounded-lg border border-gray-300 bg-white mt-2"
+                            />
+                          )}
+                        </div>
+                      )}
+
 
                     {/* Slideshow Preview Grid */}
                     {menuPreviews.length > 0 && (
