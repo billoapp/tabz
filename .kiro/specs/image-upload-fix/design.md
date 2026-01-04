@@ -95,7 +95,7 @@ interface FileValidationResult {
 ```sql
 -- Existing fields used by upload system
 static_menu_url: TEXT,           -- Storage path to uploaded file
-static_menu_type: TEXT,          -- 'pdf' or 'image'
+static_menu_type: TEXT,          -- 'pdf', 'image', or 'slideshow'
 menu_type: TEXT                  -- 'static' or 'interactive'
 ```
 

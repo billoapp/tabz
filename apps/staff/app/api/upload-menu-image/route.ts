@@ -77,31 +77,101 @@ export async function POST(req: NextRequest) {
     // Store in database
     console.log('💾 Storing in database...');
 
-    // Try inserting with `order` field; if the column doesn't exist in DB, retry without it
+    // Determine desired display_order. If no explicit order provided, append after the current max.
+    const desiredOrderRaw = parseInt(orderStr);
+    let desiredOrder: number | null = Number.isFinite(desiredOrderRaw) ? desiredOrderRaw : null;
+
+    // If no explicit order, try to find the current max display_order for this bar
+    if (desiredOrder === null) {
+      try {
+        const { data: maxRow, error: selErr } = await supabase
+          .from('slideshow_images')
+          .select('display_order')
+          .eq('bar_id', barId)
+          .order('display_order', { ascending: false })
+          .limit(1);
+
+        if (selErr) {
+          const msg = (selErr?.message || '').toLowerCase();
+          if (msg.includes("could not find the 'display_order'") || msg.includes('column "display_order"') || msg.includes('unknown column')) {
+            // Older schema without display_order; we'll insert without it below
+            console.warn('⚠️ slideshow_images table does not have `display_order` column; will insert without display_order');
+            desiredOrder = null;
+          } else {
+            console.error('❌ Error querying existing slideshow_images:', selErr);
+            return NextResponse.json({ error: selErr.message || 'Failed to query slideshow state' }, { status: 500 });
+          }
+        } else if (Array.isArray(maxRow) && maxRow.length > 0 && typeof (maxRow[0] as any).display_order === 'number') {
+          desiredOrder = ((maxRow[0] as any).display_order || 0) + 1;
+        } else {
+          desiredOrder = 0;
+        }
+      } catch (err) {
+        console.warn('⚠️ Error while determining current max display_order, proceeding to insert without order if needed', err);
+        desiredOrder = desiredOrder === null ? null : desiredOrder;
+      }
+    }
+
+    // Attempt insert with order when available, otherwise insert without it
     let dbError = null;
-    const payloadWithOrder = {
-      bar_id: barId,
-      image_url: publicUrl,
-      display_order: parseInt(orderStr) || 0,
-      active: true,
-    } as any;
 
-    let res = await supabase.from('slideshow_images').insert(payloadWithOrder);
-    dbError = (res as any).error;
+    if (typeof desiredOrder === 'number') {
+      const payloadWithOrder = { bar_id: barId, image_url: publicUrl, display_order: desiredOrder, active: true } as any;
+      let res = await supabase.from('slideshow_images').insert(payloadWithOrder);
+      dbError = (res as any).error;
 
-    if (dbError) {
-      const msg = (dbError?.message || '').toLowerCase();
-      if (msg.includes("could not find the 'display_order'") || msg.includes("could not find the 'order'") || msg.includes('unknown column') || msg.includes('column "display_order"') || msg.includes('column "order"')) {
-        console.warn('⚠️ slideshow_images table is missing `display_order` column in DB schema. Retrying insert without the ordering column. Please run the slideshow migration to add the column.');
-        const payloadNoOrder = { bar_id: barId, image_url: publicUrl, active: true };
-        const res2 = await supabase.from('slideshow_images').insert(payloadNoOrder);
-        dbError = (res2 as any).error;
-        if (dbError) {
-          console.error('❌ Database error after retry without ordering column:', dbError);
+      if (dbError) {
+        const msg = (dbError?.message || '').toLowerCase();
+
+        // If display_order column missing, retry without it
+        if (msg.includes("could not find the 'display_order'") || msg.includes("could not find the 'order'") || msg.includes('unknown column') || msg.includes('column "display_order"') || msg.includes('column "order"')) {
+          console.warn('⚠️ slideshow_images table is missing `display_order` column in DB schema. Retrying insert without the ordering column.');
+          const payloadNoOrder = { bar_id: barId, image_url: publicUrl, active: true };
+          const res2 = await supabase.from('slideshow_images').insert(payloadNoOrder);
+          dbError = (res2 as any).error;
+          if (dbError) {
+            console.error('❌ Database error after retry without ordering column:', dbError);
+            return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
+          }
+        }
+
+        // If duplicate key on display_order, try to append and retry once
+        else if (msg.includes('duplicate key') && msg.includes('slideshow_images_bar_id_display_order_key')) {
+          console.warn('⚠️ Duplicate display_order detected. Retrying by appending to the end.');
+          // recompute max and try again
+          const { data: maxRow2, error: selErr2 } = await supabase
+            .from('slideshow_images')
+            .select('display_order')
+            .eq('bar_id', barId)
+            .order('display_order', { ascending: false })
+            .limit(1);
+
+          if (selErr2) {
+            console.error('❌ Error querying max display_order on retry:', selErr2);
+            return NextResponse.json({ error: selErr2.message || 'Failed to query slideshow state' }, { status: 500 });
+          }
+
+          const newOrder = Array.isArray(maxRow2) && maxRow2.length > 0 && typeof (maxRow2[0] as any).display_order === 'number' ? ((maxRow2[0] as any).display_order || 0) + 1 : 0;
+          const retryRes = await supabase.from('slideshow_images').insert({ bar_id: barId, image_url: publicUrl, display_order: newOrder, active: true });
+          dbError = (retryRes as any).error;
+          if (dbError) {
+            console.error('❌ Database error after retrying with appended display_order:', dbError);
+            return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
+          }
+        }
+
+        else {
+          console.error('❌ Database error:', dbError);
           return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
         }
-      } else {
-        console.error('❌ Database error:', dbError);
+      }
+    } else {
+      // No display_order column or couldn't compute an order; insert without it
+      const payloadNoOrder = { bar_id: barId, image_url: publicUrl, active: true };
+      const res2 = await supabase.from('slideshow_images').insert(payloadNoOrder);
+      dbError = (res2 as any).error;
+      if (dbError) {
+        console.error('❌ Database error inserting without display_order:', dbError);
         return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
       }
     }

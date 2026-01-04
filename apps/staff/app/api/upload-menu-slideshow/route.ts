@@ -57,7 +57,9 @@ export async function POST(req: NextRequest) {
     }
 
     const uploadedItems: Array<{ url: string; order: number; display_order?: number }> = [];
+    const uploadedUrls: string[] = [];
 
+    // Upload files to storage and collect public URLs
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
 
@@ -87,7 +89,6 @@ export async function POST(req: NextRequest) {
 
       if (uploadError) {
         console.error('❌ Upload error:', uploadError);
-        // Provide actionable guidance for missing bucket
         if ((uploadError?.message || '').toLowerCase().includes('bucket')) {
           return NextResponse.json({ error: `Bucket '${SUPABASE_MENU_BUCKET}' not found in Supabase project ${SUPABASE_URL}. Create the bucket or set SUPABASE_MENU_BUCKET to an existing bucket.` }, { status: 500 });
         }
@@ -97,40 +98,60 @@ export async function POST(req: NextRequest) {
       const { data: { publicUrl } } = supabase.storage.from(SUPABASE_MENU_BUCKET).getPublicUrl(fileName);
 
       console.log('🔗 Public URL:', publicUrl);
+      uploadedUrls.push(publicUrl);
+      uploadedItems.push({ url: publicUrl, order: i, display_order: i });
+    }
 
-      // Insert record in slideshow_images
-      let dbError = null;
+    // Remove any existing slideshow rows for this bar to avoid unique constraint conflicts
+    {
+      const { error: deleteError } = await supabase.from('slideshow_images').delete().eq('bar_id', barId);
+      if (deleteError) {
+        console.error('❌ Could not delete existing slideshow_images for bar:', deleteError);
+        return NextResponse.json({ error: deleteError.message || 'Failed to clear existing slideshow images' }, { status: 500 });
+      }
+    }
 
-      const insertPayload = {
-        bar_id: barId,
-        image_url: publicUrl,
-        display_order: i,
-        active: true,
-      } as any;
+    // Batch insert the new slideshow rows with display_order
+    const slideshowPayload = uploadedUrls.map((url, idx) => ({ bar_id: barId, image_url: url, display_order: idx, active: true }));
 
-      // Try inserting with `display_order` first
-      let res = await supabase.from('slideshow_images').insert(insertPayload);
-      dbError = (res as any).error;
+    let insertRes = await supabase.from('slideshow_images').insert(slideshowPayload);
+    let dbError = (insertRes as any).error;
 
-      if (dbError) {
-        const msg = (dbError?.message || '').toLowerCase();
-        // If the schema doesn't have `display_order` or `order` (older DB), retry without it
-        if (msg.includes("could not find the 'display_order'") || msg.includes("could not find the 'order'") || msg.includes('unknown column') || msg.includes('column "display_order"') || msg.includes('column "order"')) {
-          console.warn('⚠️ slideshow_images table is missing `display_order` column in DB schema. Retrying insert without the ordering column. Please run the slideshow migration to add the column.');
-          const payloadNoOrder = { bar_id: barId, image_url: publicUrl, active: true };
-          const res2 = await supabase.from('slideshow_images').insert(payloadNoOrder);
-          dbError = (res2 as any).error;
-          if (dbError) {
-            console.error('❌ DB insert error after retry without ordering column:', dbError);
-            return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
-          }
-        } else {
-          console.error('❌ DB insert error:', dbError);
+    if (dbError) {
+      const msg = (dbError?.message || '').toLowerCase();
+
+      // If the DB is an older schema without display_order, retry without it
+      if (msg.includes("could not find the 'display_order'") || msg.includes("could not find the 'order'") || msg.includes('unknown column') || msg.includes('column "display_order"') || msg.includes('column "order"')) {
+        console.warn('⚠️ slideshow_images table is missing `display_order` column in DB schema. Retrying insert without the ordering column. Please run the slideshow migration to add the column.');
+        const payloadNoOrder = uploadedUrls.map((url) => ({ bar_id: barId, image_url: url, active: true }));
+        const res2 = await supabase.from('slideshow_images').insert(payloadNoOrder);
+        dbError = (res2 as any).error;
+        if (dbError) {
+          console.error('❌ DB insert error after retry without ordering column:', dbError);
           return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
         }
       }
 
-      uploadedItems.push({ url: publicUrl, order: i, display_order: i });
+      // Handle duplicate key on display_order by retrying delete + insert once
+      else if (msg.includes('duplicate key') && msg.includes('slideshow_images_bar_id_display_order_key')) {
+        console.warn('⚠️ Duplicate key on insert (possible concurrent upload). Retrying by clearing existing rows and inserting again.');
+        const { error: deleteError2 } = await supabase.from('slideshow_images').delete().eq('bar_id', barId);
+        if (deleteError2) {
+          console.error('❌ Could not delete existing slideshow_images on retry:', deleteError2);
+          return NextResponse.json({ error: deleteError2.message || 'Retry delete failed' }, { status: 500 });
+        }
+        const retryRes = await supabase.from('slideshow_images').insert(slideshowPayload);
+        dbError = (retryRes as any).error;
+        if (dbError) {
+          console.error('❌ DB insert error after retry:', dbError);
+          return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
+        }
+      }
+
+      else {
+        console.error('❌ DB insert error:', dbError);
+        return NextResponse.json({ error: dbError.message || 'DB insert failed' }, { status: 500 });
+      }
     }
 
     // Optionally update bars static menu type here OR let the client do it
