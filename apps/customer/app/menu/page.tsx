@@ -1434,7 +1434,7 @@ export default function MenuPage() {
       )} */}
 
       {/* Menu Viewer - RENAMED from "Static Menu" */}
-      {staticMenuUrl && (
+      {(staticMenuUrl || staticMenuType === 'slideshow') && (
         <div className="p-4">
           {/* Section Header - NEW */}
           <div className="mb-3">
@@ -1553,7 +1553,7 @@ export default function MenuPage() {
                       {/* Image Content */}
                       <div className="flex-1 overflow-auto flex items-center justify-center p-4">
                         <img 
-                          src={staticMenuUrl} 
+                          src={staticMenuUrl ?? undefined} 
                           alt="Menu" 
                           className="max-w-full max-h-full object-contain rounded-lg shadow-lg transition-all duration-300"
                           style={{ 
