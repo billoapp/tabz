@@ -587,7 +587,7 @@ export default function QuickOrderPage() {
         </div>
 
         {/* Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        {/*<div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <h3 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
             <Plus size={16} />
             How to use:
@@ -601,7 +601,7 @@ export default function QuickOrderPage() {
             <li>• Items will be added to your cart automatically</li>
             <li>• Return to the tab page to review and submit your order</li>
           </ul>
-        </div>
+        </div>*/}
 
         {/* Return to Tab Button */}
         <div className="mt-6">
