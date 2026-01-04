@@ -173,6 +173,7 @@ export default function MenuManagementPage() {
   // Slideshow states - NEW
   const [menuFiles, setMenuFiles] = useState<File[]>([]);
   const [menuPreviews, setMenuPreviews] = useState<string[]>([]);
+  const [uploadMode, setUploadMode] = useState<'single' | 'slideshow'>('single');
   const [slideshowSettings, setSlideshowSettings] = useState({
     transitionSpeed: 3000,
   });
@@ -428,6 +429,10 @@ export default function MenuManagementPage() {
 
   // NEW: Handle slideshow upload
   const handleSlideshowUpload = async () => {
+    console.log('🚀 Slideshow upload started');
+    console.log('📁 Files to upload:', menuFiles.length);
+    console.log('🏷️ Bar ID:', barId);
+    
     if (!menuFiles.length || !barId) {
       alert('Please select at least one image to upload');
       return;
@@ -439,6 +444,8 @@ export default function MenuManagementPage() {
       
       // Upload each image
       for (let i = 0; i < menuFiles.length; i++) {
+        console.log(`📤 Uploading image ${i + 1}/${menuFiles.length}:`, menuFiles[i].name);
+        
         const formData = new FormData();
         formData.append('file', menuFiles[i]);
         formData.append('barId', barId);
@@ -449,14 +456,20 @@ export default function MenuManagementPage() {
           body: formData
         });
 
+        console.log(`📊 Response status for image ${i + 1}:`, response.status);
+
         if (!response.ok) {
           const error = await response.json();
+          console.error(`❌ Error uploading image ${i + 1}:`, error);
           throw new Error(error.error || 'Upload failed');
         }
 
         const data = await response.json();
+        console.log(`✅ Image ${i + 1} uploaded successfully:`, data.url);
         uploadedUrls.push(data.url);
       }
+
+      console.log('🎯 All images uploaded, creating slideshow...');
 
       // Update bar settings to use slideshow
       const { error: updateError } = await supabase
@@ -467,14 +480,19 @@ export default function MenuManagementPage() {
         })
         .eq('id', barId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('❌ Error updating bar settings:', updateError);
+        throw updateError;
+      }
+
+      console.log('✅ Bar settings updated');
 
       await loadBarSettings();
       setMenuFiles([]);
       setMenuPreviews([]);
       alert(`✅ ${menuFiles.length} images uploaded successfully! Slideshow created.`);
     } catch (error: any) {
-      console.error('Error uploading slideshow:', error);
+      console.error('❌ Error uploading slideshow:', error);
       alert('Failed to upload slideshow: ' + error.message);
     } finally {
       setMenuUploadLoading(false);
@@ -1482,11 +1500,12 @@ export default function MenuManagementPage() {
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => {
+                            setUploadMode('single');
                             setMenuFiles([]);
                             setMenuPreviews([]);
                           }}
                           className={`p-3 border-2 rounded-lg text-sm font-medium transition-colors ${
-                            menuFiles.length === 0
+                            uploadMode === 'single'
                               ? 'border-purple-500 bg-purple-50 text-purple-700'
                               : 'border-gray-200 text-gray-500 hover:border-gray-300'
                           }`}
@@ -1496,11 +1515,12 @@ export default function MenuManagementPage() {
                         </button>
                         <button
                           onClick={() => {
+                            setUploadMode('slideshow');
                             setMenuFile(null);
                             setMenuPreview(null);
                           }}
                           className={`p-3 border-2 rounded-lg text-sm font-medium transition-colors ${
-                            menuFiles.length > 0
+                            uploadMode === 'slideshow'
                               ? 'border-purple-500 bg-purple-50 text-purple-700'
                               : 'border-gray-200 text-gray-500 hover:border-gray-300'
                           }`}
@@ -1512,7 +1532,7 @@ export default function MenuManagementPage() {
                     </div>
 
                     {/* Single Image Upload */}
-                    {menuFiles.length === 0 && (
+                    {uploadMode === 'single' && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Select Image File
@@ -1530,7 +1550,7 @@ export default function MenuManagementPage() {
                     )}
 
                     {/* Slideshow Upload */}
-                    {menuFiles.length > 0 && (
+                    {uploadMode === 'slideshow' && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Select up to 5 images for slideshow
@@ -1613,21 +1633,21 @@ export default function MenuManagementPage() {
                     )}
 
                     {/* Upload Button */}
-                    {(menuFile || menuFiles.length > 0) && (
+                    {(uploadMode === 'single' && menuFile) || (uploadMode === 'slideshow' && menuFiles.length > 0) && (
                       <button
-                        onClick={menuFiles.length > 0 ? handleSlideshowUpload : handleMenuUpload}
+                        onClick={uploadMode === 'slideshow' ? handleSlideshowUpload : handleMenuUpload}
                         disabled={menuUploadLoading}
                         className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         {menuUploadLoading ? (
                           <>
                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                            Uploading {menuFiles.length > 0 ? `${menuFiles.length} images...` : '...'}
+                            Uploading {uploadMode === 'slideshow' ? `${menuFiles.length} images...` : '...'}
                           </>
                         ) : (
                           <>
                             <Upload size={20} />
-                            Upload {menuFiles.length > 0 ? `${menuFiles.length} Image${menuFiles.length > 1 ? 's' : ''} (Slideshow)` : 'Menu'}
+                            Upload {uploadMode === 'slideshow' ? `${menuFiles.length} Image${menuFiles.length > 1 ? 's' : ''} (Slideshow)` : 'Menu'}
                           </>
                         )}
                       </button>
