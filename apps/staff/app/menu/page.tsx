@@ -374,6 +374,30 @@ export default function MenuManagementPage() {
     }
   };
 
+  // Load slideshow images for a bar (used for staff preview)
+  const loadSlideshowImages = async () => {
+    if (!barId) return;
+    try {
+      const response = await fetch(`/api/get-slideshow?barId=${barId}`);
+      if (!response.ok) {
+        console.warn('Failed to load slideshow images:', response.status);
+        return;
+      }
+      const data = await response.json();
+      console.log('📊 Loaded slideshow images:', data.images);
+      setMenuPreviews((data && data.images) ? data.images : []);
+    } catch (error) {
+      console.error('Error loading slideshow images:', error);
+    }
+  };
+
+  // Add this useEffect to load slideshow previews when barSettings changes
+  useEffect(() => {
+    if (barSettings?.static_menu_type === 'slideshow' && barId) {
+      loadSlideshowImages();
+    }
+  }, [barSettings, barId]);
+
   // KEEP ACTIVE: Handle menu file change
   // Update the handleMenuFileChange function
   const handleMenuFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1535,6 +1559,28 @@ export default function MenuManagementPage() {
                           alt="Menu preview" 
                           className="w-full max-h-48 object-contain rounded-lg border border-gray-200 bg-white"
                         />
+                      </div>
+                    )}
+
+                    {barSettings.static_menu_type === 'slideshow' && menuPreviews.length > 0 && (
+                      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg mb-4">
+                        <p className="text-sm font-medium text-green-800 mb-2">
+                          ✅ Slideshow Uploaded ({menuPreviews.length} images)
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {menuPreviews.map((preview, index) => (
+                            <div key={index} className="relative">
+                              <img 
+                                src={preview} 
+                                alt={`Slide ${index + 1}`} 
+                                className="w-full h-24 object-cover rounded-lg border border-green-300"
+                              />
+                              <div className="absolute bottom-1 left-1 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                                {index + 1}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
