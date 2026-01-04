@@ -658,7 +658,8 @@ export default function MenuPage() {
                   setSlideshowImages(json.images || []);
                   setSlideshowSettings(json.settings || { transitionSpeed: 3000 });
                   setCurrentSlideIndex(0);
-                  setIsSlideshowPlaying(true);
+                  // Do NOT auto-play; users will control slides manually
+                  setIsSlideshowPlaying(false);
 
                   // If slideshow exists, show static menu
                   if (json.images && json.images.length > 0) {
