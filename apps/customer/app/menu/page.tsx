@@ -645,10 +645,16 @@ export default function MenuPage() {
             // If this is a slideshow, fetch the slideshow images and settings
             if ((barData as any).static_menu_type === 'slideshow') {
               try {
-                const resp = await fetch(`/api/get-slideshow?barId=${(fullTab as any).bar.id}`);
+                const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                const apiUrl = `${baseUrl}/api/get-slideshow?barId=${(fullTab as any).bar.id}`;
+                console.log('🔄 Calling slideshow API:', apiUrl);
+
+                const resp = await fetch(apiUrl);
+                console.log('📊 API Response status:', resp.status, resp.ok);
+
                 if (resp.ok) {
                   const json = await resp.json();
-                  console.log('📊 Customer app loaded slideshow:', json);
+                  console.log('✅ Slideshow API response:', json);
                   setSlideshowImages(json.images || []);
                   setSlideshowSettings(json.settings || { transitionSpeed: 3000 });
                   setCurrentSlideIndex(0);
@@ -658,29 +664,36 @@ export default function MenuPage() {
                   if (json.images && json.images.length > 0) {
                     setShowStaticMenu(true);
                   }
-                } else {
-                  console.warn('Failed to fetch slideshow images', resp.status);
+                  return; // success
+                }
 
-                  // Fallback: try admin inspection endpoint
-                  try {
-                    const altResp = await fetch(`/api/admin/slideshow-status?barId=${(fullTab as any).bar.id}`);
-                    if (altResp.ok) {
-                      const altJson = await altResp.json();
-                      if (altJson?.images) {
-                        setSlideshowImages(altJson.images.map((img: any) => img.image_url));
-                        setShowStaticMenu(true);
-                      }
+                console.warn('Failed to fetch slideshow images', resp.status, await resp.text());
+
+                // Fallback: try admin inspection endpoint
+                try {
+                  const altUrl = `${baseUrl}/api/admin/slideshow-status?barId=${(fullTab as any).bar.id}`;
+                  console.log('🔁 Trying admin fallback:', altUrl);
+                  const altResp = await fetch(altUrl);
+                  console.log('📊 Admin fallback status:', altResp.status, altResp.ok);
+                  if (altResp.ok) {
+                    const altJson = await altResp.json();
+                    if (altJson?.images) {
+                      setSlideshowImages(altJson.images.map((img: any) => img.image_url));
+                      setShowStaticMenu(true);
                     }
-                  } catch (altErr) {
-                    console.warn('Alternative fetch also failed:', altErr);
                   }
+                } catch (altErr) {
+                  console.warn('Alternative fetch also failed:', altErr);
                 }
               } catch (err) {
                 console.warn('Error fetching slideshow images', err);
 
                 // Try admin endpoint as a last-ditch fallback
                 try {
-                  const altResp = await fetch(`/api/admin/slideshow-status?barId=${(fullTab as any).bar.id}`);
+                  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                  const altUrl = `${baseUrl}/api/admin/slideshow-status?barId=${(fullTab as any).bar.id}`;
+                  console.log('🔁 Trying admin fallback (catch):', altUrl);
+                  const altResp = await fetch(altUrl);
                   if (altResp.ok) {
                     const altJson = await altResp.json();
                     if (altJson?.images) {
