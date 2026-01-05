@@ -5,6 +5,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Bell, Store, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { TokensService } from '@tabeza/shared';
 import { 
   getDeviceId, 
   getBarDeviceKey, 
@@ -146,11 +147,11 @@ function ConsentContent() {
           console.warn('Failed to parse tab notes:', e);
         }
 
-        // Store tab data
+        // Store tab data - use fresh bar name from current lookup
         storeActiveTab(barId, existingTab);
         sessionStorage.setItem('currentTab', JSON.stringify(existingTab));
         sessionStorage.setItem('displayName', displayName);
-        sessionStorage.setItem('barName', barName);
+        sessionStorage.setItem('barName', barName); // barName was set in loadBarInfo from current slug lookup
         
         showToast({
           type: 'success',
@@ -323,6 +324,27 @@ function ConsentContent() {
         owner_identifier: tab.owner_identifier,
         status: tab.status
       });
+
+      // Award first connection tokens
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && barId) {
+          const tokensService = new TokensService(supabase);
+          const awarded = await tokensService.awardFirstConnectionTokens(user.id, barId);
+          
+          if (awarded) {
+            console.log('🪙 Awarded first connection tokens');
+            showToast({
+              type: 'success',
+              title: 'Welcome Bonus!',
+              message: '+50 tokens for connecting to this venue!'
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error awarding first connection tokens:', error);
+        // Don't fail the tab creation if tokens fail
+      }
 
       // Store tab data in session
       storeActiveTab(barId, tab);
