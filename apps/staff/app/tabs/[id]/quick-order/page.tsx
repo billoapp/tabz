@@ -361,7 +361,7 @@ export default function QuickOrderPage() {
 
           {!showCatalog ? (
             <div className="space-y-3">
-              <div>
+              <div className="relative">
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   Product Name *
                 </label>
@@ -370,10 +370,15 @@ export default function QuickOrderPage() {
                   type="text"
                   value={currentName}
                   onChange={(e) => {
-                    setCurrentName(e.target.value);
+                    const value = e.target.value;
+                    setCurrentName(value);
+                    filterProducts(value); // Add JSON autocomplete
                     // Hide recent products when field is empty
-                    if (!e.target.value.trim()) {
+                    if (!value.trim()) {
                       setShowRecent(false);
+                      setShowSuggestions(false);
+                    } else {
+                      setShowSuggestions(true);
                     }
                   }}
                   onKeyPress={(e) => handleKeyPress(e, 'name')}
@@ -399,6 +404,25 @@ export default function QuickOrderPage() {
                       >
                         <span className="text-sm text-gray-800">{product.name}</span>
                         <span className="text-xs text-gray-500">{tempFormatCurrency(product.price)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {/* JSON Product Suggestions Dropdown */}
+                {showSuggestions && productSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full max-w-md bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
+                      <Search size={14} className="text-gray-500" />
+                      <span className="text-xs font-semibold text-gray-600">Product Suggestions</span>
+                    </div>
+                    {productSuggestions.map((product, index) => (
+                      <button
+                        key={index}
+                        onClick={() => selectProduct(product.name)}
+                        className="w-full px-3 py-2 text-left hover:bg-orange-50"
+                      >
+                        <span className="text-sm text-gray-800">{product.name}</span>
                       </button>
                     ))}
                   </div>
