@@ -8,7 +8,9 @@ import { useVibrate } from '@/hooks/useVibrate';
 import { useSound } from '@/hooks/useSound';
 import { telegramMessageQueries } from '@/lib/telegram-queries';
 import { MessageAlert, InitiatedBy } from '../../../../packages/shared/types';
+import { TokensService } from '../../../../packages/shared/tokens-service';
 import { useToast } from '@/components/ui/Toast';
+import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 // import PDFViewer from '../../../../components/PDFViewer'; // PDF support temporarily disabled
 import MessagePanel from './MessagePanel';
 
@@ -93,6 +95,11 @@ export default function MenuPage() {
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
   const { showToast } = useToast();
   
+  // Token service instance
+  const tokensService = new TokensService(supabase);
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null);
+  const { showNotification } = useTokenNotifications();
+
   // Telegram messaging state
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [messageInput, setMessageInput] = useState('');
@@ -156,6 +163,25 @@ export default function MenuPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Load user's token balance
+  useEffect(() => {
+    const loadTokenBalance = async () => {
+      console.log('🪙 Loading token balance...');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        console.log('👤 User found for token balance:', user.id);
+        const balance = await tokensService.getBalance(user.id);
+        console.log('💰 Token balance result:', balance);
+        setCurrentBalance(balance?.balance || 0);
+        console.log('🪙 Set token balance to:', balance?.balance || 0);
+      } else {
+        console.log('❌ No user found for token balance');
+      }
+    };
+
+    loadTokenBalance();
+  }, [tab?.id]);
+
   // Set up real-time subscriptions
   useEffect(() => {
     if (!tab?.id) return;
@@ -191,8 +217,14 @@ export default function MenuPage() {
              payload.new?.initiated_by === 'customer') ||
             // Scenario 2: Any change to confirmed status for customer orders
             (payload.new?.status === 'confirmed' && 
-             payload.new?.initiated_by === 'customer' &&
+             payload.new?.initiated_by === 'customer' && 
              payload.old?.status !== 'confirmed')
+          );
+          
+          // Check if order was served/completed (for notification purposes only)
+          const isOrderCompleted = (
+            (payload.new?.status === 'served' || payload.new?.status === 'completed') &&
+            payload.old?.status !== 'served' && payload.old?.status !== 'completed'
           );
           
           console.log('🤖 Is staff acceptance?', isStaffAcceptance);
@@ -216,6 +248,11 @@ export default function MenuPage() {
               orderTotal: payload.new.total, // Pass the number, not formatted string
               message: 'Your order has been accepted and is being prepared'
             });
+          } else if (isOrderCompleted && !processedOrders.has(payload.new.id)) {
+            console.log('✅ Order completed:', payload.new.id);
+            
+            // Mark this order as processed to avoid duplicate notifications
+            setProcessedOrders(prev => new Set([...prev, payload.new.id]));
           } else {
             console.log('❌ Not showing modal - conditions not met:', {
               isStaffAcceptance,
@@ -233,33 +270,6 @@ export default function MenuPage() {
           
           if (!error && ordersData) {
             setOrders(ordersData);
-          }
-        }
-      )
-      .subscribe();
-
-    // Subscribe to payments changes
-    const paymentsSubscription = supabase
-      .channel(`tab-payments-${tab.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tab_payments',
-          filter: `tab_id=eq.${tab.id}`
-        },
-        async (payload) => {
-          console.log('💳 Real-time payment update:', payload);
-          // Refresh payments data
-          const { data: paymentsData, error } = await supabase
-            .from('tab_payments')
-            .select('*')
-            .eq('tab_id', tab.id)
-            .order('created_at', { ascending: false });
-          
-          if (!error && paymentsData) {
-            setPayments(paymentsData);
           }
         }
       )
@@ -312,6 +322,78 @@ export default function MenuPage() {
               }
               setDisplayName(name);
             }
+          }
+        }
+      )
+      .subscribe();
+
+    // Subscribe to payments changes
+    const paymentsSubscription = supabase
+      .channel(`tab-payments-${tab.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tab_payments',
+          filter: `tab_id=eq.${tab.id}`
+        },
+        async (payload) => {
+          console.log('💳 Real-time payment update:', payload);
+          
+          // Show token notification for successful payments
+          if (payload.eventType === 'INSERT' && 
+              payload.new?.status === 'success') {
+            
+            // Award tokens for order value
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user && tab?.bar_id) {
+              const orderValue = Math.round(parseFloat(payload.new.amount) * 100); // Convert to cents
+              
+              try {
+                const result = await tokensService.awardOrderTokens(
+                  user.id,
+                  tab.bar_id,
+                  payload.new.id, // payment ID
+                  orderValue
+                );
+                
+                if (result.success && result.tokensAwarded) {
+                  console.log('🎉 Tokens awarded successfully:', result.tokensAwarded);
+                  showNotification({
+                    type: 'earned',
+                    title: 'Tokens Earned!',
+                    message: `🎉 +${result.tokensAwarded} tokens earned from your payment!`,
+                    amount: result.tokensAwarded,
+                    autoHide: 5000, // Auto-hide after 5 seconds
+                    timestamp: new Date().toISOString()
+                  });
+                  
+                  // Refresh token balance immediately
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) {
+                    const balance = await tokensService.getBalance(user.id);
+                    setCurrentBalance(balance?.balance || 0);
+                    console.log('🪙 Updated token balance:', balance?.balance || 0);
+                  }
+                } else {
+                  console.log('❌ Token awarding failed:', result);
+                }
+              } catch (error) {
+                console.error('Error awarding tokens for payment:', error);
+              }
+            }
+          }
+          
+          // Refresh payments data
+          const { data: paymentsData, error: paymentError } = await supabase
+            .from('tab_payments')
+            .select('*')
+            .eq('tab_id', tab.id)
+            .order('created_at', { ascending: false });
+          
+          if (!paymentError && paymentsData) {
+            setPayments(paymentsData);
           }
         }
       )
@@ -1138,7 +1220,12 @@ export default function MenuPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold">{displayName}</h1>
-            <p className="text-sm text-orange-100">{barName}</p>
+            <p className="text-sm text-white">{barName}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
+                🪙 {currentBalance || 0} tokens
+              </div>
+            </div>
           </div>
           <div className="flex gap-2">
             <button onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Menu</button>
@@ -1225,6 +1312,9 @@ export default function MenuPage() {
         );
       })()}
 
+      {/* Token Notifications */}
+      <TokenNotifications />
+      
       {/* Telegram Message Section - UPDATED */}
       <div className="p-4">
         {/* Section Header */}

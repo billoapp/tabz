@@ -68,18 +68,18 @@ export class TokensService {
    */
   async awardFirstConnectionTokens(
     userId: string,
-    venueId: string
+    venueId: string // Required for security
   ): Promise<boolean> {
     try {
-      // Check if already connected before
+      // Check if already connected to ANY venue before
       const { count } = await this.supabase
         .from('tabs')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
         .eq('bar_id', venueId);
 
-      // Only award if first connection
-      if (count && count > 1) {
+      // Only award if first connection to ANY venue
+      if (count && count > 0) {
         return false;
       }
 
@@ -88,7 +88,7 @@ export class TokensService {
         p_user_id: userId,
         p_amount: TOKENS_CONFIG.FIRST_CONNECT_TOKENS,
         p_type: 'first_connect',
-        p_venue_id: venueId,
+        p_venue_id: venueId, // Required for RLS security
         p_description: 'First connection to venue',
       });
 
@@ -104,7 +104,7 @@ export class TokensService {
    */
   async awardOrderTokens(
     userId: string,
-    venueId: string,
+    venueId: string, // Required for RLS security
     orderId: string,
     orderValue: number
   ): Promise<{ success: boolean; tokensAwarded?: number }> {
@@ -114,7 +114,7 @@ export class TokensService {
         'calculate_order_tokens',
         {
           p_user_id: userId,
-          p_venue_id: venueId,
+          p_venue_id: venueId, // Required for RLS security
           p_order_value: orderValue,
         }
       );
@@ -130,7 +130,7 @@ export class TokensService {
         .from('monthly_order_counts')
         .select('order_count')
         .eq('user_id', userId)
-        .eq('venue_id', venueId)
+        .eq('venue_id', venueId) // Required for RLS security
         .eq('year_month', yearMonth)
         .single();
 
@@ -139,7 +139,7 @@ export class TokensService {
         p_user_id: userId,
         p_amount: tokensAmount,
         p_type: 'order_completed',
-        p_venue_id: venueId,
+        p_venue_id: venueId, // Required for RLS security
         p_order_id: orderId,
         p_metadata: {
           order_value: orderValue,
@@ -148,16 +148,18 @@ export class TokensService {
         p_description: `Order completed (${tokensAmount} tokens)`,
       });
 
+      // Increment order count
+      if (venueId) { // Only increment if we have a venue
+        await this.supabase.rpc('increment_monthly_order_count', {
+          p_user_id: userId,
+          p_venue_id: venueId, // Required for RLS security
+        });
+      }
+
       if (awardError) {
         console.error('Error awarding tokens:', awardError);
         return { success: false };
       }
-
-      // Increment order count
-      await this.supabase.rpc('increment_monthly_order_count', {
-        p_user_id: userId,
-        p_venue_id: venueId,
-      });
 
       return { success: true, tokensAwarded: tokensAmount };
     } catch (error) {

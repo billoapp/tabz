@@ -16,6 +16,70 @@ export type MessageStatus = 'pending' | 'acknowledged' | 'processing' | 'complet
 export type InitiatedBy = 'customer' | 'staff'
 export type OrderType = 'telegram' | 'request' | 'special' | 'normal'
 
+// Token system types
+export interface TokenBalance {
+  user_id: string
+  balance: number
+  lifetime_earned: number
+  lifetime_redeemed: number
+  created_at: string
+  updated_at: string
+}
+
+export interface TokenTransaction {
+  id: string
+  user_id: string
+  amount: number
+  type: 'first_connect' | 'order_completed' | 'referral_sender' | 'referral_receiver' | 'redemption' | 'adjustment'
+  venue_id?: string
+  order_id?: string
+  redemption_id?: string
+  metadata: Json
+  description: string
+  created_at: string
+}
+
+export interface Reward {
+  id: string
+  provider_type: 'venue' | 'supplier'
+  provider_id?: string
+  provider_name: string
+  title: string
+  description?: string
+  token_cost: number
+  terms?: string
+  image_url?: string
+  status: 'active' | 'inactive' | 'expired'
+  max_redemptions?: number
+  current_redemptions: number
+  valid_from?: string
+  valid_until?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Redemption {
+  id: string
+  user_id: string
+  reward_id: string
+  code: string
+  status: 'pending' | 'redeemed' | 'expired' | 'cancelled'
+  redeemed_at?: string
+  redeemed_by_venue_id?: string
+  redeemed_by_staff_id?: string
+  created_at: string
+  expires_at: string
+  reward?: Reward
+}
+
+export interface UserReferral {
+  referrer_id: string
+  referee_id: string
+  status: 'pending' | 'completed'
+  created_at: string
+  completed_at?: string
+}
+
 // Product type with category
 export interface Product {
   id: string

@@ -12,11 +12,17 @@ import {
   storeActiveTab 
 } from '@/lib/deviceId';
 import { useToast } from '@/components/ui/Toast';
+import { TokensService, TOKENS_CONFIG } from '../../../../packages/shared/tokens-service';
+import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 
 function ConsentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
+  
+  // Token service and notifications
+  const tokensService = new TokensService(supabase);
+  const { showNotification } = useTokenNotifications();
   
   // Form states
   const [nickname, setNickname] = useState('');
@@ -320,15 +326,41 @@ function ConsentContent() {
       console.log('📋 Tab details:', {
         id: tab.id,
         tab_number: tab.tab_number,
-        owner_identifier: tab.owner_identifier,
         status: tab.status
       });
-
-      // Store tab data in session
-      storeActiveTab(barId, tab);
-      sessionStorage.setItem('currentTab', JSON.stringify(tab));
       sessionStorage.setItem('displayName', displayName);
       sessionStorage.setItem('barName', barName);
+      
+      // Award first connection tokens for NEW tab only
+      try {
+        console.log('🎯 Attempting to award first connection tokens...');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && barId) {
+          console.log('👤 User found:', user.id);
+          console.log('🏪 Bar ID:', barId);
+          
+          const result = await tokensService.awardFirstConnectionTokens(user.id, barId);
+          console.log('🎉 First connection token result:', result);
+          
+          if (result) {
+            console.log('✅ First connection tokens awarded successfully!');
+            showNotification({
+              type: 'bonus',
+              title: '🎉 Welcome Bonus!',
+              message: `🎉 +${TOKENS_CONFIG.FIRST_CONNECT_TOKENS} tokens earned for connecting to ${barName}!`,
+              amount: TOKENS_CONFIG.FIRST_CONNECT_TOKENS,
+              autoHide: 5000, // Auto-hide after 5 seconds
+              timestamp: new Date().toISOString()
+            });
+          } else {
+            console.log('❌ First connection tokens not awarded (user may have connected before)');
+          }
+        } else {
+          console.log('❌ No user or bar_id found for token awarding');
+        }
+      } catch (error) {
+        console.error('Error awarding first connection tokens:', error);
+      }
       
       showToast({
         type: 'success',
@@ -336,9 +368,6 @@ function ConsentContent() {
         message: `Welcome to ${barName}, ${displayName}!`
       });
       
-      console.log('🎉 Navigating to menu');
-      
-      // Navigate to menu
       setTimeout(() => {
         router.replace('/menu');
       }, 300);
@@ -564,6 +593,7 @@ export default function ConsentPage() {
       </div>
     }>
       <ConsentContent />
+      <TokenNotifications />
     </Suspense>
   );
 }
