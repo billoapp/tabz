@@ -159,6 +159,16 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/shared:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.39.7
+        version: 2.89.0
+    devDependencies:
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
 packages:
 
   '@alloc/quick-lru@5.2.0':
