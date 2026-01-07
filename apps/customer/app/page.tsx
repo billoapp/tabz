@@ -14,6 +14,7 @@ import {
   storeActiveTab 
 } from '@/lib/deviceId';
 import { useToast } from '@/components/ui/Toast';
+import PushNotificationManager from '@/lib/pushNotifications';
 
 function LandingContent() {
   const router = useRouter();
@@ -23,7 +24,9 @@ function LandingContent() {
   const [checkingTab, setCheckingTab] = useState(false);
   const [existingTabs, setExistingTabs] = useState<any[]>([]);
   const [showExistingTabsModal, setShowExistingTabsModal] = useState(false);
-  
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const pushManager = new PushNotificationManager();
+
   useEffect(() => {
     initializeLanding();
   }, [searchParams]);

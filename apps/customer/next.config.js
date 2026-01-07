@@ -10,16 +10,16 @@ const withPWA = require('next-pwa')({
       urlPattern: /^https?.*/,
       handler: 'NetworkFirst',
       options: {
-        cacheName: 'offlineCache',
+        cacheName: 'tabeza-customer-v1',
         expiration: {
-          maxEntries: 200,
+          maxEntries: 100,
           maxAgeSeconds: 24 * 60 * 60 // 24 hours
         }
       }
     }
   ],
   customWorkerDir: 'public',
-  sw: 'custom-sw.js'
+  sw: 'enhanced-sw.js'
 });
 
 const nextConfig = {
