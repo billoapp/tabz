@@ -867,7 +867,7 @@ export default function TabDetailPage() {
               <Plus size={18} />
               Create Order
             </button>
-            {/* DISABLED: Browse Catalog button
+            {/* TEMPORARILY ENABLED FOR TESTING: Browse Catalog button */}
             <button
               onClick={() => router.push(`/tabs/${tabId}/add-order`)}
               className="text-purple-600 font-medium hover:text-purple-700 flex items-center gap-2"
