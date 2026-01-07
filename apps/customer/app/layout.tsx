@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';  // ← Make sure this line exists
 import { ToastProvider } from '@/components/ui/Toast';
+import DeviceInitializer from '@/components/DeviceInitializer';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,9 +30,11 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body>
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <DeviceInitializer>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </DeviceInitializer>
       </body>
     </html>
   );

@@ -174,7 +174,7 @@ export default function SettingsPage() {
     setEditMode(false);
   };
 
-  const customerOrigin = process.env.NEXT_PUBLIC_CUSTOMER_ORIGIN || 'https://tabz-mteja.vercel.app';
+  const customerOrigin = process.env.NEXT_PUBLIC_CUSTOMER_URL || 'https://app.tabeza.co.ke';
 
   const handleCopyQRUrl = () => {
     if (barInfo.slug) {
