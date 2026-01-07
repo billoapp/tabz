@@ -40,12 +40,17 @@ export default function PWAInstallPrompt({ className = '' }: PWAInstallPromptPro
       
       // Wait for the user's choice
       const choice = await deferredPrompt.userChoice;
-      if (choice === 'accepted') {
-        setShowInstallBanner(false);
-        setDeferredPrompt(null);
-      }
+      
+      // Close the modal regardless of choice
+      setShowInstallBanner(false);
+      setDeferredPrompt(null);
+      
+      console.log('PWA install choice:', choice);
     } catch (error) {
       console.error('PWA install error:', error);
+      // Still close the modal on error
+      setShowInstallBanner(false);
+      setDeferredPrompt(null);
     }
   };
 
