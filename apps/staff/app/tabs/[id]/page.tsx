@@ -875,7 +875,6 @@ export default function TabDetailPage() {
               <ShoppingCart size={18} />
               Browse Catalog
             </button>
-            */}
           </div>
 
           {/* Telegram Messaging Section */}

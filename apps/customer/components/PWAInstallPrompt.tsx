@@ -35,6 +35,10 @@ export default function PWAInstallPrompt({ className = '' }: PWAInstallPromptPro
     if (!deferredPrompt) return;
 
     try {
+      // Show the install prompt
+      await deferredPrompt.prompt();
+      
+      // Wait for the user's choice
       const choice = await deferredPrompt.userChoice;
       if (choice === 'accepted') {
         setShowInstallBanner(false);
