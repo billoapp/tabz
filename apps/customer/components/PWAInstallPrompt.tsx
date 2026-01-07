@@ -19,7 +19,7 @@ export default function PWAInstallPrompt({ className = '' }: PWAInstallPromptPro
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      const promptEvent = e as BeforeInstallPromptEvent;
+      const promptEvent = e as unknown as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
       setShowInstallBanner(true);
     };
@@ -35,8 +35,8 @@ export default function PWAInstallPrompt({ className = '' }: PWAInstallPromptPro
     if (!deferredPrompt) return;
 
     try {
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
+      const choice = await deferredPrompt.userChoice;
+      if (choice === 'accepted') {
         setShowInstallBanner(false);
         setDeferredPrompt(null);
       }
