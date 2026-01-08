@@ -166,8 +166,8 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
                     <div
                       className={`max-w-[80%] rounded-2xl p-3 shadow-sm ${
                         msg.initiated_by === 'customer'
-                          ? 'bg-blue-50 text-gray-900 rounded-br-none border border-blue-100'
-                          : 'bg-gray-50 text-gray-900 rounded-bl-none border border-gray-200'
+                          ? 'bg-yellow-50 text-gray-900 rounded-br-none border border-yellow-200'
+                          : 'bg-blue-50 text-gray-900 rounded-bl-none border border-blue-200'
                       }`}
                     >
                       <div className="flex items-start gap-2">
@@ -178,15 +178,15 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
                         )}
                         <div className="flex-1">
                           <p className="text-sm leading-relaxed">{msg.message}</p>
-                          <div className={`flex items-center gap-2 mt-2 ${msg.initiated_by === 'customer' ? 'text-blue-600' : 'text-gray-500'}`}>
+                          <div className={`flex items-center gap-2 mt-2 ${msg.initiated_by === 'customer' ? 'text-yellow-700' : 'text-blue-700'}`}>
                             <span className="text-xs font-medium">
                               {formatTime(msg.created_at)}
                             </span>
                             {msg.initiated_by === 'customer' && (
                               <>
                                 <span className="text-xs">•</span>
-                                {msg.status === 'pending' && <Clock size={12} className="text-blue-500" />}
-                                {msg.status === 'acknowledged' && <CheckCircle size={12} className="text-blue-600" />}
+                                {msg.status === 'pending' && <Clock size={12} className="text-yellow-600" />}
+                                {msg.status === 'acknowledged' && <CheckCircle size={12} className="text-yellow-700" />}
                                 {msg.status === 'completed' && <CheckCircle size={12} className="text-green-600" />}
                                 <span className="text-xs capitalize font-medium">{msg.status}</span>
                               </>
@@ -194,8 +194,8 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
                           </div>
                         </div>
                         {msg.initiated_by === 'customer' && (
-                          <div className="p-1 bg-blue-100 rounded-full shadow-sm">
-                            <User size={12} className="text-blue-600" />
+                          <div className="p-1 bg-yellow-100 rounded-full shadow-sm">
+                            <User size={12} className="text-yellow-700" />
                           </div>
                         )}
                       </div>
