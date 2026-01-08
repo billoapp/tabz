@@ -19,7 +19,11 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMessages(initialMessages);
+    // Sort messages in ascending order (oldest first, newest last)
+    const sortedMessages = [...initialMessages].sort((a, b) => 
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    setMessages(sortedMessages);
   }, [initialMessages]);
 
   useEffect(() => {
