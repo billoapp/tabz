@@ -90,6 +90,19 @@ export default function MenuPage() {
     orderTotal: string;
     message: string;
   }>({ show: false, orderTotal: '', message: '' });
+
+  // Rejection reason modal state
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
+  const [selectedRejectionReason, setSelectedRejectionReason] = useState<string>('');
+
+  // Rejection reasons enum (max 3 as requested)
+  const rejectionReasons = [
+    { value: 'wrong_items', label: 'Wrong items ordered' },
+    { value: 'already_ordered', label: 'Already ordered this' },
+    { value: 'change_mind', label: 'Changed my mind' }
+  ];
+
   const [activePaymentMethod, setActivePaymentMethod] = useState<'mpesa' | 'cards' | 'cash'>('mpesa');
   const [paymentSettings, setPaymentSettings] = useState({
     mpesa_enabled: true,
@@ -873,16 +886,29 @@ export default function MenuPage() {
     }
   };
 
-  const handleRejectOrder = async (orderId: string) => {
-    setApprovingOrder(orderId);
+  const handleRejectOrder = (orderId: string) => {
+    setRejectingOrderId(orderId);
+    setSelectedRejectionReason('');
+    setShowRejectModal(true);
+  };
+
+  const confirmRejectOrder = async () => {
+    if (!rejectingOrderId || !selectedRejectionReason) {
+      alert('Please select a reason for rejection');
+      return;
+    }
+
+    setApprovingOrder(rejectingOrderId);
     try {
       const { error } = await (supabase as any)
         .from('tab_orders')
         .update({ 
           status: 'cancelled', 
-          cancelled_at: new Date().toISOString() 
+          cancelled_at: new Date().toISOString(),
+          rejection_reason: selectedRejectionReason,
+          cancelled_by: 'customer'
         })
-        .eq('id', orderId);
+        .eq('id', rejectingOrderId);
 
       if (error) {
         console.error('Error rejecting order:', error);
@@ -890,10 +916,13 @@ export default function MenuPage() {
         return;
       }
     } catch (error) {
-      console.error('Error in handleRejectOrder:', error);
-      alert('An error occurred while rejecting the order');
+      console.error('Error in confirmRejectOrder:', error);
+      alert('An error occurred while rejecting order');
     } finally {
       setApprovingOrder(null);
+      setShowRejectModal(false);
+      setRejectingOrderId(null);
+      setSelectedRejectionReason('');
     }
   };
 
