@@ -148,7 +148,7 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
         </div>
 
         {/* Messages Container */}
-        <div className="messages-container flex-1 overflow-y-auto h-[calc(100vh-180px)] p-4 flex flex-col-reverse">
+        <div className="messages-container flex-1 overflow-y-auto h-[calc(100vh-180px)] p-4 flex flex-col">
           {messages.length === 0 ? (
             <div className="text-center py-12">
               <MessageCircle size={48} className="mx-auto text-gray-300 mb-4" />
@@ -156,51 +156,53 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
               <p className="text-gray-500">Start a conversation with staff</p>
             </div>
           ) : (
-            <div className="space-y-4 flex flex-col-reverse">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.initiated_by === 'customer' ? 'justify-end' : 'justify-start'}`}
-                >
+            <div className="flex-1 flex flex-col justify-end">
+              <div className="space-y-3">
+                {messages.map((msg) => (
                   <div
-                    className={`max-w-[80%] rounded-2xl p-4 ${
-                      msg.initiated_by === 'customer'
-                        ? 'bg-blue-500 text-white rounded-br-none'
-                        : 'bg-gray-100 text-gray-900 rounded-bl-none'
-                    }`}
+                    key={msg.id}
+                    className={`flex ${msg.initiated_by === 'customer' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className="flex items-start gap-2">
-                      {msg.initiated_by === 'staff' && (
-                        <div className="p-1 bg-white rounded-full">
-                          <User size={12} className="text-gray-600" />
+                    <div
+                      className={`max-w-[80%] rounded-2xl p-3 shadow-sm ${
+                        msg.initiated_by === 'customer'
+                          ? 'bg-blue-50 text-gray-900 rounded-br-none border border-blue-100'
+                          : 'bg-gray-50 text-gray-900 rounded-bl-none border border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {msg.initiated_by === 'staff' && (
+                          <div className="p-1 bg-white rounded-full shadow-sm">
+                            <User size={12} className="text-gray-600" />
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <p className="text-sm leading-relaxed">{msg.message}</p>
+                          <div className={`flex items-center gap-2 mt-2 ${msg.initiated_by === 'customer' ? 'text-blue-600' : 'text-gray-500'}`}>
+                            <span className="text-xs font-medium">
+                              {formatTime(msg.created_at)}
+                            </span>
+                            {msg.initiated_by === 'customer' && (
+                              <>
+                                <span className="text-xs">•</span>
+                                {msg.status === 'pending' && <Clock size={12} className="text-blue-500" />}
+                                {msg.status === 'acknowledged' && <CheckCircle size={12} className="text-blue-600" />}
+                                {msg.status === 'completed' && <CheckCircle size={12} className="text-green-600" />}
+                                <span className="text-xs capitalize font-medium">{msg.status}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      )}
-                      <div className="flex-1">
-                        <p className="text-sm">{msg.message}</p>
-                        <div className={`flex items-center gap-2 mt-2 ${msg.initiated_by === 'customer' ? 'text-blue-200' : 'text-gray-500'}`}>
-                          <span className="text-xs">
-                            {formatTime(msg.created_at)}
-                          </span>
-                          {msg.initiated_by === 'customer' && (
-                            <>
-                              <span className="text-xs">•</span>
-                              {msg.status === 'pending' && <Clock size={12} className="text-yellow-300" />}
-                              {msg.status === 'acknowledged' && <CheckCircle size={12} className="text-blue-300" />}
-                              {msg.status === 'completed' && <CheckCircle size={12} className="text-green-300" />}
-                              <span className="text-xs capitalize">{msg.status}</span>
-                            </>
-                          )}
-                        </div>
+                        {msg.initiated_by === 'customer' && (
+                          <div className="p-1 bg-blue-100 rounded-full shadow-sm">
+                            <User size={12} className="text-blue-600" />
+                          </div>
+                        )}
                       </div>
-                      {msg.initiated_by === 'customer' && (
-                        <div className="p-1 bg-blue-400 rounded-full">
-                          <User size={12} className="text-white" />
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
