@@ -1,4 +1,4 @@
-// apps/staff/app/settings/page.tsx - 80% width layout
+// apps/staff/app/settings/page.tsx - Fixed payment column names
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -32,10 +32,11 @@ export default function SettingsPage() {
     payments: false
   });
 
+  // FIXED: Using correct database column names
   const [paymentSettings, setPaymentSettings] = useState({
-    mpesa_enabled: true,
-    card_enabled: true,
-    cash_enabled: true
+    payment_mpesa_enabled: false,
+    payment_card_enabled: false,
+    payment_cash_enabled: true
   });
   const [savingPaymentSettings, setSavingPaymentSettings] = useState(false);
 
@@ -105,11 +106,18 @@ export default function SettingsPage() {
       setBarInfo(info);
       setEditedInfo(info);
       
-      // Load payment settings
+      // FIXED: Load payment settings with correct column names
       setPaymentSettings({
-        mpesa_enabled: data.mpesa_enabled ?? true,
-        card_enabled: data.card_enabled ?? true,
-        cash_enabled: data.cash_enabled ?? true
+        payment_mpesa_enabled: data.payment_mpesa_enabled ?? false,
+        payment_card_enabled: data.payment_card_enabled ?? false,
+        payment_cash_enabled: data.payment_cash_enabled ?? true
+      });
+      
+      // Load notification settings
+      setNotifications({
+        newOrders: data.notification_new_orders ?? false,
+        pendingApprovals: data.notification_pending_approvals ?? false,
+        payments: data.notification_payments ?? false
       });
     } catch (error) {
       console.error('Error loading bar info:', error);
@@ -188,9 +196,12 @@ export default function SettingsPage() {
     setEditMode(false);
   };
 
+  // FIXED: Using correct column names in save function
   const handleSavePaymentSettings = async () => {
     // Validate that at least one payment method is enabled
-    if (!paymentSettings.mpesa_enabled && !paymentSettings.card_enabled && !paymentSettings.cash_enabled) {
+    if (!paymentSettings.payment_mpesa_enabled && 
+        !paymentSettings.payment_card_enabled && 
+        !paymentSettings.payment_cash_enabled) {
       alert('❌ At least one payment method must be enabled.');
       return;
     }
@@ -210,9 +221,9 @@ export default function SettingsPage() {
       const { error } = await supabase
         .from('bars')
         .update({
-          mpesa_enabled: paymentSettings.mpesa_enabled,
-          card_enabled: paymentSettings.card_enabled,
-          cash_enabled: paymentSettings.cash_enabled
+          payment_mpesa_enabled: paymentSettings.payment_mpesa_enabled,
+          payment_card_enabled: paymentSettings.payment_card_enabled,
+          payment_cash_enabled: paymentSettings.payment_cash_enabled
         })
         .eq('id', userBarId);
 
@@ -364,7 +375,7 @@ export default function SettingsPage() {
               <ol>
                 <li>Open your phone camera</li>
                 <li>Point at the QR code above</li>
-                <li>Tap notification to open menu</li>
+                <li>Tap the notification to open menu</li>
                 <li>Browse, add items, and submit your order</li>
               </ol>
             </div>
@@ -441,6 +452,7 @@ export default function SettingsPage() {
         )}
 
         <div className="p-4 space-y-4">
+          {/* Restaurant Information Section */}
           <div className="bg-white rounded-xl shadow-sm p-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -593,6 +605,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* QR Code Section */}
           {!isNewUser && (
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="flex items-center gap-3 mb-4">
@@ -661,6 +674,90 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* Payment Settings Section - FIXED */}
+          {!isNewUser && (
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <CreditCard size={20} className="text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Payment Methods</h3>
+                  <p className="text-sm text-gray-500">Choose which payment methods to accept</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <Phone size={20} className="text-green-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">M-Pesa</span>
+                      <p className="text-xs text-gray-500">Mobile money payments</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={paymentSettings.payment_mpesa_enabled}
+                    onChange={(e) => setPaymentSettings({
+                      ...paymentSettings, 
+                      payment_mpesa_enabled: e.target.checked
+                    })}
+                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <CreditCard size={20} className="text-blue-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Card Payments</span>
+                      <p className="text-xs text-gray-500">Credit/Debit cards</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={paymentSettings.payment_card_enabled}
+                    onChange={(e) => setPaymentSettings({
+                      ...paymentSettings, 
+                      payment_card_enabled: e.target.checked
+                    })}
+                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <DollarSign size={20} className="text-orange-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Cash Payment</span>
+                      <p className="text-xs text-gray-500">Pay at counter</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={paymentSettings.payment_cash_enabled}
+                    onChange={(e) => setPaymentSettings({
+                      ...paymentSettings, 
+                      payment_cash_enabled: e.target.checked
+                    })}
+                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                  />
+                </label>
+              </div>
+
+              <button
+                onClick={handleSavePaymentSettings}
+                disabled={savingPaymentSettings}
+                className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+              >
+                <Save size={20} />
+                {savingPaymentSettings ? 'Saving...' : 'Save Payment Settings'}
+              </button>
+            </div>
+          )}
+
+          {/* Notifications Section */}
           {!isNewUser && (
             <div className="bg-white rounded-xl shadow-sm p-4">
               <div className="flex items-center gap-3 mb-4">
@@ -707,84 +804,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {!isNewUser && (
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <CreditCard size={20} className="text-purple-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-800">Payment Methods</h3>
-                  <p className="text-sm text-gray-500">Control what payment options customers see</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <Phone size={20} className="text-green-600" />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">M-Pesa</span>
-                      <p className="text-xs text-gray-500">Mobile money payments</p>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={paymentSettings.mpesa_enabled}
-                    onChange={(e) => setPaymentSettings({...paymentSettings, mpesa_enabled: e.target.checked})}
-                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <CreditCard size={20} className="text-blue-600" />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">Credit/Debit Card</span>
-                      <p className="text-xs text-gray-500">Card payments</p>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={paymentSettings.card_enabled}
-                    onChange={(e) => setPaymentSettings({...paymentSettings, card_enabled: e.target.checked})}
-                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <DollarSign size={20} className="text-yellow-600" />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">Cash</span>
-                      <p className="text-xs text-gray-500">Physical cash payments</p>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={paymentSettings.cash_enabled}
-                    onChange={(e) => setPaymentSettings({...paymentSettings, cash_enabled: e.target.checked})}
-                    className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <button
-                  onClick={handleSavePaymentSettings}
-                  disabled={savingPaymentSettings}
-                  className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold hover:bg-purple-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
-                >
-                  <Save size={20} />
-                  {savingPaymentSettings ? 'Saving...' : 'Save Payment Settings'}
-                </button>
-                <p className="text-xs text-gray-500 text-center mt-2">
-                  At least one payment method must be enabled
-                </p>
-              </div>
-            </div>
-          )}
-
+          {/* Feedback Section */}
           {!isNewUser && (
             <div className="bg-white rounded-xl shadow-sm">
               <button
