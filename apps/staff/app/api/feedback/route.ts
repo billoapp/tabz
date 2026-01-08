@@ -222,6 +222,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('📧 Initializing Resend...');
+    
     // Get timestamp
     const timestamp = new Date().toLocaleString('en-US', {
       dateStyle: 'full',
@@ -247,7 +249,8 @@ export async function POST(request: NextRequest) {
     console.log('📧 Sending feedback emails...', {
       from: fromEmail,
       to: supportEmail,
-      cc: email
+      cc: email,
+      subject: `Tabeza Feedback from ${name} (${barName})`
     });
 
     // Send email to support WITH copy to sender
@@ -262,8 +265,9 @@ export async function POST(request: NextRequest) {
 
     if (supportError) {
       console.error('❌ Error sending feedback email:', supportError);
+      console.error('❌ Full error details:', JSON.stringify(supportError, null, 2));
       return NextResponse.json(
-        { error: 'Failed to send feedback. Please try again.' },
+        { error: `Failed to send feedback: ${supportError.message || 'Unknown error'}` },
         { status: 500 }
       );
     }
@@ -282,8 +286,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('❌ Unexpected error in feedback API:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error message:', error.message);
     return NextResponse.json(
-      { error: 'An unexpected error occurred. Please try again.' },
+      { error: `An unexpected error occurred: ${error.message}` },
       { status: 500 }
     );
   }
