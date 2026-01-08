@@ -503,12 +503,14 @@ export default function MenuPage() {
     loadTabData();
   }, []);
 
+  // FIXED: Payment settings loading with correct column names
   const loadPaymentSettings = async (barId: string) => {
     try {
       console.log('💳 Loading payment settings for bar:', barId);
+      // FIXED: Use correct column names from database
       const { data, error } = await supabase
         .from('bars')
-        .select('mpesa_enabled, card_enabled, cash_enabled')
+        .select('payment_mpesa_enabled, payment_card_enabled, payment_cash_enabled')
         .eq('id', barId)
         .single();
 
@@ -516,38 +518,38 @@ export default function MenuPage() {
         console.error('Error loading payment settings:', error);
         // Use default settings if error
         setPaymentSettings({
-          mpesa_enabled: true,
-          card_enabled: true,
+          mpesa_enabled: false,
+          card_enabled: false,
           cash_enabled: true
         });
       } else if (data) {
         console.log('✅ Payment settings loaded:', data);
         const paymentData = data as {
-          mpesa_enabled?: boolean;
-          card_enabled?: boolean;
-          cash_enabled?: boolean;
+          payment_mpesa_enabled?: boolean;
+          payment_card_enabled?: boolean;
+          payment_cash_enabled?: boolean;
         };
         setPaymentSettings({
-          mpesa_enabled: paymentData.mpesa_enabled ?? true,
-          card_enabled: paymentData.card_enabled ?? true,
-          cash_enabled: paymentData.cash_enabled ?? true
+          mpesa_enabled: paymentData.payment_mpesa_enabled ?? false,
+          card_enabled: paymentData.payment_card_enabled ?? false,
+          cash_enabled: paymentData.payment_cash_enabled ?? true
         });
 
         // Set default payment method to first available one
-        if (paymentData.mpesa_enabled) {
+        if (paymentData.payment_mpesa_enabled) {
           setActivePaymentMethod('mpesa');
-        } else if (paymentData.card_enabled) {
+        } else if (paymentData.payment_card_enabled) {
           setActivePaymentMethod('cards');
-        } else if (paymentData.cash_enabled) {
+        } else if (paymentData.payment_cash_enabled) {
           setActivePaymentMethod('cash');
         }
       }
     } catch (error) {
       console.error('Error in loadPaymentSettings:', error);
-      // Use default settings
+      // Use default settings with only cash enabled
       setPaymentSettings({
-        mpesa_enabled: true,
-        card_enabled: true,
+        mpesa_enabled: false,
+        card_enabled: false,
         cash_enabled: true
       });
     } finally {
