@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send confirmation email to sender
+    // Send confirmation email to sender (only if support email succeeded)
     const { data: confirmationData, error: confirmationError } = await resend.emails.send({
       from: `Tabeza Support <${fromEmail}>`,
       to: [email],
@@ -280,7 +280,7 @@ export async function POST(request: NextRequest) {
 
     if (confirmationError) {
       console.error('❌ Error sending confirmation email:', confirmationError);
-      // Don't fail the whole request if confirmation fails, but log it
+      // Don't fail whole request if confirmation fails, but log it
       console.error('❌ Confirmation error details:', JSON.stringify(confirmationError, null, 2));
     }
 
