@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
     const supportEmail = process.env.RESEND_SUPPORT_EMAIL || 'support@tabeza.co.ke';
     
     // From email (must be verified domain in Resend)
-    const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'support@tabeza.co.ke';
 
     console.log('📧 Sending feedback emails...', {
       from: fromEmail,
