@@ -308,7 +308,7 @@ export default function SettingsPage() {
     setSendingFeedback(true);
     
     try {
-      const response = await fetch('/api/feedback-test', {
+      const response = await fetch('/api/feedback', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
