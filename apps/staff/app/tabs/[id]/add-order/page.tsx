@@ -46,6 +46,44 @@ export default function AddOrderPage() {
   });
 
   useEffect(() => {
+    // Test Supabase connection
+    console.log('🔍 Testing Supabase connection...');
+    console.log('🔍 Tab ID:', tabId);
+    console.log('🔍 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+    
+    // Simple connection test
+    supabase.from('bars').select('count').single().then(({ data, error }) => {
+      if (error) {
+        console.error('❌ Supabase connection failed:', error);
+      } else {
+        console.log('✅ Supabase connection OK:', data);
+      }
+    });
+
+    // Test bar_products table exists
+    supabase.from('bar_products').select('count').single().then(({ data, error }) => {
+      if (error) {
+        console.error('❌ bar_products table issue:', error);
+        if (error.code === '42P01') {
+          console.error('❌ bar_products table does not exist!');
+        }
+      } else {
+        console.log('✅ bar_products table OK:', data);
+      }
+    });
+
+    // Test custom_products table exists
+    supabase.from('custom_products').select('count').single().then(({ data, error }) => {
+      if (error) {
+        console.error('❌ custom_products table issue:', error);
+        if (error.code === '42P01') {
+          console.error('❌ custom_products table does not exist!');
+        }
+      } else {
+        console.log('✅ custom_products table OK:', data);
+      }
+    });
+
     loadTabData();
     loadProducts();
   }, [tabId]);
@@ -153,52 +191,119 @@ export default function AddOrderPage() {
     return `CUSTOM-${timestamp}-${random}`;
   };
 
+  // Manual test function - add this for debugging
+  const testDirectInsert = async () => {
+    console.log('🔍 Testing direct insert to bar_products...');
+    
+    try {
+      const testData = {
+        bar_id: tabId,
+        product_id: null,
+        custom_product_id: null,
+        sale_price: 100.00,
+        name: 'Test Product',
+        category: 'Test',
+        description: 'Test description',
+        sku: 'TEST-SKU',
+        active: true
+      };
+
+      console.log('🔍 Test data:', testData);
+
+      const { data, error } = await supabase
+        .from('bar_products')
+        .insert(testData)
+        .select()
+        .single();
+
+      console.log('🔍 Direct insert result:', { data, error });
+
+      if (error) {
+        console.error('❌ Direct insert failed:', error);
+      } else {
+        console.log('✅ Direct insert successful:', data);
+      }
+    } catch (err) {
+      console.error('❌ Direct insert error:', err);
+    }
+  };
+
   const addProductToBar = async (product: UnifiedProduct) => {
+    console.log('🔍 Starting addProductToBar for:', product.name, 'Source:', product.source);
+    
     const price = prompt(`Set price for ${product.name}:`, '300');
-    if (!price || parseFloat(price) <= 0) return;
+    if (!price || parseFloat(price) <= 0) {
+      console.log('❌ Invalid price or cancelled');
+      return;
+    }
+
+    console.log('✅ Price entered:', price);
 
     try {
       if (product.source === 'global-catalog') {
         // Add global product to bar_products
-        console.log('🔍 Adding global product to bar:', product.name);
-        const { error } = await supabase
+        console.log('🔍 Adding global product to bar:', {
+          bar_id: tabId,
+          product_id: product.id,
+          sale_price: parseFloat(price),
+          name: product.name,
+          category: product.category
+        });
+
+        const insertData = {
+          bar_id: tabId,
+          product_id: product.id,
+          sale_price: parseFloat(price),
+          name: product.name,
+          category: product.category,
+          description: product.description,
+          image_url: product.image_url,
+          sku: product.sku,
+          active: true
+        };
+
+        console.log('🔍 Insert data prepared:', insertData);
+
+        const { data, error } = await supabase
           .from('bar_products')
-          .insert({
-            bar_id: tabId,
-            product_id: product.id,
-            sale_price: parseFloat(price),
-            name: product.name,
-            category: product.category,
-            description: product.description,
-            image_url: product.image_url,
-            sku: product.sku,
-            active: true
-          });
+          .insert(insertData)
+          .select()
+          .single();
+
+        console.log('🔍 Supabase response:', { data, error });
 
         if (error) {
           console.error('❌ Error adding global product:', error);
           throw error;
         }
         
-        console.log('✅ Global product added successfully');
+        console.log('✅ Global product added successfully:', data);
         
       } else if (product.source === 'bar-inventory') {
         // Update existing bar product price
-        console.log('🔍 Updating existing bar product price:', product.name);
-        const { error } = await supabase
+        console.log('🔍 Updating existing bar product price:', {
+          bar_product_id: product.bar_product_id,
+          new_price: parseFloat(price)
+        });
+
+        const { data, error } = await supabase
           .from('bar_products')
           .update({ 
             sale_price: parseFloat(price),
             updated_at: new Date().toISOString()
           })
-          .eq('id', product.bar_product_id);
+          .eq('id', product.bar_product_id)
+          .select()
+          .single();
+
+        console.log('🔍 Update response:', { data, error });
 
         if (error) {
           console.error('❌ Error updating bar product:', error);
           throw error;
         }
         
-        console.log('✅ Bar product price updated successfully');
+        console.log('✅ Bar product price updated successfully:', data);
         
       } else {
         // Handle unexpected product sources
@@ -207,12 +312,14 @@ export default function AddOrderPage() {
       }
 
       // Refresh products
+      console.log('🔍 Refreshing products...');
       await loadProducts();
       alert(`✅ ${product.name} added to menu at ${formatCurrency(parseFloat(price))}!`);
 
     } catch (error) {
       console.error('❌ Error in addProductToBar:', error);
-      alert(`Failed to add ${product.name} to menu. Please try again.`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to add ${product.name} to menu. Error: ${errorMessage}`);
     }
   };
 
@@ -224,20 +331,27 @@ export default function AddOrderPage() {
       const price = prompt(`Set price for ${customData.name}:`, '500');
       if (!price || parseFloat(price) <= 0) return;
 
+      console.log('🔍 Creating custom product:', customData.name, 'Price:', price);
+
       // 2. Create in custom_products table WITHOUT price (like products table)
+      const customInsertData = {
+        bar_id: tabId,
+        name: customData.name,
+        category: customData.category,
+        description: customData.description,
+        sku: generateSKU(),
+        active: true
+      };
+
+      console.log('🔍 Custom product insert data:', customInsertData);
+
       const { data: newCustomProduct, error: customError } = await supabase
         .from('custom_products')
-        .insert({
-          bar_id: tabId,
-          name: customData.name,
-          category: customData.category,
-          description: customData.description,
-          sku: generateSKU(),
-          active: true
-          // ❌ NO price field here - price only in bar_products
-        })
+        .insert(customInsertData)
         .select()
         .single();
+
+      console.log('🔍 Custom product response:', { data: newCustomProduct, error: customError });
 
       if (customError) {
         console.error('❌ Error creating custom product:', customError);
@@ -247,25 +361,33 @@ export default function AddOrderPage() {
       console.log('✅ Custom product created (no price):', newCustomProduct);
 
       // 3. Create in bar_products WITH price (single source of truth)
-      const { error: barError } = await supabase
+      const barInsertData = {
+        bar_id: tabId,
+        custom_product_id: newCustomProduct.id,
+        sale_price: parseFloat(price),  // ✅ Price ONLY here
+        name: customData.name,
+        category: customData.category,
+        description: customData.description,
+        sku: newCustomProduct.sku,
+        active: true
+      };
+
+      console.log('🔍 Bar product insert data:', barInsertData);
+
+      const { data: barProductData, error: barError } = await supabase
         .from('bar_products')
-        .insert({
-          bar_id: tabId,
-          custom_product_id: newCustomProduct.id,
-          sale_price: parseFloat(price),  // ✅ Price ONLY here
-          name: customData.name,
-          category: customData.category,
-          description: customData.description,
-          sku: newCustomProduct.sku,
-          active: true
-        });
+        .insert(barInsertData)
+        .select()
+        .single();
+
+      console.log('🔍 Bar product response:', { data: barProductData, error: barError });
 
       if (barError) {
         console.error('❌ Error adding to bar_products:', barError);
         throw barError;
       }
 
-      console.log('✅ Custom product added to bar_products with price');
+      console.log('✅ Custom product added to bar_products with price:', barProductData);
 
       // 4. Close modal and refresh
       setShowCustomModal(false);
@@ -276,7 +398,8 @@ export default function AddOrderPage() {
 
     } catch (error) {
       console.error('❌ Error creating custom product:', error);
-      alert('Failed to create product. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to create product. Error: ${errorMessage}`);
     }
   };
 
@@ -472,6 +595,23 @@ export default function AddOrderPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center">
       <div className="w-full lg:max-w-[80%] max-w-full">
+        {/* Debug Panel - Remove in production */}
+        <div className="bg-yellow-100 border border-yellow-300 p-4 m-4 rounded-lg">
+          <h3 className="font-bold text-yellow-800 mb-2">Debug Panel</h3>
+          <button
+            onClick={testDirectInsert}
+            className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 mr-2"
+          >
+            Test Direct Insert
+          </button>
+          <button
+            onClick={() => console.log('Current tabId:', tabId)}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Log Tab ID
+          </button>
+        </div>
+
         {/* Header */}
         <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6 sticky top-0 z-20">
           <button 
@@ -484,7 +624,7 @@ export default function AddOrderPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold mb-1">Add Order</h1>
-              <p className="text-orange-100">Tab #{tab.tab_number}</p>
+              <p className="text-orange-100">Tab #{tab?.tab_number}</p>
               <p className="text-xs text-orange-200 mt-1">🔔 Customer will approve this order</p>
             </div>
             {cartCount > 0 && (
