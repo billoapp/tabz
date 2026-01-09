@@ -108,6 +108,9 @@ export default function AddOrderPage() {
       return;
     }
 
+    console.log('🔍 Searching global products for:', query);
+    console.log('🔍 Query length:', query.length);
+
     try {
       const { data, error } = await supabase
         .from('products')
@@ -116,13 +119,19 @@ export default function AddOrderPage() {
         .eq('active', true)
         .limit(10);
 
-      if (error) throw error;
+      console.log('🔍 Global products query result:', { data, error });
+      console.log('🔍 Data length:', data?.length || 0);
+
+      if (error) {
+        console.error('❌ Error searching global products:', error);
+        return;
+      }
 
       setSuggestions(data || []);
-      setShowSuggestions(true);
       
-    } catch (error) {
-      console.error('❌ Error searching products:', error);
+    } catch (err) {
+      console.error('❌ Exception in searchProducts:', err);
+      setSuggestions([]);
     }
   };
 
@@ -455,8 +464,11 @@ export default function AddOrderPage() {
                 <div className="absolute z-20 mt-1 w-full bg-white border-2 border-gray-200 rounded-lg shadow-lg">
                   <div className="p-4 text-center">
                     <p className="text-gray-600 mb-2">No global product found for "{productName}"</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-green-600 font-medium">
                       This will be created as a custom product for your bar.
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      Just set a price and click "Add to Bar Menu" below
                     </p>
                   </div>
                 </div>
