@@ -10,7 +10,7 @@ import {
   getBarDeviceKey, 
   validateDeviceForNewTab, 
   storeActiveTab 
-} from '@/lib/deviceId';
+} from '@/lib/device-identity';
 import { useToast } from '@/components/ui/Toast';
 import { TokensService, TOKENS_CONFIG } from '../../../../packages/shared/tokens-service';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
@@ -46,6 +46,13 @@ function ConsentContent() {
     reason?: string;
     existingTab?: any;
   } | null>(null);
+  
+  const [debugDeviceId, setDebugDeviceId] = useState<string>('');
+
+  useEffect(() => {
+    // Get device ID for debug display
+    getDeviceId().then(id => setDebugDeviceId(id.slice(0, 20)));
+  }, []);
 
   useEffect(() => {
     initializeConsent();
@@ -630,7 +637,7 @@ function ConsentContent() {
           </p>
           {process.env.NODE_ENV === 'development' && (
             <p className="text-xs text-gray-400 mt-2 font-mono">
-              Device: {getDeviceId().slice(0, 20)}...
+              Device: {debugDeviceId}...
             </p>
           )}
         </div>

@@ -12,7 +12,7 @@ import {
   hasOpenTabAtBar,
   getAllOpenTabs,
   storeActiveTab 
-} from '@/lib/deviceId';
+} from '@/lib/device-identity';
 import { useToast } from '@/components/ui/Toast';
 import PushNotificationManager from '@/lib/pushNotifications';
 
@@ -31,6 +31,13 @@ function LandingContent() {
     initializeLanding();
   }, [searchParams]);
 
+  const [debugDeviceId, setDebugDeviceId] = useState<string>('');
+  
+  useEffect(() => {
+    // Get device ID for debug display
+    getDeviceId().then(id => setDebugDeviceId(id.slice(0, 20)));
+  }, []);
+  
   const initializeLanding = async () => {
     // Check if there's a slug in URL (from QR code scan)
     const slug = searchParams.get('bar') || searchParams.get('slug');
@@ -386,7 +393,7 @@ function LandingContent() {
         {/* Device ID Debug (remove in production) */}
         {process.env.NODE_ENV === 'development' && (
           <p className="text-xs text-gray-400 text-center mt-2 font-mono">
-            Device: {getDeviceId().slice(0, 20)}...
+            Device: {debugDeviceId}...
           </p>
         )}
       </div>

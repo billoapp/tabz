@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabeza QR Code Poster - A5</title>
+    <style>
+        @page {
+            size: A5;
+            margin: 0;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 148mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .poster-container {
+            width: 148mm;
+            height: 210mm;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 50%, #f79f1f 100%);
+            border-radius: 20px;
+            padding: 20mm;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .poster-container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            animation: float 20s linear infinite;
+        }
+        
+        @keyframes float {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            100% { transform: translate(-50px, -50px) rotate(360deg); }
+        }
+        
+        .logo-section {
+            text-align: center;
+            margin-bottom: 15mm;
+            z-index: 1;
+        }
+        
+        .logo {
+            font-size: 36pt;
+            font-weight: 900;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 5mm;
+            letter-spacing: 2px;
+        }
+        
+        .tagline {
+            font-size: 14pt;
+            color: rgba(255,255,255,0.9);
+            font-weight: 300;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+        
+        .qr-section {
+            background: white;
+            padding: 10mm;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 15mm;
+            z-index: 1;
+        }
+        
+        .qr-code {
+            width: 80mm;
+            height: 80mm;
+            background: white;
+            border: 2px solid #f0f0f0;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .qr-text {
+            font-size: 12pt;
+            color: #333;
+            text-align: center;
+            margin-top: 5mm;
+            font-weight: 500;
+        }
+        
+        .slogan-section {
+            text-align: center;
+            z-index: 1;
+        }
+        
+        .slogan {
+            font-size: 28pt;
+            font-weight: 800;
+            color: white;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.4);
+            margin-bottom: 5mm;
+            line-height: 1.2;
+        }
+        
+        .sub-slogan {
+            font-size: 16pt;
+            color: rgba(255,255,255,0.9);
+            font-weight: 400;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            line-height: 1.4;
+        }
+        
+        .instructions {
+            font-size: 11pt;
+            color: rgba(255,255,255,0.8);
+            text-align: center;
+            margin-top: 10mm;
+            font-weight: 300;
+            line-height: 1.4;
+        }
+        
+        .decorative-element {
+            position: absolute;
+            width: 100mm;
+            height: 100mm;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            top: -30mm;
+            right: -30mm;
+        }
+        
+        .decorative-element-2 {
+            position: absolute;
+            width: 80mm;
+            height: 80mm;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            bottom: -20mm;
+            left: -20mm;
+        }
+    </style>
+</head>
+<body>
+    <div class="poster-container">
+        <div class="decorative-element"></div>
+        <div class="decorative-element-2"></div>
+        
+        <div class="logo-section">
+            <div class="logo">TABEZA</div>
+            <div class="tagline">Your Digital Venue Experience</div>
+        </div>
+        
+        <div class="qr-section">
+            <div class="qr-code">
+                <!-- Real QR Code for app.tabeza.co.ke using Google Charts API -->
+                <img src="https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=https://app.tabeza.co.ke&choe=UTF-8" alt="Scan to visit Tabeza" style="width: 100%; height: 100%; object-fit: cover;">
+            </div>
+            <div class="qr-text">Scan to order & earn rewards</div>
+        </div>
+        
+        <div class="slogan-section">
+            <div class="slogan">Free Food & Drinks</div>
+            <div class="sub-slogan">Exclusive offers for Tabeza users</div>
+        </div>
+        
+        <div class="instructions">
+            Scan with your phone camera<br>
+            Join the experience • Earn rewards • Enjoy more
+        </div>
+    </div>
+</body>
+</html>
