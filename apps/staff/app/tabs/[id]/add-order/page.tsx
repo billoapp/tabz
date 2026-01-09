@@ -315,27 +315,27 @@ export default function AddOrderPage() {
 
         {/* Cart Summary - Fixed Bottom */}
         {cartCount > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 z-20">
+          <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-br from-green-600 to-green-700 border-t-4 border-green-800 shadow-lg p-4 z-20">
             {/* Cart Items Preview */}
             <div className="mb-3 max-h-32 overflow-y-auto">
               {orderCart.map(item => (
                 <div key={item.id} className="flex items-center justify-between py-1 text-sm">
-                  <span className="text-gray-700">{item.quantity}x {item.name}</span>
-                  <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
+                  <span className="text-white">{item.quantity}x {item.name}</span>
+                  <span className="font-medium text-green-200">{formatCurrency(item.price * item.quantity)}</span>
                 </div>
               ))}
             </div>
 
             {/* Total & Confirm */}
-            <div className="flex items-center justify-between mb-3 pt-3 border-t">
+            <div className="flex items-center justify-between mb-3 pt-3 border-t border-green-400">
               <div>
-                <p className="text-sm text-gray-600">Total</p>
-                <p className="text-2xl font-bold text-orange-600">{formatCurrency(cartTotal)}</p>
+                <p className="text-sm text-green-200">Total</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(cartTotal)}</p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={addItemsToParentCart}
-                  className="bg-gray-500 text-white px-4 py-4 rounded-xl font-semibold hover:bg-gray-600 flex items-center gap-2"
+                  className="bg-green-800 text-white px-4 py-4 rounded-xl font-semibold hover:bg-green-900 flex items-center gap-2"
                 >
                   <Plus size={20} />
                   Add to Tab

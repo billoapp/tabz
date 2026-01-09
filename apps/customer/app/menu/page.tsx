@@ -2058,16 +2058,16 @@ export default function MenuPage() {
       )}
       {showCart && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-30 flex items-end">
-          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto">
+          <div className="bg-gradient-to-br from-blue-600 to-blue-700 w-full rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto border-t-4 border-blue-800">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold">Your Cart</h3>
-              <button onClick={() => setShowCart(false)}><X size={24} /></button>
+              <h3 className="text-xl font-bold text-white">Your Cart</h3>
+              <button onClick={() => setShowCart(false)} className="text-white hover:bg-blue-800 p-2 rounded-lg transition-colors"><X size={24} /></button>
             </div>
             <div className="space-y-3 mb-4">
               {cart.map(item => (
                 <div key={item.bar_product_id} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                       <span className="text-2xl">
                         {item.category === 'Beer' ? '🍺' :
                           item.category === 'Wine' ? '🍷' :
@@ -2077,24 +2077,24 @@ export default function MenuPage() {
                       </span>
                     </div>
                     <div>
-                      <p className="font-semibold">{item.name}</p>
-                      <p className="text-sm text-gray-600">{tempFormatCurrency(item.price)}</p>
+                      <p className="font-semibold text-white">{item.name}</p>
+                      <p className="text-sm text-blue-200">{tempFormatCurrency(item.price)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => updateCartQuantity(item.bar_product_id, -1)} className="bg-gray-100 p-1 rounded"><Minus size={16} /></button>
-                    <span className="font-bold w-8 text-center">{item.quantity}</span>
-                    <button onClick={() => updateCartQuantity(item.bar_product_id, 1)} className="bg-orange-500 text-white p-1 rounded"><Plus size={16} /></button>
+                    <button onClick={() => updateCartQuantity(item.bar_product_id, -1)} className="bg-blue-800 text-white p-1 rounded hover:bg-blue-900 transition-colors"><Minus size={16} /></button>
+                    <span className="font-bold w-8 text-center text-white">{item.quantity}</span>
+                    <button onClick={() => updateCartQuantity(item.bar_product_id, 1)} className="bg-green-500 text-white p-1 rounded hover:bg-green-600 transition-colors"><Plus size={16} /></button>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="border-t pt-4">
+            <div className="border-t border-blue-400 pt-4">
               <div className="flex justify-between mb-4">
-                <span className="font-bold">Total</span>
-                <span className="text-xl font-bold text-orange-600">{tempFormatCurrency(cartTotal)}</span>
+                <span className="font-bold text-white">Total</span>
+                <span className="text-xl font-bold text-green-300">{tempFormatCurrency(cartTotal)}</span>
               </div>
-              <button onClick={confirmOrder} disabled={submittingOrder} className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300">
+              <button onClick={confirmOrder} disabled={submittingOrder} className="w-full bg-green-500 text-white py-4 rounded-xl font-semibold hover:bg-green-600 disabled:bg-gray-400 transition-colors">
                 {submittingOrder ? 'Submitting...' : 'Confirm Order'}
               </button>
             </div>
@@ -2102,10 +2102,10 @@ export default function MenuPage() {
         </div>
       )}
       {cartCount > 0 && (
-        <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-orange-500 text-white rounded-full p-4 shadow-lg hover:bg-orange-600 flex items-center gap-2 z-20">
+        <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full p-4 shadow-lg hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 z-20 border-2 border-blue-300">
           <ShoppingCart size={24} />
           <span className="font-bold">{cartCount}</span>
-          <span className="ml-2 font-bold">{tempFormatCurrency(cartTotal)}</span>
+          <span className="ml-2 font-bold text-green-300">{tempFormatCurrency(cartTotal)}</span>
         </button>
       )}
       {acceptanceModal.show && (

@@ -1010,73 +1010,70 @@ export default function TabDetailPage() {
 
           {/* Cart Section */}
           {cartItems.length > 0 && (
-            <div className="mb-6 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 flex items-center justify-between">
+            <div className="mb-6 bg-gradient-to-br from-green-600 to-green-700 rounded-xl shadow-lg border-2 border-green-800 overflow-hidden">
+              <div className="bg-gradient-to-r from-green-700 to-green-800 text-white p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <ShoppingCart size={20} />
                   <div>
-                    <h2 className="font-bold text-lg">Current Cart</h2>
-                    <p className="text-sm text-orange-100">{cartItems.length} items • {tempFormatCurrency(getCartTotal())}</p>
+                    <h2 className="font-bold text-lg text-white">Current Cart</h2>
+                    <p className="text-sm text-green-200">{cartItems.length} items • {tempFormatCurrency(getCartTotal())}</p>
                   </div>
                 </div>
                 <button
                   onClick={clearCart}
-                  className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+                  className="p-2 bg-green-800 bg-opacity-50 rounded-lg hover:bg-green-900 transition-colors"
                 >
-                  <Trash2 size={18} />
+                  <Trash2 size={18} className="text-white" />
                 </button>
               </div>
 
               <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
                 {cartItems.map(item => (
-                  <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={item.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-gray-800">{item.name}</span>
-                        <span className={`text-xs px-2 py-1 rounded-full ${item.type === 'catalog' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                          {item.type === 'catalog' ? 'Catalog' : 'Custom'}
-                        </span>
+                        <span className="font-medium text-green-900">{item.name}</span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${item.type === 'catalog' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>{item.type === 'catalog' ? 'Catalog' : 'Custom'}</span>
                       </div>
-                      <p className="text-sm text-gray-600">{tempFormatCurrency(item.price)} each</p>
+                      <p className="text-sm text-green-600">{tempFormatCurrency(item.price)} each</p>
                     </div>
-                    
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 bg-white border rounded-lg">
+                      <div className="flex items-center gap-2 bg-green-100 border border-green-300 rounded-lg">
                         <button
                           onClick={() => updateCartItemQuantity(item.id, -1)}
-                          className="p-2 hover:bg-gray-100"
+                          className="p-2 hover:bg-green-200 transition-colors"
                         >
-                          <X size={16} />
+                          <X size={16} className="text-green-700" />
                         </button>
-                        <span className="font-bold w-8 text-center">{item.quantity}</span>
+                        <span className="font-bold w-8 text-center text-green-900">{item.quantity}</span>
                         <button
                           onClick={() => updateCartItemQuantity(item.id, 1)}
-                          className="p-2 hover:bg-gray-100"
+                          className="p-2 hover:bg-green-200 transition-colors"
                         >
-                          <Plus size={16} />
+                          <Plus size={16} className="text-green-700" />
                         </button>
                       </div>
                       <button
                         onClick={() => removeCartItem(item.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                        className="p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
                       >
-                        <Trash2 size={18} />
+                        <Trash2 size={18} className="text-white" />
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="border-t p-4">
+              <div className="border-t border-green-400 p-4">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <p className="text-sm text-gray-600">Total</p>
-                    <p className="text-2xl font-bold text-orange-600">{tempFormatCurrency(getCartTotal())}</p>
+                    <p className="text-sm text-green-200">Total</p>
+                    <p className="text-2xl font-bold text-white">{tempFormatCurrency(getCartTotal())}</p>
                   </div>
                   <button
                     onClick={submitCartOrder}
                     disabled={submittingOrder}
-                    className="bg-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="bg-green-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {submittingOrder ? (
                       <>
