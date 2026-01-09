@@ -220,148 +220,149 @@ export default function AddOrderPage() {
                 <p className="font-bold">{cartCount} items</p>
               </div>
             )}
+          </div>
         </div>
-      </div>
 
-      {/* Search & Categories */}
-      <div className="p-4 bg-white border-b sticky top-32 z-10">
-        <div className="relative mb-3">
-          <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search menu..."
-            className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2"
-            >
-              <X size={20} className="text-gray-400" />
-            </button>
+        {/* Search & Categories */}
+        <div className="p-4 bg-white border-b sticky top-32 z-10">
+          <div className="relative mb-3">
+            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search menu..."
+              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2"
+              >
+                <X size={20} className="text-gray-400" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => {
+                  setSelectedCategory(cat);
+                  setSearchQuery('');
+                }}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                  selectedCategory === cat 
+                    ? 'bg-orange-500 text-white' 
+                    : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Menu Items */}
+        <div className="p-4 space-y-3">
+          {filteredMenu.length === 0 ? (
+            <div className="text-center py-12">
+              <Search size={48} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-gray-500">No items found</p>
+            </div>
+          ) : (
+            filteredMenu.map(item => {
+              const inCart = orderCart.find(c => c.id === item.id);
+              
+              return (
+                <div key={item.id} className="bg-white rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="font-semibold text-gray-800">{item.name}</h3>
+                      <p className="text-orange-600 font-bold">{formatCurrency(item.price)}</p>
+                    </div>
+                    {!inCart ? (
+                      <button
+                        onClick={() => addToCart(item)}
+                        className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"
+                      >
+                        <Plus size={20} />
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateQuantity(item.id, -1)}
+                          className="bg-gray-200 p-2 rounded-lg hover:bg-gray-300"
+                        >
+                          <X size={16} />
+                        </button>
+                        <span className="font-bold text-lg w-8 text-center">{inCart.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => {
-                setSelectedCategory(cat);
-                setSearchQuery('');
-              }}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                selectedCategory === cat 
-                  ? 'bg-orange-500 text-white' 
-                  : 'bg-gray-100 text-gray-700'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Menu Items */}
-      <div className="p-4 space-y-3">
-        {filteredMenu.length === 0 ? (
-          <div className="text-center py-12">
-            <Search size={48} className="mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500">No items found</p>
-          </div>
-        ) : (
-          filteredMenu.map(item => {
-            const inCart = orderCart.find(c => c.id === item.id);
-            
-            return (
-              <div key={item.id} className="bg-white rounded-xl p-4 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{item.name}</h3>
-                    <p className="text-orange-600 font-bold">{formatCurrency(item.price)}</p>
-                  </div>
-                  {!inCart ? (
-                    <button
-                      onClick={() => addToCart(item)}
-                      className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"
-                    >
-                      <Plus size={20} />
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => updateQuantity(item.id, -1)}
-                        className="bg-gray-200 p-2 rounded-lg hover:bg-gray-300"
-                      >
-                        <X size={16} />
-                      </button>
-                      <span className="font-bold text-lg w-8 text-center">{inCart.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, 1)}
-                        className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </div>
-                  )}
+        {/* Cart Summary - Fixed Bottom */}
+        {cartCount > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 z-20">
+            {/* Cart Items Preview */}
+            <div className="mb-3 max-h-32 overflow-y-auto">
+              {orderCart.map(item => (
+                <div key={item.id} className="flex items-center justify-between py-1 text-sm">
+                  <span className="text-gray-700">{item.quantity}x {item.name}</span>
+                  <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
                 </div>
+              ))}
+            </div>
+
+            {/* Total & Confirm */}
+            <div className="flex items-center justify-between mb-3 pt-3 border-t">
+              <div>
+                <p className="text-sm text-gray-600">Total</p>
+                <p className="text-2xl font-bold text-orange-600">{formatCurrency(cartTotal)}</p>
               </div>
-            );
-          })
+              <div className="flex gap-2">
+                <button
+                  onClick={addItemsToParentCart}
+                  className="bg-gray-500 text-white px-4 py-4 rounded-xl font-semibold hover:bg-gray-600 flex items-center gap-2"
+                >
+                  <Plus size={20} />
+                  Add to Tab
+                </button>
+                <button
+                  onClick={handleConfirmOrder}
+                  disabled={submitting}
+                  className="bg-orange-500 text-white px-6 py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <CheckCircle size={20} />
+                  {submitting ? 'Submitting...' : 'Send Order'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
+
+        <style jsx global>{`
+          .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+          .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+        `}</style>
       </div>
-
-      {/* Cart Summary - Fixed Bottom */}
-      {cartCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 z-20">
-          {/* Cart Items Preview */}
-          <div className="mb-3 max-h-32 overflow-y-auto">
-            {orderCart.map(item => (
-              <div key={item.id} className="flex items-center justify-between py-1 text-sm">
-                <span className="text-gray-700">{item.quantity}x {item.name}</span>
-                <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Total & Confirm */}
-          <div className="flex items-center justify-between mb-3 pt-3 border-t">
-            <div>
-              <p className="text-sm text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-orange-600">{formatCurrency(cartTotal)}</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={addItemsToParentCart}
-                className="bg-gray-500 text-white px-4 py-4 rounded-xl font-semibold hover:bg-gray-600 flex items-center gap-2"
-              >
-                <Plus size={20} />
-                Add to Tab
-              </button>
-              <button
-                onClick={handleConfirmOrder}
-                disabled={submitting}
-                className="bg-orange-500 text-white px-6 py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <CheckCircle size={20} />
-                {submitting ? 'Submitting...' : 'Send Order'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style jsx global>{`
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .hide-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
     </div>
   );
 }
