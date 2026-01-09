@@ -481,7 +481,7 @@ export default function TabDetailPage() {
       console.error('Error creating order:', error);
       showToast({
         type: 'error',
-        title: 'Failed to Create Order',
+        title: 'Failed to Create New Product',
         message: error.message
       });
     } finally {
@@ -1053,7 +1053,7 @@ export default function TabDetailPage() {
               className="text-orange-600 font-medium hover:text-orange-700 flex items-center gap-2"
             >
               <Plus size={18} />
-              Create Order
+              Create New Product
             </button>
             <button
               onClick={() => router.push(`/tabs/${tabId}/quick-order`)}
