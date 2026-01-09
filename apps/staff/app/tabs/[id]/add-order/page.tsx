@@ -74,39 +74,43 @@ export default function AddOrderPage() {
       // 1. Load products already in bar inventory
       const { data: barProducts, error: barError } = await supabase
         .from('bar_products')
-        .select(`
-          id,
-          sale_price,
-          active,
-          name,
-          category,
-          description,
-          image_url,
-          sku,
-          product_id,
-          custom_product_id
-        `)
+        .select('id, bar_id, product_id, custom_product_id, name, category, description, image_url, sku, sale_price, active, created_at, updated_at')
         .eq('bar_id', tabId)
         .eq('active', true)
         .order('category, name');
 
       if (barError) throw barError;
 
+      console.log('🔍 Raw bar_products data:', barProducts);
+
       // Transform bar products into UnifiedProduct format
-      const barProductsUnified: UnifiedProduct[] = (barProducts || []).map(bp => ({
-        id: bp.product_id || bp.custom_product_id || bp.id,
-        bar_product_id: bp.id,
-        name: bp.name,
-        category: bp.category,
-        price: bp.sale_price,
-        description: bp.description,
-        image_url: bp.image_url,
-        sku: bp.sku,
-        is_custom: !!bp.custom_product_id,
-        source: 'bar-inventory',
-        product_id: bp.product_id,
-        custom_product_id: bp.custom_product_id
-      }));
+      const barProductsUnified: UnifiedProduct[] = (barProducts || []).map(bp => {
+        const unified = {
+          id: bp.product_id || bp.custom_product_id || bp.id,
+          bar_product_id: bp.id, // This is the CRITICAL field!
+          name: bp.name,
+          category: bp.category,
+          price: bp.sale_price,
+          description: bp.description,
+          image_url: bp.image_url,
+          sku: bp.sku,
+          is_custom: !!bp.custom_product_id,
+          source: 'bar-inventory' as const,
+          product_id: bp.product_id,
+          custom_product_id: bp.custom_product_id
+        };
+        
+        console.log('🔍 Transformed bar product:', {
+          bar_product_id: unified.bar_product_id,
+          name: unified.name,
+          price: unified.price,
+          is_custom: unified.is_custom
+        });
+        
+        return unified;
+      });
+
+      console.log('🔍 Final bar products unified:', barProductsUnified);
 
       // 2. Load global products NOT in bar inventory
       const { data: globalProducts, error: globalError } = await supabase
@@ -271,15 +275,37 @@ export default function AddOrderPage() {
     setSubmitting(true);
 
     try {
-      const orderItems = orderCart.map(item => ({
-        product_id: item.product_id || item.custom_product_id || null,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        total: item.price * item.quantity
-      }));
+      // Create detailed order items with proper references
+      const orderItems = orderCart.map(item => {
+        const baseItem = {
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity,
+          category: item.category,
+          is_custom: item.is_custom
+        };
 
-      const { error } = await supabase
+        // Add proper product references based on source
+        if (item.bar_product_id) {
+          // Item from bar inventory
+          return {
+            ...baseItem,
+            bar_product_id: item.bar_product_id,
+            product_id: item.product_id || null,
+            custom_product_id: item.custom_product_id || null
+          };
+        } else {
+          // For unpriced items that were just added (edge case)
+          return {
+            ...baseItem,
+            name: item.name,
+            category: item.category
+          };
+        }
+      });
+
+      const { error: orderError } = await supabase
         .from('tab_orders')
         .insert({
           tab_id: tabId,
@@ -289,9 +315,44 @@ export default function AddOrderPage() {
           initiated_by: 'staff'
         });
 
-      if (error) throw error;
+      if (orderError) throw orderError;
 
-      alert('Order sent to customer for approval!');
+      // 🔥 CRITICAL: Also record order items in order_items table for inventory tracking
+      const orderItemsForTable = orderCart.map(item => {
+        const orderItem: any = {
+          tab_id: tabId,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity,
+          category: item.category,
+          is_custom: item.is_custom
+        };
+
+        // Add proper references
+        if (item.bar_product_id) {
+          orderItem.bar_product_id = item.bar_product_id;
+          orderItem.product_id = item.product_id;
+          orderItem.custom_product_id = item.custom_product_id;
+        }
+
+        return orderItem;
+      });
+
+      // Insert into order_items table if it exists
+      try {
+        const { error: itemsError } = await supabase
+          .from('order_items')
+          .insert(orderItemsForTable);
+
+        if (itemsError && itemsError.code !== '42P01') { // Ignore if table doesn't exist
+          console.warn('Could not save to order_items:', itemsError);
+        }
+      } catch (tableError) {
+        console.warn('order_items table might not exist:', tableError);
+      }
+
+      alert('✅ Order sent to customer for approval!');
       router.push(`/tabs/${tabId}`);
       
     } catch (error) {
