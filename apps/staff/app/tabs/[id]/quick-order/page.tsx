@@ -115,11 +115,26 @@ export default function QuickOrderPage() {
 
       console.log('➕ Adding to cart:', cartItem);
 
-      // Send to parent window (main tab page)
-      window.postMessage({
-        type: 'ADD_TO_CART',
-        item: cartItem
-      }, '*');
+      // Method 1: Try postMessage first (for same window)
+      try {
+        window.postMessage({
+          type: 'ADD_TO_CART',
+          item: cartItem
+        }, '*');
+        console.log('📨 Sent via postMessage');
+      } catch (error) {
+        console.log('❌ postMessage failed, using fallback');
+      }
+
+      // Method 2: Fallback to sessionStorage (for different windows)
+      try {
+        const existingItems = JSON.parse(sessionStorage.getItem('tab_cart_items') || '[]');
+        existingItems.push(cartItem);
+        sessionStorage.setItem('tab_cart_items', JSON.stringify(existingItems));
+        console.log('💾 Saved to sessionStorage fallback');
+      } catch (error) {
+        console.error('❌ sessionStorage fallback failed:', error);
+      }
       
       // Show success feedback
       const button = document.getElementById(`product-${product.id}`);

@@ -170,6 +170,27 @@ export default function TabDetailPage() {
     };
   }, []);
 
+  // Listen for postMessage from Quick-Order page
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Only accept messages from same origin
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      if (event.data.type === 'ADD_TO_CART') {
+        console.log('📨 Received ADD_TO_CART message:', event.data.item);
+        addToCart(event.data.item);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
   // Real-time timer for pending orders
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1025,18 +1046,17 @@ export default function TabDetailPage() {
         )}
 
         <div className="p-4">
-          {/* Order Creation Buttons - Disable Browse Catalog */}
+          {/* Order Creation Buttons */}
           <div className="flex gap-4 mb-6 justify-center">
             <button
-              onClick={() => router.push(`/tabs/${tabId}/quick-order`)}
+              onClick={() => router.push(`/tabs/${tabId}/add-order`)}
               className="text-orange-600 font-medium hover:text-orange-700 flex items-center gap-2"
             >
               <Plus size={18} />
               Create Order
             </button>
-            {/* TEMPORARILY ENABLED FOR TESTING: Browse Catalog button */}
             <button
-              onClick={() => router.push(`/tabs/${tabId}/add-order`)}
+              onClick={() => router.push(`/tabs/${tabId}/quick-order`)}
               className="text-purple-600 font-medium hover:text-purple-700 flex items-center gap-2"
             >
               <ShoppingCart size={18} />
