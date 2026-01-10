@@ -1,4 +1,4 @@
-// app/page.tsx - IMPROVED VERSION WITH PROPER FEEDBACK
+// app/page.tsx - IMPROVED VERSION WITH COMPLEX FIX
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -117,6 +117,9 @@ function LandingContent() {
           sessionStorage.setItem('displayName', displayName);
           sessionStorage.setItem('barName', bar.name);
           
+          // Clear the "just created" flag since we're continuing existing tab
+          sessionStorage.removeItem('just_created_tab');
+          
           showToast({
             type: 'success',
             title: 'Welcome Back!',
@@ -166,8 +169,20 @@ function LandingContent() {
         }, 800); // Give user time to see the toast
         
       } else {
-        // No slug - show all open tabs if any
-        await loadAllOpenTabs();
+        // No slug - check if we just came from creating a tab
+        const justCreatedTab = sessionStorage.getItem('just_created_tab');
+        const currentTab = sessionStorage.getItem('currentTab');
+        
+        // Only show existing tabs modal if:
+        // 1. User hasn't just created a tab, AND
+        // 2. They don't already have an active tab
+        if (!justCreatedTab && !currentTab) {
+          await loadAllOpenTabs();
+        } else {
+          // Clear the flag if set
+          sessionStorage.removeItem('just_created_tab');
+        }
+        
         setIsInitializing(false);
       }
     } catch (error) {
@@ -256,6 +271,9 @@ function LandingContent() {
         sessionStorage.setItem('currentTab', JSON.stringify(tab));
         sessionStorage.setItem('displayName', displayName);
         sessionStorage.setItem('barName', bar.name);
+        
+        // Clear the "just created" flag since we're continuing existing tab
+        sessionStorage.removeItem('just_created_tab');
         
         showToast({
           type: 'success',
@@ -375,6 +393,9 @@ function LandingContent() {
     } catch (e) {}
     sessionStorage.setItem('displayName', displayName);
     
+    // Clear the "just created" flag since we're continuing existing tab
+    sessionStorage.removeItem('just_created_tab');
+    
     showToast({
       type: 'success',
       title: 'Welcome Back!',
@@ -385,8 +406,24 @@ function LandingContent() {
   };
 
   const handleStartNewTab = () => {
+    // Clear existing tab data
+    sessionStorage.removeItem('currentTab');
+    sessionStorage.removeItem('displayName');
+    sessionStorage.removeItem('barName');
+    sessionStorage.removeItem('Tabeza_current_bar');
+    
+    // Set flag to prevent modal from showing again
+    sessionStorage.setItem('just_created_tab', 'true');
+    
     setShowExistingTabsModal(false);
     // User will scan new QR code or enter manual code
+  };
+
+  const handleScanNewCode = () => {
+    // Clear the flag when user explicitly wants to scan new code
+    sessionStorage.removeItem('just_created_tab');
+    setShowExistingTabsModal(false);
+    handleStart();
   };
 
   const benefits = [
@@ -570,10 +607,7 @@ function LandingContent() {
                 Start New Tab
               </button>
               <button
-                onClick={() => {
-                  setShowExistingTabsModal(false);
-                  handleStart();
-                }}
+                onClick={handleScanNewCode}
                 className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition"
               >
                 Scan New Code

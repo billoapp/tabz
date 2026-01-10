@@ -1,4 +1,4 @@
-// app/start/page.tsx - FIXED VERSION
+// app/start/page.tsx - COMPLETE WITH FLAG SUPPORT
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
@@ -194,6 +194,9 @@ function ConsentContent() {
         sessionStorage.setItem('displayName', displayName);
         sessionStorage.setItem('barName', barName);
         
+        // Clear the "just created" flag since we're continuing existing tab
+        sessionStorage.removeItem('just_created_tab');
+        
         showToast({
           type: 'success',
           title: 'Welcome Back!',
@@ -329,6 +332,14 @@ function ConsentContent() {
         status: tab.status
       });
 
+      // Set flag to prevent showing existing tabs modal on return to landing page
+      sessionStorage.setItem('just_created_tab', 'true');
+      
+      // Store tab data in session
+      storeActiveTab(barId, tab);
+      sessionStorage.setItem('currentTab', JSON.stringify(tab));
+      sessionStorage.setItem('displayName', displayName);
+      sessionStorage.setItem('barName', barName);
       
       // Award first connection tokens for NEW tab only
       try {
