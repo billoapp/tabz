@@ -3,10 +3,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle, CreditCard, Phone, DollarSign, Send } from 'lucide-react';
+import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle, CreditCard, Phone, DollarSign, Send, Clock, Calendar, Sun, Moon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
+
+// Types for business hours
+type DayHours = {
+  day: string;
+  label: string;
+  open: boolean;
+  openTime: string;
+  closeTime: string;
+  openNextDay: boolean;
+};
+
+type BusinessHoursMode = 'simple' | 'advanced' | '24hours';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -54,6 +66,24 @@ export default function SettingsPage() {
   // Pro feature modal state
   const [showProModal, setShowProModal] = useState(false);
   const [proFeature, setProFeature] = useState('');
+
+  // Business Hours State
+  const [businessHoursMode, setBusinessHoursMode] = useState<BusinessHoursMode>('simple');
+  const [savingHours, setSavingHours] = useState(false);
+  const [simpleHours, setSimpleHours] = useState({
+    openTime: '09:00',
+    closeTime: '23:00',
+    closeNextDay: false
+  });
+  const [advancedHours, setAdvancedHours] = useState<DayHours[]>([
+    { day: 'monday', label: 'Monday', open: true, openTime: '09:00', closeTime: '23:00', openNextDay: false },
+    { day: 'tuesday', label: 'Tuesday', open: true, openTime: '09:00', closeTime: '23:00', openNextDay: false },
+    { day: 'wednesday', label: 'Wednesday', open: true, openTime: '09:00', closeTime: '23:00', openNextDay: false },
+    { day: 'thursday', label: 'Thursday', open: true, openTime: '09:00', closeTime: '23:00', openNextDay: false },
+    { day: 'friday', label: 'Friday', open: true, openTime: '09:00', closeTime: '02:00', openNextDay: true },
+    { day: 'saturday', label: 'Saturday', open: true, openTime: '10:00', closeTime: '02:00', openNextDay: true },
+    { day: 'sunday', label: 'Sunday', open: true, openTime: '10:00', closeTime: '22:00', openNextDay: false },
+  ]);
 
   useEffect(() => {
     loadBarInfo();
@@ -144,6 +174,19 @@ export default function SettingsPage() {
         pendingApprovals: data.notification_pending_approvals ?? false,
         payments: data.notification_payments ?? false
       });
+
+      // Load business hours
+      if (data.business_hours_mode) {
+        setBusinessHoursMode(data.business_hours_mode);
+      }
+
+      if (data.business_hours_simple) {
+        setSimpleHours(data.business_hours_simple);
+      }
+
+      if (data.business_hours_advanced) {
+        setAdvancedHours(data.business_hours_advanced);
+      }
     } catch (error) {
       console.error('Error loading bar info:', error);
       alert('Failed to load bar information');
@@ -289,6 +332,90 @@ export default function SettingsPage() {
     } catch (error) {
       setFeedbackError('Failed to save notification settings. Please try again.');
     }
+  };
+
+  const handleSaveBusinessHours = async () => {
+    setSavingHours(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        router.push('/login');
+        return;
+      }
+
+      const userBarId = user.user_metadata.bar_id;
+
+      // Validate hours
+      if (businessHoursMode === 'simple') {
+        const openTime = simpleHours.openTime;
+        const closeTime = simpleHours.closeTime;
+        
+        if (openTime >= closeTime && !simpleHours.closeNextDay) {
+          if (!confirm('Your closing time is earlier than opening time. Did you mean to set "Close next day"? Click OK to save as is, or Cancel to adjust.')) {
+            setSavingHours(false);
+            return;
+          }
+        }
+      } else if (businessHoursMode === 'advanced') {
+        // Validate each day
+        for (const day of advancedHours) {
+          if (day.open) {
+            const openTime = day.openTime;
+            const closeTime = day.closeTime;
+            
+            if (openTime >= closeTime && !day.openNextDay) {
+              if (!confirm(`For ${day.label}, closing time is earlier than opening time. Did you mean to set "Close next day"? Click OK to save as is, or Cancel to adjust.`)) {
+                setSavingHours(false);
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      const { error } = await supabase
+        .from('bars')
+        .update({
+          business_hours_mode: businessHoursMode,
+          business_hours_simple: businessHoursMode === 'simple' ? simpleHours : null,
+          business_hours_advanced: businessHoursMode === 'advanced' ? advancedHours : null,
+          business_24_hours: businessHoursMode === '24hours'
+        })
+        .eq('id', userBarId);
+
+      if (error) throw error;
+
+      alert('✅ Business hours saved successfully!');
+    } catch (error) {
+      console.error('Error saving business hours:', error);
+      alert('Failed to save business hours. Please try again.');
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
+  const handleAdvancedDayChange = (index: number, field: keyof DayHours, value: any) => {
+    const updatedHours = [...advancedHours];
+    
+    if (field === 'open') {
+      updatedHours[index] = {
+        ...updatedHours[index],
+        open: value,
+        // Reset to defaults if opening
+        openTime: value ? updatedHours[index].openTime : '09:00',
+        closeTime: value ? updatedHours[index].closeTime : '23:00',
+        openNextDay: value ? updatedHours[index].openNextDay : false
+      };
+    } else {
+      updatedHours[index] = {
+        ...updatedHours[index],
+        [field]: value
+      };
+    }
+    
+    setAdvancedHours(updatedHours);
   };
 
   const handleProFeature = (feature: string) => {
@@ -787,6 +914,202 @@ export default function SettingsPage() {
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Business Hours Section */}
+          {!isNewUser && (
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <Clock size={20} className="text-yellow-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Business Hours</h3>
+                  <p className="text-sm text-gray-500">Set when your restaurant is open</p>
+                </div>
+              </div>
+
+              {/* Mode Selection */}
+              <div className="grid grid-cols-3 gap-2 mb-6">
+                <button
+                  onClick={() => setBusinessHoursMode('simple')}
+                  className={`p-3 rounded-lg text-center transition ${
+                    businessHoursMode === 'simple'
+                      ? 'bg-orange-100 border-2 border-orange-500 text-orange-700'
+                      : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <Sun size={20} className="mx-auto mb-1" />
+                  <span className="text-sm font-medium">Simple</span>
+                  <p className="text-xs text-gray-500 mt-1">Same hours daily</p>
+                </button>
+                
+                <button
+                  onClick={() => setBusinessHoursMode('advanced')}
+                  className={`p-3 rounded-lg text-center transition ${
+                    businessHoursMode === 'advanced'
+                      ? 'bg-orange-100 border-2 border-orange-500 text-orange-700'
+                      : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <Calendar size={20} className="mx-auto mb-1" />
+                  <span className="text-sm font-medium">Advanced</span>
+                  <p className="text-xs text-gray-500 mt-1">Different per day</p>
+                </button>
+                
+                <button
+                  onClick={() => setBusinessHoursMode('24hours')}
+                  className={`p-3 rounded-lg text-center transition ${
+                    businessHoursMode === '24hours'
+                      ? 'bg-orange-100 border-2 border-orange-500 text-orange-700'
+                      : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <Clock size={20} className="mx-auto mb-1" />
+                  <span className="text-sm font-medium">24 Hours</span>
+                  <p className="text-xs text-gray-500 mt-1">Always open</p>
+                </button>
+              </div>
+
+              {/* Simple Mode */}
+              {businessHoursMode === 'simple' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Opening Time
+                      </label>
+                      <input
+                        type="time"
+                        value={simpleHours.openTime}
+                        onChange={(e) => setSimpleHours({...simpleHours, openTime: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Closing Time
+                      </label>
+                      <input
+                        type="time"
+                        value={simpleHours.closeTime}
+                        onChange={(e) => setSimpleHours({...simpleHours, closeTime: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                    <Moon size={16} className="text-gray-600" />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={simpleHours.closeNextDay}
+                        onChange={(e) => setSimpleHours({...simpleHours, closeNextDay: e.target.checked})}
+                        className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        Close next day (for bars/restaurants open past midnight)
+                      </span>
+                    </label>
+                  </div>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-800">
+                      <strong>Example:</strong> If you open at 10:00 AM and close at 3:00 AM the next day, 
+                      set opening time to 10:00, closing time to 03:00, and check "Close next day".
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Advanced Mode */}
+              {businessHoursMode === 'advanced' && (
+                <div className="space-y-3">
+                  {advancedHours.map((day, index) => (
+                    <div key={day.day} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={day.open}
+                            onChange={(e) => handleAdvancedDayChange(index, 'open', e.target.checked)}
+                            className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500"
+                          />
+                          <span className="font-medium text-gray-700">{day.label}</span>
+                        </label>
+                        {!day.open && (
+                          <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">Closed</span>
+                        )}
+                      </div>
+                      
+                      {day.open && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Open</label>
+                            <input
+                              type="time"
+                              value={day.openTime}
+                              onChange={(e) => handleAdvancedDayChange(index, 'openTime', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Close</label>
+                            <input
+                              type="time"
+                              value={day.closeTime}
+                              onChange={(e) => handleAdvancedDayChange(index, 'closeTime', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      {day.open && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Moon size={14} className="text-gray-500" />
+                          <label className="flex items-center gap-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={day.openNextDay}
+                              onChange={(e) => handleAdvancedDayChange(index, 'openNextDay', e.target.checked)}
+                              className="w-3 h-3 text-orange-500 rounded focus:ring-orange-500"
+                            />
+                            <span className="text-xs text-gray-600">
+                              Close next day (open past midnight)
+                            </span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 24 Hours Mode */}
+              {businessHoursMode === '24hours' && (
+                <div className="text-center py-6">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock size={32} className="text-green-600" />
+                  </div>
+                  <h4 className="text-lg font-bold text-gray-800 mb-2">24/7 Operation</h4>
+                  <p className="text-gray-600 mb-4">Your restaurant will be shown as open 24 hours a day, 7 days a week.</p>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 inline-block">
+                    <p className="text-sm text-green-800 font-medium">Always Open ✓</p>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleSaveBusinessHours}
+                disabled={savingHours}
+                className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+              >
+                <Save size={20} />
+                {savingHours ? 'Saving...' : 'Save Business Hours'}
+              </button>
             </div>
           )}
 
