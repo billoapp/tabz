@@ -1,7 +1,7 @@
 // apps/staff/app/tabs/[id]/add-order/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowRight, Search, X, Plus, CheckCircle, RefreshCw, DollarSign, Clock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -41,10 +41,46 @@ export default function AddOrderPage() {
   const [submitting, setSubmitting] = useState(false);
   const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
   const [showRecent, setShowRecent] = useState(false);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadTabData();
   }, [tabId]);
+
+  useEffect(() => {
+    // Debounced search
+    const timer = setTimeout(() => {
+      if (productName.trim().length >= 1) {
+        searchProducts(productName);
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 300); // 300ms debounce delay
+
+    return () => clearTimeout(timer);
+  }, [productName]);
+
+  useEffect(() => {
+    // Close suggestions when clicking outside
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const productNameInput = document.getElementById('productName');
+      
+      if (productNameInput && productNameInput.contains(target)) {
+        return;
+      }
+      
+      if (suggestionsRef.current && !suggestionsRef.current.contains(target)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const loadTabData = async () => {
     setLoading(true);
@@ -103,36 +139,34 @@ export default function AddOrderPage() {
   };
 
   const searchProducts = async (query: string) => {
-    if (!query.trim()) {
+    const trimmedQuery = query.trim();
+    
+    if (!trimmedQuery) {
       setSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
 
-    console.log('🔍 Searching global products for:', query);
-    console.log('🔍 Query length:', query.length);
-    console.log('🔍 Current user:', await supabase.auth.getUser());
+    console.log('🔍 Searching global products for:', trimmedQuery);
 
     try {
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .ilike('name', `%${query}%`)
+        .ilike('name', `%${trimmedQuery}%`)
         .eq('active', true)
         .limit(10);
 
-      console.log('🔍 Global products query result:', { data, error });
-      console.log('🔍 Data length:', data?.length || 0);
-      console.log('🔍 Full error details:', error);
-
       if (error) {
         console.error('❌ Error searching global products:', error);
-        console.error('❌ Error code:', error.code);
-        console.error('❌ Error message:', error.message);
         console.error('❌ Error details:', error.details);
+        setSuggestions([]);
         return;
       }
 
+      console.log('🔍 Found products:', data?.length || 0);
       setSuggestions(data || []);
+      setShowSuggestions(true);
       
     } catch (err) {
       console.error('❌ Exception in searchProducts:', err);
@@ -142,10 +176,12 @@ export default function AddOrderPage() {
 
   const handleProductNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    console.log('🔧 Product name changed to:', value);
     setProductName(value);
     
-    if (value.trim().length >= 2) {
-      searchProducts(value);
+    // Show suggestions immediately when user starts typing
+    if (value.trim().length >= 1) {
+      setShowSuggestions(true);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -156,6 +192,7 @@ export default function AddOrderPage() {
     setProductName(product.name);
     setProductCategory(product.category);
     setProductDescription(product.description || '');
+    setSuggestions([]);
     setShowSuggestions(false);
     // Focus on price input
     document.getElementById('productPrice')?.focus();
@@ -330,6 +367,8 @@ export default function AddOrderPage() {
       setProductPrice('');
       setProductCategory('Food');
       setProductDescription('');
+      setSuggestions([]);
+      setShowSuggestions(false);
       
       // Show success message
       alert(`✅ ${productName.trim()} added to bar menu at ${formatCurrency(parseFloat(productPrice))}!`);
@@ -430,52 +469,59 @@ export default function AddOrderPage() {
                 value={productName}
                 onChange={handleProductNameChange}
                 onKeyPress={handleKeyPress}
-                onFocus={() => setShowSuggestions(true)}
+                onFocus={() => {
+                  if (productName.trim().length >= 1 && suggestions.length > 0) {
+                    setShowSuggestions(true);
+                  }
+                }}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                 placeholder="Start typing to search products..."
                 autoComplete="off"
               />
               
               {/* Product Suggestions Dropdown */}
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-20 mt-1 w-full bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
-                    <Search size={14} className="text-gray-500" />
-                    <span className="text-sm font-semibold text-gray-600">Global Products</span>
-                    <span className="text-xs text-gray-500 ml-auto">{suggestions.length} found</span>
-                  </div>
-                  {suggestions.map((product) => (
-                    <button
-                      key={product.id}
-                      onClick={() => selectSuggestion(product)}
-                      className="w-full px-3 py-3 text-left hover:bg-orange-50 border-b last:border-b-0"
-                    >
-                      <div className="font-medium text-gray-800">{product.name}</div>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs text-gray-500">{product.category}</span>
-                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
-                          Global Product
-                        </span>
+              {showSuggestions && productName.trim().length >= 1 && (
+                <div 
+                  ref={suggestionsRef}
+                  className="absolute z-20 mt-1 w-full bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                >
+                  {suggestions.length > 0 ? (
+                    <>
+                      <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
+                        <Search size={14} className="text-gray-500" />
+                        <span className="text-sm font-semibold text-gray-600">Global Products</span>
+                        <span className="text-xs text-gray-500 ml-auto">{suggestions.length} found</span>
                       </div>
-                      {product.description && (
-                        <div className="text-xs text-gray-400 mt-1 truncate">{product.description}</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {showSuggestions && suggestions.length === 0 && productName.trim().length >= 2 && (
-                <div className="absolute z-20 mt-1 w-full bg-white border-2 border-gray-200 rounded-lg shadow-lg">
-                  <div className="p-4 text-center">
-                    <p className="text-gray-600 mb-2">No global product found for "{productName}"</p>
-                    <p className="text-sm text-green-600 font-medium">
-                      This will be created as a custom product for your bar.
-                    </p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      Just set a price and click "Add to Bar Menu" below
-                    </p>
-                  </div>
+                      {suggestions.map((product) => (
+                        <button
+                          key={product.id}
+                          onClick={() => selectSuggestion(product)}
+                          className="w-full px-3 py-3 text-left hover:bg-orange-50 border-b last:border-b-0"
+                        >
+                          <div className="font-medium text-gray-800">{product.name}</div>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-xs text-gray-500">{product.category}</span>
+                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                              Global Product
+                            </span>
+                          </div>
+                          {product.description && (
+                            <div className="text-xs text-gray-400 mt-1 truncate">{product.description}</div>
+                          )}
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="p-4 text-center">
+                      <p className="text-gray-600 mb-2">No global product found for "{productName}"</p>
+                      <p className="text-sm text-green-600 font-medium">
+                        This will be created as a custom product for your bar.
+                      </p>
+                      <p className="text-xs text-gray-400 mt-2">
+                        Just set a price and click "Add to Bar Menu" below
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
