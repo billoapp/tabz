@@ -51,8 +51,8 @@ function LandingContent() {
       sessionStorage.setItem('scanned_bar_slug', slug);
       console.log('✅ Stored bar slug:', slug);
       
-      // Automatically check for existing tab
-      await checkExistingTabBySlug(slug);
+      // Go directly to consent page - let consent page handle device ID check
+      router.push(`/start?bar=${slug}`);
     } else {
       // No slug - show all open tabs if any
       await loadAllOpenTabs();

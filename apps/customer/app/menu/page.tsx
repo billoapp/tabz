@@ -1101,7 +1101,7 @@ export default function MenuPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error('Error creating order:', error);
-      alert(`Failed to create order: ${error.message}`);
+      alert(`Failed to create order: KSh ${error.message}`);
     } finally {
       setSubmittingOrder(false);
     }
@@ -1137,7 +1137,7 @@ export default function MenuPage() {
           reference: `PAY${Date.now()}`
         });
       if (error) throw error;
-      alert('Payment successful! ');
+      alert(`Payment successful! KSh ${paymentAmount}`);
       setPaymentAmount('');
       setPhoneNumber('');
     } catch (error) {
@@ -1230,7 +1230,7 @@ export default function MenuPage() {
       
     } catch (error: any) {
       console.error('❌ Error sending message:', error);
-      alert(`Failed to send message: ${error.message || 'Please try again.'}`);
+      alert(`Failed to send message: KSh ${error.message || 'Please try again.'}`);
     } finally {
       setSendingMessage(false);
     }
