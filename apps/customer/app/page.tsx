@@ -10,8 +10,11 @@ import {
   getDeviceId, 
   getBarDeviceKey, 
   hasOpenTabAtBar,
-  getAllOpenTabs,
-  storeActiveTab 
+  validateDeviceForNewTab, 
+  storeActiveTab,
+  checkAnyOpenTabAtBar,
+  isTabLinkedToDevice,
+  validateDeviceIntegrity
 } from '@/lib/device-identity';
 import { useToast } from '@/components/ui/Toast';
 import PushNotificationManager from '@/lib/pushNotifications';
@@ -51,7 +54,39 @@ function LandingContent() {
       sessionStorage.setItem('scanned_bar_slug', slug);
       console.log('✅ Stored bar slug:', slug);
       
-      // Go directly to consent page - let consent page handle device ID check
+      // Get bar info
+      const { data: bar, error: barError } = await (supabase as any)
+        .from('bars')
+        .select('id, name, active, slug')
+        .eq('slug', slug)
+        .maybeSingle();
+
+      if (barError || !bar) {
+        console.log('❌ Bar not found:', barError?.message || 'Bar not found');
+        showToast({
+          type: 'error',
+          title: 'Invalid Bar Code',
+          message: `Bar "${slug}" not found. Please scan a valid QR code.`
+        });
+        return;
+      }
+
+      if (!bar.active) {
+        console.log('❌ Bar inactive:', bar.name);
+        showToast({
+          type: 'warning',
+          title: 'Bar Unavailable',
+          message: `${bar.name} is currently unavailable.`
+        });
+        return;
+      }
+
+      console.log('✅ Bar found:', bar.name);
+
+      // IMPORTANT: Validate device immediately after QR scan
+      await validateDeviceIntegrity(bar.id);
+      
+      // Go to consent page
       router.push(`/start?bar=${slug}`);
     } else {
       // No slug - show all open tabs if any
@@ -377,6 +412,18 @@ function LandingContent() {
                       ${tab.balance || '0.00'}
                     </div>
                   </div>
+                  {/* Overdue Status Indicator */}
+                  {tab.status === 'overdue' && (
+                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-red-700">
+                        <AlertCircle size={16} />
+                        <span className="font-medium">OVERDUE</span>
+                      </div>
+                      <p className="text-xs text-red-600 mt-1">
+                        Outstanding balance requires payment
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

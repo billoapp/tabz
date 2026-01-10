@@ -52,7 +52,7 @@ export async function validateDeviceForNewTab(
   barId: string,
   supabase: ReturnType<typeof createClient>
 ): Promise<{ valid: boolean; reason?: string; existingTab?: any }> {
-  // Check for existing open tab at this bar
+  // Check for existing open tab at this bar (device-specific)
   const { hasTab, tab } = await hasOpenTabAtBar(barId, supabase);
   
   if (hasTab) {
@@ -71,6 +71,69 @@ export async function validateDeviceForNewTab(
   if (allTabs.length >= 5) {
     console.warn(`⚠️ Device has ${allTabs.length} open tabs across multiple bars`);
     // Don't block, but log for analytics
+  }
+  
+  return { valid: true };
+}
+
+// NEW: Check for ANY open tab at bar (not device-specific)
+export async function checkAnyOpenTabAtBar(
+  barId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<{ hasTab: boolean; tab?: any }> {
+  try {
+    const deviceId = await getDeviceId();
+    
+    // Check for any open tab at this bar (remove device ID constraint)
+    const { data: tab, error } = await supabase
+      .from('tabs')
+      .select('*')
+      .eq('bar_id', barId)
+      .eq('status', 'open')
+      .order('opened_at', { ascending: false }) // Get most recent tab
+      .maybeSingle();
+    
+    return { hasTab: !!tab, tab: tab || undefined };
+  } catch (error) {
+    return { hasTab: false };
+  }
+}
+
+// NEW: Check if tab is linked to current device ID
+export async function isTabLinkedToDevice(
+  tabId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<boolean> {
+  try {
+    const deviceId = await getDeviceId();
+    const barDeviceKey = `${deviceId}_barId`;
+    
+    const { data: tab, error } = await supabase
+      .from('tabs')
+      .select('owner_identifier')
+      .eq('id', tabId)
+      .maybeSingle();
+    
+    return (tab as any)?.owner_identifier === barDeviceKey;
+  } catch (error) {
+    return false;
+  }
+}
+
+// NEW: Validate only device integrity (not existing tabs)
+export async function validateDeviceIntegrity(
+  barId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<{ valid: boolean; reason?: string; warnings?: string[]; existingTab?: any }> {
+  const { DeviceIdentity } = await import('./generator');
+  const device = await DeviceIdentity.initialize();
+  
+  if (device.integrity.score < 70) {
+    return {
+      valid: false,
+      reason: 'LOW_INTEGRITY_SCORE',
+      warnings: device.integrity.warnings
+    };
   }
   
   return { valid: true };

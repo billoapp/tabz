@@ -9,7 +9,8 @@ import {
   getDeviceId, 
   getBarDeviceKey, 
   validateDeviceForNewTab, 
-  storeActiveTab 
+  storeActiveTab,
+  checkAnyOpenTabAtBar
 } from '@/lib/device-identity';
 import { useToast } from '@/components/ui/Toast';
 import { TokensService, TOKENS_CONFIG } from '../../../../packages/shared/tokens-service';
@@ -123,8 +124,7 @@ function ConsentContent() {
       setBarId(bar.id);
       setBarName(bar.name || 'Bar');
       
-      // IMPORTANT: Validate device before showing form
-      await validateDevice(bar.id);
+      setLoading(false);
 
     } catch (error) {
       console.error('❌ Error loading bar:', error);

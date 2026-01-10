@@ -19,7 +19,10 @@ export {
   clearDeviceId,
   storeActiveTab,
   getActiveTab,
-  clearActiveTab
+  clearActiveTab,
+  checkAnyOpenTabAtBar,
+  isTabLinkedToDevice,
+  validateDeviceIntegrity
 } from './legacy-compat';
 
 // Simplified main API (matching old interface but async)
