@@ -1,6 +1,6 @@
 // apps/staff/app/menu/page.tsx
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -14,12 +14,24 @@ import {
   Save,
   Upload,
   FileText,
-  Image as ImageIcon,
+  ImageIcon,
   ChevronDown,
   ChevronUp,
   Settings,
   Eye,
   EyeOff,
+  Download,
+  FileSpreadsheet,
+  Globe,
+  Package,
+  LayoutGrid,
+  List,
+  Copy,
+  Check,
+  AlertCircle,
+  BarChart3,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import InteractiveImageCropper from '@/components/InteractiveImageCropper';
@@ -43,6 +55,10 @@ interface Product {
   image_urls?: string[];
   sku?: string;
   supplier_id?: string;
+  supplier?: {
+    name: string;
+    logo_url?: string;
+  };
 }
 
 interface Supplier {
@@ -81,6 +97,7 @@ interface CustomProduct {
   category: string;
   image_url: string | null;
   sku: string;
+  sale_price?: number;
   active: boolean;
   created_at: string;
   updated_at?: string;
@@ -96,25 +113,38 @@ interface BarSettings {
   };
 }
 
+interface CSVImportResult {
+  success: number;
+  failed: number;
+  errors: string[];
+  imported: CustomProduct[];
+}
+
+type CSVRow = Record<string, string>;
+
 export default function MenuManagementPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const [barId, setBarId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'menu' | 'catalog' | 'custom' | 'images'>('menu');
 
-  // Catalog data - ENABLED
+  // Catalog data
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [catalogLoading, setCatalogLoading] = useState(false);
 
-  // Bar menu (published items) - ENABLED
+  // Bar menu (published items)
   const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
   const [addingPrice, setAddingPrice] = useState<Record<string, string>>({});
+  const [menuLoading, setMenuLoading] = useState(false);
 
-  // Custom products (unpublished) - ENABLED
+  // Custom products
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [showAddCustom, setShowAddCustom] = useState(false);
   const [newCustomItem, setNewCustomItem] = useState({
@@ -122,9 +152,10 @@ export default function MenuManagementPage() {
     category: '',
     description: '',
     image_url: '',
+    price: '',
   });
 
-  // Editing states - ENABLED
+  // Editing states
   const [editingPrice, setEditingPrice] = useState<string | null>(null);
   const [editingCustom, setEditingCustom] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<CustomProduct>>({
@@ -132,21 +163,36 @@ export default function MenuManagementPage() {
     category: '',
     description: '',
     image_url: '',
+    sale_price: 0,
   });
 
-  // Cropper states - ENABLED
+  // Cropper states
   const [showCropper, setShowCropper] = useState(false);
   const [currentImageField, setCurrentImageField] = useState<'new' | 'edit'>('new');
+  const [cropImage, setCropImage] = useState<string>('');
 
-  // Static menu states - KEEP ACTIVE
+  // CSV Import
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvPreview, setCsvPreview] = useState<CSVRow[]>([]);
+  const [importResult, setImportResult] = useState<CSVImportResult | null>(null);
+  const [csvMapping, setCsvMapping] = useState({
+    name: 'name',
+    category: 'category',
+    description: 'description',
+    price: 'price',
+    sku: 'sku',
+  });
+
+  // Static menu states
   const [barSettings, setBarSettings] = useState<BarSettings | null>(null);
   const [menuUploadLoading, setMenuUploadLoading] = useState(false);
   const [menuFile, setMenuFile] = useState<File | null>(null);
   const [menuPreview, setMenuPreview] = useState<string | null>(null);
-  const [interactiveMenuCollapsed] = useState(false);
+  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
   const [staticMenuCollapsed, setStaticMenuCollapsed] = useState(false);
 
-  // Slideshow states - NEW
+  // Slideshow states
   const [menuFiles, setMenuFiles] = useState<File[]>([]);
   const [menuPreviews, setMenuPreviews] = useState<string[]>([]);
   const [uploadMode, setUploadMode] = useState<'single' | 'slideshow'>('single');
@@ -154,16 +200,14 @@ export default function MenuManagementPage() {
     transitionSpeed: 3000,
   });
 
-  // Pro feature modal state
-  const [showProModal, setShowProModal] = useState(false);
-  const [proFeature, setProFeature] = useState('');
+  // UI states
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showCsvGuide, setShowCsvGuide] = useState(false);
+  const [bulkEditMode, setBulkEditMode] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
 
-  const handleProFeature = (feature: string) => {
-    setProFeature(feature);
-    setShowProModal(true);
-  };
-
-  // Helper function to get display image with category fallback - ENABLED
+  // Helper function to get display image
   const getDisplayImage = (product: Product | undefined, categoryName?: string) => {
     if (!product) {
       return null;
@@ -175,36 +219,20 @@ export default function MenuManagementPage() {
     return category?.image_url || null;
   };
 
-  // Helper function to convert Google Drive share links to direct links - ENABLED
-  const convertGoogleDriveLink = (url: string): string => {
-    if (!url) return url;
-    if (url.includes('drive.google.com') && url.includes('/file/d/')) {
-      const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        const fileId = match[1];
-        return `https://drive.google.com/uc?export=view&id=${fileId}`;
-      }
-    }
-    return url;
-  };
-
-  // Upload image to server and get URL - ENABLED
+  // Upload image to server
   const uploadImageToServer = async (file: File): Promise<string> => {
     try {
       const formData = new FormData();
       formData.append('image', file);
       formData.append('aspectRatio', '4:5');
-      
       const response = await fetch('/api/upload-product-image', {
         method: 'POST',
-        body: formData
+        body: formData,
       });
-      
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Upload failed');
       }
-      
       const data = await response.json();
       return data.url;
     } catch (error) {
@@ -213,6 +241,7 @@ export default function MenuManagementPage() {
     }
   };
 
+  // Authentication and initial data loading
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -234,62 +263,63 @@ export default function MenuManagementPage() {
 
   useEffect(() => {
     if (barId) {
-      loadCatalogData(); // ENABLED
-      loadBarMenu(); // ENABLED
-      loadCustomProducts(); // ENABLED
-      loadBarSettings(); // KEEP ACTIVE
+      loadAllData();
     }
   }, [barId]);
 
-  // ENABLED: Catalog data loading
-  const loadCatalogData = async () => {
+  const loadAllData = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const { data: suppliersData, error: suppliersError } = await supabase
-        .from('suppliers')
-        .select('*')
-        .eq('active', true)
-        .order('name');
-
-      if (suppliersError) throw suppliersError;
-
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-
-      if (categoriesError) throw categoriesError;
-
-      const { data: productsData, error: productsError } = await supabase
-        .from('products')
-        .select(`*, supplier:suppliers(id, name, logo_url)`)
-        .eq('active', true)
-        .order('name');
-
-      if (productsError) throw productsError;
-
-      setSuppliers(suppliersData || []);
-      setCategories(categoriesData || []);
-      setProducts(productsData || []);
+      await Promise.all([
+        loadCatalogData(),
+        loadBarMenu(),
+        loadCustomProducts(),
+        loadBarSettings(),
+      ]);
     } catch (error) {
-      console.error('Error loading catalog:', error);
-      alert('Failed to load product catalog: ' + (error as any).message);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // ENABLED: Bar menu loading
+  // Catalog data loading
+  const loadCatalogData = async () => {
+    try {
+      setCatalogLoading(true);
+      const [suppliersRes, categoriesRes, productsRes] = await Promise.all([
+        supabase.from('suppliers').select('*').eq('active', true).order('name'),
+        supabase.from('categories').select('*').order('name'),
+        supabase.from('products').select('*, supplier:suppliers(id, name, logo_url)').eq('active', true).order('name'),
+      ]);
+
+      if (suppliersRes.error) throw suppliersRes.error;
+      if (categoriesRes.error) throw categoriesRes.error;
+      if (productsRes.error) throw productsRes.error;
+
+      // ✅ Explicitly cast to expected types with proper filtering
+      setSuppliers((suppliersRes.data || []).filter(s => s !== null) as Supplier[]);
+      setCategories((categoriesRes.data || []).filter(c => c !== null) as Category[]);
+      setProducts((productsRes.data || []).filter(p => p !== null) as Product[]);
+    } catch (error) {
+      console.error('Error loading catalog:', error);
+      alert('Failed to load product catalog');
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  // Bar menu loading
   const loadBarMenu = async () => {
     try {
       if (!barId) return;
+      setMenuLoading(true);
       const { data, error } = await supabase
         .from('bar_products')
         .select('*')
         .eq('bar_id', barId)
         .eq('active', true)
         .order('created_at', { ascending: false });
-
       if (error) {
         console.error('Error loading bar_products:', error);
         return;
@@ -297,10 +327,12 @@ export default function MenuManagementPage() {
       setBarProducts(data || []);
     } catch (error) {
       console.error('Unexpected error in loadBarMenu:', error);
+    } finally {
+      setMenuLoading(false);
     }
   };
 
-  // ENABLED: Custom products loading
+  // Custom products loading
   const loadCustomProducts = async () => {
     try {
       if (!barId) return;
@@ -310,24 +342,20 @@ export default function MenuManagementPage() {
         .eq('bar_id', barId)
         .eq('active', true)
         .order('created_at', { ascending: false });
-
       if (error) throw error;
-
       const publishedCustomIds = barProducts
         .filter((bp) => bp.custom_product_id)
         .map((bp) => bp.custom_product_id);
-
       const unpublished = (data || []).filter(
-        (cp) => !publishedCustomIds.includes(cp.id) && cp.id !== editingCustom
+        (cp) => !publishedCustomIds.includes(cp.id)
       );
-
       setCustomProducts(unpublished);
     } catch (error) {
       console.error('Error loading custom products:', error);
     }
   };
 
-  // KEEP ACTIVE: Bar settings loading
+  // Bar settings loading
   const loadBarSettings = async () => {
     try {
       if (!barId) return;
@@ -336,18 +364,14 @@ export default function MenuManagementPage() {
         .select('id, menu_type, static_menu_url, static_menu_type')
         .eq('id', barId)
         .single();
-
       if (error) throw error;
-
       setBarSettings(data);
-      setLoading(false);
     } catch (error) {
       console.error('Error loading bar settings:', error);
-      setLoading(false);
     }
   };
 
-  // Load slideshow images for a bar (used for staff preview)
+  // Load slideshow images
   const loadSlideshowImages = async () => {
     if (!barId) return;
     try {
@@ -357,264 +381,64 @@ export default function MenuManagementPage() {
         return;
       }
       const data = await response.json();
-      console.log('📊 Loaded slideshow images:', data.images);
       setMenuPreviews((data && data.images) ? data.images : []);
     } catch (error) {
       console.error('Error loading slideshow images:', error);
     }
   };
 
-  // Add this useEffect to load slideshow previews when barSettings changes
   useEffect(() => {
     if (barSettings?.static_menu_type === 'slideshow' && barId) {
       loadSlideshowImages();
     }
   }, [barSettings, barId]);
 
-  // KEEP ACTIVE: Handle menu file change
-  const handleMenuFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setMenuFile(file);
-      
-      // Create preview for images
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result;
-          // Explicitly check that result is a string
-          if (typeof result === 'string') {
-            setMenuPreview(result);
-          } else {
-            setMenuPreview(null);
-          }
-        };
-        reader.readAsDataURL(file);
-      } else {
-        setMenuPreview(null);
-      }
-    }
+  // ========== GLOBAL CATALOG FUNCTIONS ==========
+  const isProductInMenu = (productId: string) => {
+    return barProducts.some((item) => item.product_id === productId);
   };
 
-  // NEW: Handle slideshow files change
-  const handleSlideshowFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    
-    // Limit to 5 images
-    if (menuFiles.length + files.length > 5) {
-      alert('Maximum 5 images allowed for slideshow');
+  const handleAddToMenu = async (product: Product) => {
+    const price = addingPrice[product.id];
+    if (!price || parseFloat(price) <= 0) {
+      alert('Please enter a valid price');
       return;
     }
-    
-    const newFiles = [...menuFiles, ...files];
-    setMenuFiles(newFiles);
-    
-    // Create previews for all images
-    files.forEach((file) => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result;
-          // Explicitly check that result is a string
-          if (typeof result === 'string') {
-            setMenuPreviews(prev => [...prev, result]);
-          }
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-  };
-
-  // NEW: Remove slideshow image
-  const removeSlideshowImage = (index: number) => {
-    const newFiles = [...menuFiles];
-    const newPreviews = [...menuPreviews];
-    newFiles.splice(index, 1);
-    newPreviews.splice(index, 1);
-    setMenuFiles(newFiles);
-    setMenuPreviews(newPreviews);
-  };
-
-  // NEW: Handle slideshow upload (batch/multi-file)
-  const handleSlideshowUpload = async () => {
-    console.log('🚀 Slideshow batch upload started');
-    console.log('📁 Files to upload:', menuFiles.length);
-    console.log('🏷️ Bar ID:', barId);
-
-    if (!menuFiles.length || !barId) {
-      alert('Please select at least one image to upload');
+    if (!barId) {
+      alert('Error: No bar selected');
       return;
     }
-
-    if (menuFiles.length > 5) {
-      alert('Please select up to 5 images');
-      return;
-    }
-
-    setMenuUploadLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('barId', barId);
-      // Send slideshowSettings as JSON string if present
-      formData.append('slideshowSettings', JSON.stringify(slideshowSettings || {}));
-
-      menuFiles.forEach((f) => {
-        formData.append('files', f);
-      });
-
-      console.log('📤 Sending batch upload request to /api/upload-menu-slideshow');
-
-      const response = await fetch('/api/upload-menu-slideshow', {
-        method: 'POST',
-        body: formData,
-      });
-
-      console.log('📊 Response status:', response.status);
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('❌ Batch upload failed:', err);
-        throw new Error(err.error || 'Batch upload failed');
-      }
-
-      const data = await response.json();
-      console.log('✅ Batch upload response:', data);
-
-      if (!data?.uploaded || !Array.isArray(data.uploaded)) {
-        throw new Error('Unexpected response from upload endpoint');
-      }
-
-      // Update bar settings to use slideshow (mark bar as static so customer UI will display it)
-      const { error: updateError } = await supabase
-        .from('bars')
-        .update({
-          menu_type: 'static',
-          static_menu_type: 'slideshow',
-          static_menu_url: null,
-          slideshow_settings: slideshowSettings,
-        })
-        .eq('id', barId);
-
-      if (updateError) {
-        console.error('❌ Error updating bar settings:', updateError);
-        throw updateError;
-      }
-
-      await loadBarSettings();
-
-      // Fetch the persisted slideshow images so staff sees the saved preview immediately
-      try {
-        const statusResp = await fetch(`/api/admin/slideshow-status?barId=${barId}`);
-        if (statusResp.ok) {
-          const json = await statusResp.json();
-          if (json?.images && Array.isArray(json.images)) {
-            setMenuPreviews(json.images.map((i: any) => i.image_url));
-          } else {
-            // Fall back to response from /api/get-slideshow
-            const getResp = await fetch(`/api/get-slideshow?barId=${barId}`);
-            if (getResp.ok) {
-              const getJson = await getResp.json();
-              setMenuPreviews(getJson.images || []);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('⚠️ Could not fetch slideshow status after upload', err);
-      }
-
-      setMenuFiles([]);
-
-      alert(`✅ ${data.uploaded.length} images uploaded successfully! Slideshow created.`);
-    } catch (error: any) {
-      console.error('❌ Error uploading slideshow (batch):', error);
-      alert('Failed to upload slideshow: ' + (error?.message || 'Unknown error'));
-    } finally {
-      setMenuUploadLoading(false);
-    }
-  };
-
-  // KEEP ACTIVE: Handle menu upload
-  const handleMenuUpload = async () => {
-    if (!menuFile || !barId) {
-      alert('Please select a file to upload');
-      return;
-    }
-
-    setMenuUploadLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', menuFile);
-      formData.append('barId', barId);
-
-      const response = await fetch('/api/upload-menu', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
-      }
-
-      const data = await response.json();
-
-      await loadBarSettings();
-      setMenuFile(null);
-      setMenuPreview(null);
-      alert('✅ Menu uploaded successfully!');
-    } catch (error: any) {
-      console.error('Error uploading menu:', error);
-      alert('Failed to upload menu: ' + error.message);
-    } finally {
-      setMenuUploadLoading(false);
-    }
-  };
-
-  // KEEP ACTIVE: Handle menu type change
-  const handleMenuTypeChange = async (type: 'interactive' | 'static') => {
-    if (!barId) return;
-
     try {
       const { error } = await supabase
-        .from('bars')
-        .update({ menu_type: type })
-        .eq('id', barId);
-
-      if (error) throw error;
-
-      await loadBarSettings();
-      alert(`✅ Switched to ${type} menu`);
+        .from('bar_products')
+        .insert({
+          bar_id: barId,
+          product_id: product.id,
+          custom_product_id: null,
+          name: product.name,
+          description: product.description,
+          category: product.category,
+          image_url: product.image_url || null,
+          sku: product.sku || null,
+          sale_price: parseFloat(price),
+          active: true,
+        });
+      if (error) {
+        if (error.code === '23505') {
+          alert('This product is already in your menu!');
+          return;
+        }
+        throw error;
+      }
+      setAddingPrice({ ...addingPrice, [product.id]: '' });
+      await loadBarMenu();
+      alert('✅ Added to menu!');
     } catch (error: any) {
-      console.error('Error changing menu type:', error);
-      alert('Failed to change menu type: ' + error.message);
+      console.error('Error:', error);
+      alert('Failed to add item: ' + error.message);
     }
   };
 
-  useEffect(() => {
-    // ENABLED: Reload custom products when bar products change
-    if (barId && barProducts.length >= 0) {
-      loadCustomProducts();
-    }
-  }, [barProducts.length]);
-
-  // RENDER: Single image preview helper to avoid JSX type widening
-  const renderSingleImagePreview = (): React.ReactNode => {
-    if (!menuFile || menuFiles.length !== 0) return null;
-    return (
-      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-        <p className="text-sm font-medium text-gray-700 mb-2">Selected: {menuFile.name}</p>
-        {menuPreview && (
-          <img
-            src={menuPreview}
-            alt="Preview"
-            className="w-full max-h-48 object-contain rounded-lg border border-gray-300 bg-white mt-2"
-          />
-        )}
-      </div>
-    );
-  };
-
-  // ENABLED: Product filtering
   const filteredProducts = products.filter((product) => {
     if (selectedSupplier && product.supplier_id !== selectedSupplier.id) {
       return false;
@@ -627,70 +451,130 @@ export default function MenuManagementPage() {
       return (
         product.name.toLowerCase().includes(query) ||
         (product.sku && product.sku.toLowerCase().includes(query)) ||
+        (product.description && product.description.toLowerCase().includes(query)) ||
         product.category.toLowerCase().includes(query)
       );
     }
     return true;
   });
 
-  // ENABLED: Check if product is in menu
-  const isProductInMenu = (productId: string) => {
-    return barProducts.some((item) => item.product_id === productId);
-  };
-
-  // ENABLED: Handle add to menu
-  const handleAddToMenu = async (product: Product) => {
-    const price = addingPrice[product.id];
-    if (!price || parseFloat(price) <= 0) {
-      alert('Please enter a valid price');
+  // ========== CUSTOM PRODUCTS FUNCTIONS ==========
+  const handleCreateCustomProduct = async () => {
+    if (!newCustomItem.name || !newCustomItem.category || !newCustomItem.price) {
+      alert('Please fill in name, category, and price');
       return;
     }
-    if (!barId) {
-      alert('Error: No bar selected');
-      return;
-    }
-
     try {
-      const { error } = await supabase
+      const { data: customData, error: customError } = await supabase
+        .from('custom_products')
+        .insert({
+          bar_id: barId,
+          name: newCustomItem.name,
+          category: newCustomItem.category,
+          description: newCustomItem.description || null,
+          image_url: newCustomItem.image_url || null,
+          sku: `CUSTOM-${Date.now().toString(36).toUpperCase()}`,
+          active: true,
+        })
+        .select()
+        .single();
+      if (customError) throw customError;
+
+      const { error: barProductError } = await supabase
         .from('bar_products')
         .insert({
           bar_id: barId,
-          product_id: product.id,
-          custom_product_id: null,
-          name: product.name,
-          description: product.description,
-          category: product.category,
-          image_url: product.image_url,
-          sku: product.sku,
-          sale_price: parseFloat(price),
+          product_id: null,
+          custom_product_id: customData.id,
+          name: newCustomItem.name,
+          description: newCustomItem.description || null,
+          category: newCustomItem.category,
+          image_url: newCustomItem.image_url || null,
+          sku: customData.sku,
+          sale_price: parseFloat(newCustomItem.price),
           active: true,
         });
+      if (barProductError) throw barProductError;
 
-      if (error) {
-        if (error.code === '23505') {
-          alert('This product is already in your menu!');
-          return;
-        }
-        throw error;
-      }
-
-      setAddingPrice({ ...addingPrice, [product.id]: '' });
-      await loadBarMenu();
-      alert('✅ Added to menu!');
+      setNewCustomItem({ name: '', category: '', description: '', image_url: '', price: '' });
+      setShowAddCustom(false);
+      await Promise.all([loadCustomProducts(), loadBarMenu()]);
+      alert('✅ Custom product created and added to menu!');
     } catch (error: any) {
-      console.error('Error:', error);
-      alert('Failed to add item: ' + error.message);
+      console.error('Error creating custom product:', error);
+      alert('Failed to create: ' + error.message);
     }
   };
 
-  // ENABLED: Handle publish custom product
+  const handleUpdateCustomProduct = async (customProductId: string) => {
+    try {
+      const { error } = await supabase
+        .from('custom_products')
+        .update({
+          name: editForm.name,
+          description: editForm.description,
+          image_url: editForm.image_url,
+          category: editForm.category,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', customProductId)
+        .eq('bar_id', barId);
+      if (error) throw error;
+
+      const barProduct = barProducts.find(bp => bp.custom_product_id === customProductId);
+      if (barProduct) {
+        await supabase
+          .from('bar_products')
+          .update({
+            name: editForm.name,
+            description: editForm.description,
+            image_url: editForm.image_url,
+            category: editForm.category,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', barProduct.id);
+      }
+      await Promise.all([loadCustomProducts(), loadBarMenu()]);
+      setEditingCustom(null);
+      setEditForm({ name: '', category: '', description: '', image_url: '', sale_price: 0 });
+      alert('✅ Custom product updated!');
+    } catch (error: any) {
+      console.error('Error updating custom product:', error);
+      alert('Failed to update: ' + error.message);
+    }
+  };
+
+  const handleDeleteCustomProduct = async (customProductId: string) => {
+    if (!window.confirm('Delete this custom product? It will also be removed from your menu.')) return;
+    try {
+      const { error: barProductError } = await supabase
+        .from('bar_products')
+        .delete()
+        .eq('custom_product_id', customProductId)
+        .eq('bar_id', barId);
+      if (barProductError) throw barProductError;
+
+      const { error: customError } = await supabase
+        .from('custom_products')
+        .delete()
+        .eq('id', customProductId)
+        .eq('bar_id', barId);
+      if (customError) throw customError;
+
+      await Promise.all([loadCustomProducts(), loadBarMenu()]);
+      alert('✅ Custom product deleted!');
+    } catch (error: any) {
+      console.error('Error deleting:', error);
+      alert('Failed to delete: ' + error.message);
+    }
+  };
+
   const handlePublishCustomProduct = async (customProduct: CustomProduct) => {
     const price = addingPrice[customProduct.id];
     if (!price || parseFloat(price) <= 0) {
       alert('Please enter a valid price');
       return;
     }
-
     try {
       const { error } = await supabase
         .from('bar_products')
@@ -706,9 +590,7 @@ export default function MenuManagementPage() {
           sale_price: parseFloat(price),
           active: true,
         });
-
       if (error) throw error;
-
       setAddingPrice({ ...addingPrice, [customProduct.id]: '' });
       await loadBarMenu();
       alert('✅ Published to menu!');
@@ -718,41 +600,85 @@ export default function MenuManagementPage() {
     }
   };
 
-  // ENABLED: Handle create custom product
-  const handleCreateCustomProduct = async () => {
-    if (!newCustomItem.name || !newCustomItem.category) {
-      alert('Please fill in name and category');
+  // ========== CSV IMPORT FUNCTIONS ==========
+  const downloadCsvTemplate = () => {
+    const headers = ['name', 'category', 'description', 'price', 'sku (optional)', 'image_url (optional)'];
+    const example = ['Mojito', 'Cocktails', 'Refreshing mint cocktail', '850', 'CUSTOM-MOJ-001', ''];
+    const csvContent = [
+      headers.join(','),
+      example.join(','),
+      '"Margarita","Cocktails","Classic tequila cocktail","750","CUSTOM-MAR-001",""',
+      '"Beef Burger","Food","Juicy beef burger with fries","1200","CUSTOM-BUR-001",""'
+    ].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'custom_products_template.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleCsvFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n').slice(0, 6);
+      const headers = lines[0]?.split(',') || [];
+      const previewData = lines.slice(1).map(line => {
+        const values = line.split(',');
+        const row: CSVRow = {};
+        headers.forEach((header, index) => {
+          row[header.trim()] = values[index]?.trim() || '';
+        });
+        return row;
+      });
+      setCsvPreview(previewData);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCsvImport = async () => {
+    if (!csvFile || !barId) {
+      alert('Please select a CSV file');
       return;
     }
-
+    setCsvUploading(true);
+    setImportResult(null);
     try {
-      const { data, error } = await supabase
-        .from('custom_products')
-        .insert({
-          bar_id: barId,
-          name: newCustomItem.name,
-          category: newCustomItem.category,
-          description: newCustomItem.description || null,
-          image_url: newCustomItem.image_url || null,
-          sku: `CUSTOM-${barId}-${Date.now()}`,
-          active: true,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setNewCustomItem({ name: '', category: '', description: '', image_url: '' });
-      setShowAddCustom(false);
-      await loadCustomProducts();
-      alert('✅ Custom product created! Now add a price to publish it.');
+      const formData = new FormData();
+      formData.append('file', csvFile);
+      formData.append('barId', barId);
+      formData.append('mapping', JSON.stringify(csvMapping));
+      const response = await fetch('/api/import-products-csv', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Import failed');
+      }
+      setImportResult(data);
+      if (data.success > 0) {
+        await Promise.all([loadCustomProducts(), loadBarMenu()]);
+      }
+      if (csvInputRef.current) {
+        csvInputRef.current.value = '';
+      }
+      setCsvFile(null);
+      setCsvPreview([]);
     } catch (error: any) {
-      console.error('Error creating custom product:', error);
-      alert('Failed to create: ' + error.message);
+      console.error('Error importing CSV:', error);
+      alert('Failed to import CSV: ' + error.message);
+    } finally {
+      setCsvUploading(false);
     }
   };
 
-  // ENABLED: Handle update price
+  // ========== BAR PRODUCTS FUNCTIONS ==========
   const handleUpdatePrice = async (barProductId: string, newPrice: number) => {
     try {
       const { error } = await supabase
@@ -763,9 +689,7 @@ export default function MenuManagementPage() {
         })
         .eq('id', barProductId)
         .eq('bar_id', barId);
-
       if (error) throw error;
-
       await loadBarMenu();
       setEditingPrice(null);
       alert('✅ Price updated!');
@@ -775,47 +699,15 @@ export default function MenuManagementPage() {
     }
   };
 
-  // ENABLED: Handle update custom product
-  const handleUpdateCustomProduct = async (customProductId: string) => {
-    try {
-      const { error } = await supabase
-        .from('custom_products')
-        .update({
-          name: editForm.name,
-          description: editForm.description,
-          image_url: editForm.image_url,
-          category: editForm.category,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', customProductId)
-        .eq('bar_id', barId);
-
-      if (error) throw error;
-
-      await loadCustomProducts();
-      await loadBarMenu();
-      setEditingCustom(null);
-      setEditForm({ name: '', category: '', description: '', image_url: '' });
-      alert('✅ Custom product updated!');
-    } catch (error: any) {
-      console.error('Error updating custom product:', error);
-      alert('Failed to update: ' + error.message);
-    }
-  };
-
-  // ENABLED: Handle remove from menu
   const handleRemoveFromMenu = async (menuItemId: string) => {
     if (!window.confirm('Remove this item from your menu?')) return;
-
     try {
       const { error } = await supabase
         .from('bar_products')
         .delete()
         .eq('id', menuItemId)
         .eq('bar_id', barId);
-
       if (error) throw error;
-
       await loadBarMenu();
       alert('✅ Removed from menu');
     } catch (error: any) {
@@ -824,33 +716,70 @@ export default function MenuManagementPage() {
     }
   };
 
-  // ENABLED: Handle delete custom product
-  const handleDeleteCustomProduct = async (customProductId: string) => {
-    if (!window.confirm('Permanently delete this custom product?')) return;
+  const toggleProductSelection = (productId: string) => {
+    const newSelected = new Set(selectedProducts);
+    if (newSelected.has(productId)) {
+      newSelected.delete(productId);
+    } else {
+      newSelected.add(productId);
+    }
+    setSelectedProducts(newSelected);
+  };
 
+  const handleBulkUpdatePrices = async (newPrice: string) => {
+    if (!newPrice || parseFloat(newPrice) <= 0) {
+      alert('Please enter a valid price');
+      return;
+    }
+    if (selectedProducts.size === 0) {
+      alert('Please select products to update');
+      return;
+    }
+    if (!window.confirm(`Update ${selectedProducts.size} products to KSh ${newPrice}?`)) return;
     try {
       const { error } = await supabase
-        .from('custom_products')
-        .update({ active: false })
-        .eq('id', customProductId)
+        .from('bar_products')
+        .update({
+          sale_price: parseFloat(newPrice),
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', Array.from(selectedProducts))
         .eq('bar_id', barId);
-
       if (error) throw error;
-
-      await loadCustomProducts();
-      alert('✅ Custom product deleted');
+      await loadBarMenu();
+      setSelectedProducts(new Set());
+      setBulkEditMode(false);
+      alert(`✅ Updated ${selectedProducts.size} products!`);
     } catch (error: any) {
-      console.error('Error deleting:', error);
-      alert('Failed to delete: ' + error.message);
+      console.error('Error bulk updating:', error);
+      alert('Failed to update prices: ' + error.message);
     }
   };
 
-  // ENABLED: Handle image crop completion
+  // ========== IMAGE CROPPING FUNCTIONS ==========
+  const handleImageSelect = (field: 'new' | 'edit') => {
+    setCurrentImageField(field);
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setCropImage(result);
+        setShowCropper(true);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleImageCropped = async (file: File, imageUrl: string) => {
     try {
-      // Upload to server to get permanent URL
       const permanentUrl = await uploadImageToServer(file);
-      
       if (currentImageField === 'new') {
         setNewCustomItem({ ...newCustomItem, image_url: permanentUrl });
       } else {
@@ -861,6 +790,157 @@ export default function MenuManagementPage() {
     } catch (error: any) {
       console.error('Error processing image:', error);
       alert('Failed to upload image: ' + error.message);
+    }
+  };
+
+  // ========== STATIC MENU FUNCTIONS ==========
+  const handleMenuFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setMenuFile(file);
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result;
+          if (typeof result === 'string') {
+            setMenuPreview(result);
+          } else {
+            setMenuPreview(null);
+          }
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setMenuPreview(null);
+      }
+    }
+  };
+
+  const handleSlideshowFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (menuFiles.length + files.length > 5) {
+      alert('Maximum 5 images allowed for slideshow');
+      return;
+    }
+    const newFiles = [...menuFiles, ...files];
+    setMenuFiles(newFiles);
+    files.forEach((file) => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result;
+          if (typeof result === 'string') {
+            setMenuPreviews(prev => [...prev, result]);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
+  const removeSlideshowImage = (index: number) => {
+    const newFiles = [...menuFiles];
+    const newPreviews = [...menuPreviews];
+    newFiles.splice(index, 1);
+    newPreviews.splice(index, 1);
+    setMenuFiles(newFiles);
+    setMenuPreviews(newPreviews);
+  };
+
+  const handleSlideshowUpload = async () => {
+    if (!menuFiles.length || !barId) {
+      alert('Please select at least one image to upload');
+      return;
+    }
+    setMenuUploadLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('barId', barId);
+      formData.append('slideshowSettings', JSON.stringify(slideshowSettings || {}));
+      menuFiles.forEach((f) => {
+        formData.append('files', f);
+      });
+      const response = await fetch('/api/upload-menu-slideshow', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(err.error || 'Batch upload failed');
+      }
+      const data = await response.json();
+      const { error: updateError } = await supabase
+        .from('bars')
+        .update({
+          menu_type: 'static',
+          static_menu_type: 'slideshow',
+          static_menu_url: null,
+          slideshow_settings: slideshowSettings,
+        })
+        .eq('id', barId);
+      if (updateError) throw updateError;
+      await loadBarSettings();
+      setMenuFiles([]);
+      alert(`✅ ${data.uploaded?.length || menuFiles.length} images uploaded successfully! Slideshow created.`);
+    } catch (error: any) {
+      console.error('Error uploading slideshow:', error);
+      alert('Failed to upload slideshow: ' + (error?.message || 'Unknown error'));
+    } finally {
+      setMenuUploadLoading(false);
+    }
+  };
+
+  const handleMenuUpload = async () => {
+    if (!menuFile || !barId) {
+      alert('Please select a file to upload');
+      return;
+    }
+    setMenuUploadLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', menuFile);
+      formData.append('barId', barId);
+      const response = await fetch('/api/upload-menu', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+      await loadBarSettings();
+      setMenuFile(null);
+      setMenuPreview(null);
+      alert('✅ Menu uploaded successfully!');
+    } catch (error: any) {
+      console.error('Error uploading menu:', error);
+      alert('Failed to upload menu: ' + error.message);
+    } finally {
+      setMenuUploadLoading(false);
+    }
+  };
+
+  const handleMenuTypeChange = async (type: 'interactive' | 'static') => {
+    if (!barId) return;
+    try {
+      const { error } = await supabase
+        .from('bars')
+        .update({ menu_type: type })
+        .eq('id', barId);
+      if (error) throw error;
+      await loadBarSettings();
+      alert(`✅ Switched to ${type} menu`);
+    } catch (error: any) {
+      console.error('Error changing menu type:', error);
+      alert('Failed to change menu type: ' + error.message);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      await loadAllData();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -895,68 +975,73 @@ export default function MenuManagementPage() {
     );
   }
 
-  // Browsing products view
+  // Catalog browsing view
   if (selectedSupplier || searchQuery || selectedCategory !== 'all') {
     return (
-      <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
-        <div className="w-full lg:max-w-[80%] max-w-full">
-          <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
-            <button
-              onClick={() => {
-                setSelectedSupplier(null);
-                setSearchQuery('');
-                setSelectedCategory('all');
-              }}
-              className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
-            >
-              <ArrowRight size={24} className="transform rotate-180" />
-            </button>
-            <h1 className="text-2xl font-bold">
-              {selectedSupplier ? selectedSupplier.name : 'Browse Products'}
-            </h1>
-            <p className="text-orange-100 text-sm">{filteredProducts.length} products found</p>
+      <div className="min-h-screen bg-gray-50 pb-24">
+        <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
+          <button
+            onClick={() => {
+              setSelectedSupplier(null);
+              setSearchQuery('');
+              setSelectedCategory('all');
+            }}
+            className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
+          >
+            <ArrowRight size={24} className="transform rotate-180" />
+          </button>
+          <h1 className="text-2xl font-bold">
+            {selectedSupplier ? selectedSupplier.name : 'Browse Products'}
+          </h1>
+          <p className="text-orange-100 text-sm">{filteredProducts.length} products found</p>
+        </div>
+        <div className="p-4 bg-white border-b sticky top-0 z-10">
+          <div className="relative mb-3">
+            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search products..."
+              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+            />
           </div>
-          <div className="p-4 bg-white border-b sticky top-0 z-10">
-            <div className="relative mb-3">
-              <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search products..."
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-              />
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                selectedCategory === 'all' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              All
+            </button>
+            {categories.map((cat) => (
               <button
-                onClick={() => setSelectedCategory('all')}
+                key={cat.name}
+                onClick={() => setSelectedCategory(cat.name)}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                  selectedCategory === 'all' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
+                  selectedCategory === cat.name ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
                 }`}
               >
-                All
+                {cat.name}
               </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat.name}
-                  onClick={() => setSelectedCategory(cat.name)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                    selectedCategory === cat.name ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
-          <div className="p-4 space-y-3">
-            {filteredProducts.length === 0 ? (
-              <div className="text-center py-12">
-                <ShoppingCart size={48} className="mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-500">No products found</p>
-              </div>
-            ) : (
-              filteredProducts.map((product) => {
+        </div>
+        <div className="p-4">
+          {catalogLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+              <p className="text-gray-500">Loading products...</p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="text-center py-12">
+              <ShoppingCart size={48} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-gray-500">No products found</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProducts.map((product) => {
                 const alreadyInMenu = isProductInMenu(product.id);
                 const displayImage = getDisplayImage(product);
                 return (
@@ -1021,317 +1106,196 @@ export default function MenuManagementPage() {
                     </div>
                   </div>
                 );
-              })
-            )}
-          </div>
+              })}
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
-  // Main menu management view - BOTH INTERACTIVE AND STATIC MENU FEATURES
   return (
-    <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
-      <div className="w-full" style={{ maxWidth: '80%' }}>
-        <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
-          <button
-            onClick={() => router.push('/')}
-            className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
-          >
-            <ArrowRight size={24} className="transform rotate-180" />
-          </button>
-          <div className="flex items-center justify-between mb-2">
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Hidden file inputs */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handleFileSelect}
+      />
+      <input
+        type="file"
+        ref={csvInputRef}
+        className="hidden"
+        accept=".csv"
+        onChange={handleCsvFileChange}
+      />
+
+      {/* Header */}
+      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
+        <button
+          onClick={() => router.push('/')}
+          className="mb-4 p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 inline-block"
+        >
+          <ArrowRight size={24} className="transform rotate-180" />
+        </button>
+        <div className="flex items-center justify-between mb-2">
+          <div>
             <h1 className="text-2xl font-bold">Menu Management</h1>
+            <p className="text-orange-100 text-sm">Manage your bar's menu and offers</p>
           </div>
-          <p className="text-orange-100 text-sm">Manage your menu here</p>
+          <button
+            onClick={handleRefresh}
+            className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+            title="Refresh data"
+          >
+            <RefreshCw size={20} />
+          </button>
         </div>
-        <div className="p-4 space-y-6">
-          <div className="bg-white rounded-xl shadow-sm p-4">
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-white border-b">
+        <div className="flex overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('menu')}
+            className={`px-6 py-3 font-medium whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'menu'
+                ? 'text-orange-600 border-b-2 border-orange-500'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <ShoppingCart size={18} />
+            My Menu ({barProducts.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('catalog')}
+            className={`px-6 py-3 font-medium whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'catalog'
+                ? 'text-orange-600 border-b-2 border-orange-500'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Globe size={18} />
+            Global Catalog
+          </button>
+          <button
+            onClick={() => setActiveTab('custom')}
+            className={`px-6 py-3 font-medium whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'custom'
+                ? 'text-orange-600 border-b-2 border-orange-500'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Package size={18} />
+            Custom Products ({customProducts.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('images')}
+            className={`px-6 py-3 font-medium whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'images'
+                ? 'text-orange-600 border-b-2 border-orange-500'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <ImageIcon size={18} />
+            Image Menus
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="p-4 space-y-6">
+        {/* CURRENT MENU TAB */}
+        {activeTab === 'menu' && (
+          <div>
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Settings size={20} className="text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-800">Interactive Menu</h3>
-                  <p className="text-sm text-gray-500">Full digital ordering experience</p>
-                </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">My Menu Items</h2>
+                <p className="text-sm text-gray-600">Products currently visible to customers</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-                  Pro
-                </span>
-                <button
-                  onClick={() => handleProFeature('Interactive Menu')}
-                  className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
-                >
-                  <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1" />
-                </button>
-              </div>
-            </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-700">
-                🚀 Enable interactive menu for digital ordering with real-time updates
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-gray-800">Browse Product Catalog</h2>
-              <button
-                onClick={() => setSearchQuery(' ')}
-                className="text-orange-600 text-sm font-medium flex items-center gap-1"
-              >
-                <Search size={16} />
-                Search All
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              {suppliers.map((supplier) => {
-                const productCount = products.filter((p) => p.supplier_id === supplier.id).length;
-                return (
-                  <button
-                    key={supplier.id}
-                    onClick={() => setSelectedSupplier(supplier)}
-                    className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition text-center"
-                  >
-                    {supplier.logo_url ? (
-                      <img
-                        src={supplier.logo_url}
-                        alt={supplier.name}
-                        className="w-12 h-12 mx-auto mb-2 object-contain"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 mx-auto mb-2 bg-orange-100 rounded-lg flex items-center justify-center text-2xl">
-                        🏪
-                      </div>
-                    )}
-                    <h3 className="font-semibold text-gray-800 text-sm mb-1">{supplier.name}</h3>
-                    <p className="text-xs text-gray-500">{productCount} products</p>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {categories.slice(0, 4).map((cat) => (
-                <button
-                  key={cat.name}
-                  onClick={() => {
-                    setSelectedCategory(cat.name);
-                    setSearchQuery(' ');
-                  }}
-                  className="px-4 py-2 bg-white rounded-full text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md"
-                >
-                  {cat.name}
-                </button>
-              ))}
-              <button
-                onClick={() => setSearchQuery(' ')}
-                className="px-4 py-2 bg-orange-100 text-orange-700 rounded-full text-sm font-medium whitespace-nowrap"
-              >
-                View All →
-              </button>
-            </div>
-          </div>
-
-          {/* ENABLED: Unpublished Custom Products */}
-          {customProducts.length > 0 && (
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-3">
-                Unpublished Custom Products ({customProducts.length})
-              </h2>
-              <div className="space-y-2">
-                {customProducts.map((cp) => (
-                  <div key={cp.id} className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
-                    {editingCustom === cp.id ? (
-                      <div className="space-y-3">
-                        <h3 className="font-semibold text-sm mb-2">Edit Custom Product</h3>
-                        <input
-                          type="text"
-                          value={editForm.name}
-                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                          placeholder="Name"
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                        />
-                        <select
-                          value={editForm.category}
-                          onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                        >
-                          {categories.map((cat) => (
-                            <option key={cat.name} value={cat.name}>
-                              {cat.name}
-                            </option>
-                          ))}
-                        </select>
-                        <textarea
-                          value={editForm.description || ''}
-                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          placeholder="Description (optional)"
-                          rows={2}
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                        />
-                        
-                        {/* Image upload section for edit form */}
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-700">Product Image</label>
-                          {editForm.image_url ? (
-                            <div className="space-y-3">
-                              <div className="relative w-32 h-40 border-2 border-gray-300 rounded-lg overflow-hidden">
-                                <img
-                                  src={editForm.image_url}
-                                  alt="Preview"
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setCurrentImageField('edit');
-                                    setShowCropper(true);
-                                  }}
-                                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
-                                >
-                                  Change Image
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditForm({ ...editForm, image_url: '' })}
-                                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCurrentImageField('edit');
-                                setShowCropper(true);
-                              }}
-                              className="w-full px-4 py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-orange-500 hover:bg-orange-50 text-center transition-colors"
-                            >
-                              <div className="flex flex-col items-center gap-2">
-                                <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-red-100 rounded-full flex items-center justify-center">
-                                  <Upload size={24} className="text-orange-500" />
-                                </div>
-                                <div>
-                                  <p className="font-medium text-gray-700">Upload Product Image</p>
-                                  <p className="text-sm text-gray-500 mt-1">
-                                    Click to crop image to 4:5 ratio
-                                  </p>
-                                </div>
-                              </div>
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleUpdateCustomProduct(cp.id)}
-                            className="flex-1 bg-green-500 text-white py-2 rounded-lg font-medium hover:bg-green-600 flex items-center justify-center gap-2"
-                          >
-                            <Save size={16} />
-                            Save
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingCustom(null);
-                              setEditForm({ name: '', category: '', description: '', image_url: '' });
-                            }}
-                            className="flex-1 bg-gray-200 py-2 rounded-lg font-medium hover:bg-gray-300"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
-                          {cp.image_url ? (
-                            <img src={cp.image_url} alt={cp.name} className="w-full h-full object-cover rounded-lg" />
-                          ) : (
-                            <span className="text-2xl">✨</span>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-800">{cp.name}</p>
-                          <p className="text-xs text-gray-600">{cp.category}</p>
-                          {cp.description && <p className="text-xs text-gray-500 mt-1">{cp.description}</p>}
-                        </div>
-                        <input
-                          type="number"
-                          placeholder="Price (KSh)"
-                          value={addingPrice[cp.id] || ''}
-                          onChange={(e) =>
-                            setAddingPrice({
-                              ...addingPrice,
-                              [cp.id]: e.target.value,
-                            })
-                          }
-                          className="w-28 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
-                        />
-                        <button
-                          onClick={() => handlePublishCustomProduct(cp)}
-                          className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 whitespace-nowrap"
-                        >
-                          Publish
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingCustom(cp.id);
-                            setEditForm({
-                              name: cp.name,
-                              category: cp.category,
-                              description: cp.description || '',
-                              image_url: cp.image_url || '',
-                            });
-                          }}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                          title="Edit product"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCustomProduct(cp.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                          title="Delete product"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    )}
+                {bulkEditMode && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      placeholder="New price for all"
+                      className="px-3 py-1 border rounded"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const input = e.target as HTMLInputElement;
+                          handleBulkUpdatePrices(input.value);
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        const input = document.querySelector('input[placeholder="New price for all"]') as HTMLInputElement;
+                        handleBulkUpdatePrices(input.value);
+                      }}
+                      className="px-3 py-1 bg-orange-500 text-white rounded text-sm"
+                    >
+                      Apply
+                    </button>
                   </div>
-                ))}
+                )}
+                <button
+                  onClick={() => setBulkEditMode(!bulkEditMode)}
+                  className="px-3 py-1 bg-gray-100 rounded text-sm"
+                >
+                  {bulkEditMode ? 'Cancel' : 'Bulk Edit'}
+                </button>
+                <button
+                  onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+                  className="p-2 text-gray-500 hover:text-gray-700"
+                >
+                  {viewMode === 'grid' ? <List size={20} /> : <LayoutGrid size={20} />}
+                </button>
               </div>
             </div>
-          )}
-
-          {/* ENABLED: Your Menu (Published Items) */}
-          <div>
-            <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu ({barProducts.length} items)</h2>
-            {barProducts.length === 0 ? (
-              <div className="bg-white rounded-xl p-8 text-center text-gray-500">
-                <ShoppingCart size={48} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm">No items in your menu yet</p>
-                <p className="text-xs text-gray-400 mt-1">Browse products above to get started</p>
+            {menuLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                <p className="text-gray-500">Loading menu...</p>
+              </div>
+            ) : barProducts.length === 0 ? (
+              <div className="bg-white rounded-xl p-8 text-center">
+                <ShoppingCart size={48} className="mx-auto mb-3 text-gray-300" />
+                <p className="text-gray-500 mb-2">Your menu is empty</p>
+                <p className="text-sm text-gray-400 mb-4">Add products from the catalog or create custom items</p>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={() => setActiveTab('catalog')}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-lg"
+                  >
+                    Browse Catalog
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('custom')}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg"
+                  >
+                    Create Custom
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="bg-white rounded-xl shadow-sm divide-y">
+              <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-3'}>
                 {barProducts.map((item) => {
                   const isCustom = !!item.custom_product_id;
-                  const productData = isCustom
-                    ? (item as CustomProduct)
-                    : ({ ...item, id: item.product_id || '' } as Product);
-                  const displayImage = isCustom
-                    ? item.image_url
-                    : getDisplayImage(productData as Product, item.category);
-
                   return (
-                    <div key={item.id} className="p-4">
+                    <div key={item.id} className="bg-white rounded-xl shadow-sm p-4">
+                      {bulkEditMode && (
+                        <div className="flex items-center mb-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedProducts.has(item.id)}
+                            onChange={() => toggleProductSelection(item.id)}
+                            className="h-4 w-4 text-orange-500 rounded"
+                          />
+                          <span className="ml-2 text-sm text-gray-600">Select for bulk edit</span>
+                        </div>
+                      )}
                       {editingPrice === item.id ? (
                         <div className="flex items-center gap-3">
                           <div className="flex-1">
@@ -1372,68 +1336,57 @@ export default function MenuManagementPage() {
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-4">
-                          {displayImage ? (
-                            <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                        <div className="flex items-start gap-4">
+                          {item.image_url ? (
+                            <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                               <img
-                                src={displayImage}
+                                src={item.image_url}
                                 alt={item.name}
                                 className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
-                                }}
                               />
                             </div>
                           ) : (
-                            <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
+                            <div className="w-20 h-20 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
                               <span className="text-3xl">{isCustom ? '✨' : '🍺'}</span>
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="font-semibold text-gray-800">{item.name}</p>
+                            <div className="flex items-start justify-between mb-1">
+                              <div>
+                                <p className="font-semibold text-gray-800">{item.name}</p>
+                                <p className="text-sm text-gray-600">{item.category}</p>
+                              </div>
                               {isCustom && (
                                 <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
                                   Custom
                                 </span>
                               )}
                             </div>
-                            {item.description && <p className="text-xs text-gray-600 mt-1">{item.description}</p>}
-                            <p className="text-sm text-orange-600 font-bold mt-1">
-                              {tempFormatCurrency(item.sale_price)}
-                            </p>
+                            {item.description && (
+                              <p className="text-sm text-gray-500 mb-2">{item.description}</p>
+                            )}
+                            <div className="flex items-center justify-between">
+                              <p className="text-lg font-bold text-orange-600">
+                                {tempFormatCurrency(item.sale_price)}
+                              </p>
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => setEditingPrice(item.id)}
+                                  className="p-1 text-blue-500 hover:bg-blue-50 rounded"
+                                  title="Edit price"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveFromMenu(item.id)}
+                                  className="p-1 text-red-500 hover:bg-red-50 rounded"
+                                  title="Remove from menu"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <button
-                            onClick={() => setEditingPrice(item.id)}
-                            className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
-                            title="Edit price"
-                          >
-                            <Edit2 size={20} />
-                          </button>
-                          {isCustom && (
-                            <button
-                              onClick={() => {
-                                setEditingCustom(item.custom_product_id!);
-                                setEditForm({
-                                  name: item.name,
-                                  category: item.category,
-                                  description: item.description || '',
-                                  image_url: item.image_url || '',
-                                });
-                              }}
-                              className="p-2 text-purple-500 hover:bg-purple-50 rounded-lg"
-                              title="Edit product details"
-                            >
-                              <Edit2 size={20} />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleRemoveFromMenu(item.id)}
-                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                            title="Remove from menu"
-                          >
-                            <Trash2 size={20} />
-                          </button>
                         </div>
                       )}
                     </div>
@@ -1442,224 +1395,547 @@ export default function MenuManagementPage() {
               </div>
             )}
           </div>
+        )}
 
-          {/* Static Menu Management - KEEP ACTIVE */}
-          <div className="bg-white rounded-xl shadow-sm p-4 border-2 border-purple-200">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <FileText size={20} className="text-purple-600" />
-                Static Menu (Image)
-              </h2>
-              <button
-                onClick={() => setStaticMenuCollapsed(!staticMenuCollapsed)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                {staticMenuCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-              </button>
+        {/* GLOBAL CATALOG TAB */}
+        {activeTab === 'catalog' && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-2">Global Product Catalog</h2>
+              <p className="text-gray-600">Browse products from suppliers and add to your menu</p>
             </div>
-            
-            {!staticMenuCollapsed && (
-              <div className="space-y-4">
-                {/* Current Status */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm font-medium text-blue-800 mb-1">
-                    Static Menu Status
-                  </p>
-                  {barSettings?.static_menu_url ? (
-                    <p className="text-xs text-blue-600">
-                      ✅ Static menu uploaded ({barSettings.static_menu_type?.toUpperCase()}) - Customers can view this menu
-                    </p>
-                  ) : (
-                    <p className="text-xs text-blue-600">
-                      ℹ️ No static menu uploaded yet - Upload a PDF or image for customers to view
-                    </p>
-                  )}
-                </div>
 
-                {/* Current Upload Status */}
-                {barSettings?.static_menu_url && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        {barSettings.static_menu_type === 'pdf' ? (
-                          <FileText size={20} className="text-green-600" />
+            {/* Search and Filter */}
+            <div className="bg-white rounded-xl p-4 mb-4">
+              <div className="relative mb-3">
+                <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search products by name, SKU, or description..."
+                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                />
+              </div>
+              {/* Supplier filter temporarily disabled */}
+              {/* <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setSelectedSupplier(null)}
+                  className={`px-3 py-1 rounded-full text-sm ${!selectedSupplier ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'}`}
+                >
+                  All Suppliers
+                </button>
+                {suppliers.map((supplier) => (
+                    <button
+                      key={supplier.id}
+                      onClick={() => setSelectedSupplier(supplier)}
+                      className={`px-3 py-1 rounded-full text-sm flex items-center gap-1 ${
+                        selectedSupplier?.id === supplier.id ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      {supplier.logo_url && (
+                        <img src={supplier.logo_url} alt="" className="w-4 h-4 rounded-full" />
+                      )}
+                      {supplier.name}
+                    </button>
+                  ))}
+              </div> */}
+            </div>
+
+            {/* Categories */}
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-800 mb-2">Browse by Category</h3>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setSelectedCategory('all')}
+                  className={`px-4 py-2 rounded-lg ${selectedCategory === 'all' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'}`}
+                >
+                  All
+                </button>
+                {categories.map((cat) => (
+                  <button
+                    key={cat.name}
+                    onClick={() => setSelectedCategory(cat.name)}
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                      selectedCategory === cat.name ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Products Grid */}
+            {catalogLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                <p className="text-gray-500">Loading catalog...</p>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-xl">
+                <Database size={48} className="mx-auto mb-3 text-gray-300" />
+                <p className="text-gray-500">No products found</p>
+                <p className="text-sm text-gray-400 mt-1">Try a different search or filter</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredProducts.map((product) => {
+                  const alreadyInMenu = isProductInMenu(product.id);
+                  const displayImage = getDisplayImage(product);
+                  return (
+                    <div key={product.id} className="bg-white rounded-xl shadow-sm p-4">
+                      <div className="flex gap-3">
+                        {displayImage ? (
+                          <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                            <img
+                              src={displayImage}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
                         ) : (
-                          <ImageIcon size={20} className="text-green-600" />
+                          <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
+                            <span className="text-2xl">🍺</span>
+                          </div>
                         )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-green-800">
-                          {barSettings.static_menu_type?.toUpperCase()} Menu Uploaded
-                        </p>
-                        <p className="text-xs text-green-600 mt-1">
-                          Customers can view this menu
-                        </p>
-                        <a
-                          href={barSettings.static_menu_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-green-700 underline mt-2 inline-block"
-                        >
-                          Preview Menu →
-                        </a>
-                      </div>
-                    </div>
-                    
-                    {barSettings.static_menu_type === 'image' && (
-                      <div className="mt-3">
-                        <img 
-                          src={barSettings.static_menu_url} 
-                          alt="Menu preview" 
-                          className="w-full max-h-48 object-contain rounded-lg border border-gray-200 bg-white"
-                        />
-                      </div>
-                    )}
-
-                    {barSettings.static_menu_type === 'slideshow' && menuPreviews.length > 0 && (
-                      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg mb-4">
-                        <p className="text-sm font-medium text-green-800 mb-2">
-                          ✅ Slideshow Uploaded ({menuPreviews.length} images)
-                        </p>
-                        <div className="grid grid-cols-3 gap-2">
-                          {menuPreviews.map((preview, index) => (
-                            <div key={index} className="relative">
-                              <div className="aspect-[4/5] rounded-lg overflow-hidden border border-green-300">
-                                <img 
-                                  src={preview} 
-                                  alt={`Slide ${index + 1}`} 
-                                  className="w-full h-full object-cover"
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-1">
+                            <h3 className="font-semibold text-gray-800">{product.name}</h3>
+                            {alreadyInMenu && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                In Menu
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mb-1">{product.sku}</p>
+                          <p className="text-xs text-gray-600 mb-2">{product.description}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                              {product.category}
+                            </span>
+                            {!alreadyInMenu && (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  placeholder="Price"
+                                  value={addingPrice[product.id] || ''}
+                                  onChange={(e) => setAddingPrice({...addingPrice, [product.id]: e.target.value})}
+                                  className="w-20 px-2 py-1 border rounded text-sm"
                                 />
+                                <button
+                                  onClick={() => handleAddToMenu(product)}
+                                  className="px-3 py-1 bg-orange-500 text-white rounded text-sm"
+                                >
+                                  Add
+                                </button>
                               </div>
-                              <div className="absolute bottom-1 left-1 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
-                                {index + 1}
-                              </div>
-                            </div>
-                          ))}
+                            )}
+                          </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Upload New Menu */}
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-800 mb-3">
-                    {barSettings?.static_menu_url ? 'Replace Menu' : 'Upload Menu'}
-                  </h3>
-                  
-                  <div className="space-y-4">
-                    {/* Menu Type Selection */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Menu Type
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => {
-                            setUploadMode('single');
-                            setMenuFiles([]);
-                            setMenuPreviews([]);
-                          }}
-                          className={`p-3 border-2 rounded-lg text-sm font-medium transition-colors ${
-                            uploadMode === 'single'
-                              ? 'border-purple-500 bg-purple-50 text-purple-700'
-                              : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                          }`}
-                        >
-                          <ImageIcon size={20} className="mx-auto mb-1" />
-                          Single Image
-                        </button>
-                        <button
-                          onClick={() => {
-                            setUploadMode('slideshow');
-                            setMenuFile(null);
-                            setMenuPreview(null);
-                          }}
-                          className={`p-3 border-2 rounded-lg text-sm font-medium transition-colors ${
-                            uploadMode === 'slideshow'
-                              ? 'border-purple-500 bg-purple-50 text-purple-700'
-                              : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                          }`}
-                        >
-                          <div className="mx-auto mb-1">🎞️</div>
-                          <div className="flex items-center justify-center gap-1">
-                            <span>Slideshow (5 max)</span>
-                            <span className="text-xs bg-orange-100 text-orange-700 px-1 py-0.5 rounded-full font-medium">
-                              Pro
-                            </span>
-                          </div>
-                        </button>
-                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
-                    {/* Single Image Upload */}
-                    {uploadMode === 'single' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Select Image File
-                        </label>
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/jpg,image/png,image/webp"
-                          onChange={handleMenuFileChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          🖼️ JPEG, PNG, or WebP images only • Max 10MB 
-                        </p>
+        {/* CUSTOM PRODUCTS TAB */}
+        {activeTab === 'custom' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Custom Products</h2>
+                <p className="text-gray-600">Create unique products not in the global catalog</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center gap-2"
+                >
+                  <FileSpreadsheet size={18} />
+                  Import CSV
+                </button>
+                <button
+                  onClick={() => setShowAddCustom(true)}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg flex items-center gap-2"
+                >
+                  <Plus size={18} />
+                  Create New
+                </button>
+              </div>
+            </div>
+
+            {/* Create Custom Product Form */}
+            {showAddCustom && (
+              <div className="bg-white rounded-xl p-6 mb-6 border-2 border-orange-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-gray-800">Create Custom Product</h3>
+                  <button onClick={() => setShowAddCustom(false)} className="text-gray-500">
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
+                      <input
+                        type="text"
+                        value={newCustomItem.name}
+                        onChange={(e) => setNewCustomItem({...newCustomItem, name: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        placeholder="e.g., Special Mojito"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                      <select
+                        value={newCustomItem.category}
+                        onChange={(e) => setNewCustomItem({...newCustomItem, category: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="">Select category</option>
+                        {categories.map((cat) => (
+                          <option key={cat.name} value={cat.name}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea
+                      value={newCustomItem.description}
+                      onChange={(e) => setNewCustomItem({...newCustomItem, description: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      rows={2}
+                      placeholder="Optional product description"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Price (KSh) *</label>
+                      <input
+                        type="number"
+                        value={newCustomItem.price}
+                        onChange={(e) => setNewCustomItem({...newCustomItem, price: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        placeholder="e.g., 850"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
+                      {newCustomItem.image_url ? (
+                        <div className="flex items-center gap-3">
+                          <img src={newCustomItem.image_url} alt="Preview" className="w-16 h-16 object-cover rounded" />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleImageSelect('new')}
+                              className="text-sm text-blue-600"
+                            >
+                              Change
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNewCustomItem({...newCustomItem, image_url: ''})}
+                              className="text-sm text-red-600"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleImageSelect('new')}
+                          className="w-full px-4 py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-orange-500 text-center"
+                        >
+                          <Upload size={24} className="mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-600">Click to upload product image</p>
+                          <p className="text-xs text-gray-400">Optional - 4:5 aspect ratio recommended</p>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={handleCreateCustomProduct}
+                      className="px-6 py-2 bg-green-500 text-white rounded-lg font-medium"
+                    >
+                      Create & Add to Menu
+                    </button>
+                    <button
+                      onClick={() => setShowAddCustom(false)}
+                      className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Custom Products List */}
+            {customProducts.length === 0 ? (
+              <div className="bg-white rounded-xl p-8 text-center">
+                <Package size={48} className="mx-auto mb-3 text-gray-300" />
+                <p className="text-gray-500 mb-2">No custom products yet</p>
+                <p className="text-sm text-gray-400 mb-4">Create your own unique products or import via CSV</p>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={() => setShowAddCustom(true)}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-lg"
+                  >
+                    Create First Product
+                  </button>
+                  <button
+                    onClick={() => setShowImportModal(true)}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+                  >
+                    Import CSV
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {customProducts.map((cp) => {
+                  const isPublished = barProducts.some(bp => bp.custom_product_id === cp.id);
+                  return (
+                    <div key={cp.id} className="bg-white rounded-xl shadow-sm p-4">
+                      <div className="flex gap-3 mb-3">
+                        {cp.image_url ? (
+                          <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                            <img src={cp.image_url} alt={cp.name} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex-shrink-0 flex items-center justify-center">
+                            <span className="text-2xl">✨</span>
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between">
+                            <h3 className="font-semibold text-gray-800">{cp.name}</h3>
+                            {isPublished && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                Published
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-600 mb-1">{cp.category}</p>
+                          {cp.description && (
+                            <p className="text-sm text-gray-500 mb-2">{cp.description}</p>
+                          )}
+                        </div>
                       </div>
-                    )}
-
-                    {/* Slideshow Upload */}
-                    {uploadMode === 'slideshow' && (
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium text-gray-700">
-                            Select up to 5 images for slideshow
-                          </label>
+                      <div className="flex items-center justify-between pt-3 border-t">
+                        {!isPublished ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              placeholder="Add price"
+                              value={addingPrice[cp.id] || ''}
+                              onChange={(e) => setAddingPrice({...addingPrice, [cp.id]: e.target.value})}
+                              className="w-24 px-2 py-1 border rounded text-sm"
+                            />
+                            <button
+                              onClick={() => handlePublishCustomProduct(cp)}
+                              className="px-3 py-1 bg-green-500 text-white rounded text-sm"
+                            >
+                              Publish
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-500">Published to menu</span>
+                        )}
+                        <div className="flex gap-1">
                           <button
-                            onClick={() => handleProFeature('Slideshow Images')}
-                            className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium hover:bg-orange-200 transition-colors"
+                            onClick={() => {
+                              setEditingCustom(cp.id);
+                              setEditForm({
+                                name: cp.name,
+                                category: cp.category,
+                                description: cp.description || '',
+                                image_url: cp.image_url || '',
+                              });
+                            }}
+                            className="p-1 text-blue-500 hover:bg-blue-50 rounded"
                           >
-                            Learn more about Pro
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCustomProduct(cp.id)}
+                            className="p-1 text-red-500 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </div>
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/jpg,image/png,image/webp"
-                          onChange={handleSlideshowFilesChange}
-                          multiple
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* IMAGE MENUS TAB */}
+        {activeTab === 'images' && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-2">Image Menus & Offers</h2>
+              <p className="text-gray-600">Upload single images or slideshows for customers to view</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-purple-100 rounded-lg">
+                    <ImageIcon size={24} className="text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-800">Static Menu Upload</h3>
+                    <p className="text-sm text-gray-500">Upload images for customers to view</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setUploadMode('single')}
+                    className={`px-4 py-2 rounded-lg ${uploadMode === 'single' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-700'}`}
+                  >
+                    Single Image
+                  </button>
+                  <button
+                    onClick={() => setUploadMode('slideshow')}
+                    className={`px-4 py-2 rounded-lg ${uploadMode === 'slideshow' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-700'}`}
+                  >
+                    Slideshow (5 max)
+                  </button>
+                </div>
+              </div>
+
+              {/* Current Upload Status */}
+              {barSettings?.static_menu_url && (
+                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                      {barSettings.static_menu_type === 'pdf' ? (
+                        <FileText size={20} className="text-green-600" />
+                      ) : barSettings.static_menu_type === 'slideshow' ? (
+                        <div className="text-xl">🎞️</div>
+                      ) : (
+                        <ImageIcon size={20} className="text-green-600" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-green-800">
+                        {barSettings.static_menu_type === 'slideshow' ? 'Slideshow' : 'Image'} Menu Active
+                      </p>
+                      <p className="text-sm text-green-600">Customers can view this menu</p>
+                    </div>
+                  </div>
+                  {barSettings.static_menu_type === 'image' && barSettings.static_menu_url && (
+                    <img
+                      src={barSettings.static_menu_url}
+                      alt="Menu preview"
+                      className="w-full max-h-64 object-contain rounded-lg border border-gray-200"
+                    />
+                  )}
+                  {barSettings.static_menu_type === 'slideshow' && menuPreviews.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Slideshow Preview ({menuPreviews.length} images):</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {menuPreviews.map((preview, index) => (
+                          <div key={index} className="relative">
+                            <div className="aspect-[4/5] rounded-lg overflow-hidden border border-gray-300">
+                              <img
+                                src={preview}
+                                alt={`Slide ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="absolute bottom-1 left-1 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                              {index + 1}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Upload Section */}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                {uploadMode === 'single' ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Upload Single Menu Image
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                        onChange={handleMenuFileChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        JPEG, PNG, or WebP • Max 10MB • Recommended ratio: 4:5
+                      </p>
+                    </div>
+                    {menuPreview && (
+                      <div className="mt-4">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                        <img
+                          src={menuPreview}
+                          alt="Preview"
+                          className="w-full max-h-64 object-contain rounded-lg border border-gray-200"
                         />
-                        <p className="text-xs text-gray-500 mt-1">
-                          🖼️ JPEG, PNG, or WebP images only • Max 10MB each • {menuFiles.length}/5 selected
-                        </p>
                       </div>
                     )}
-
-                    {/* Single Image Preview */}
-                      {renderSingleImagePreview()}
-
-                    {/* Slideshow Preview Grid */}
+                    {menuFile && (
+                      <button
+                        onClick={handleMenuUpload}
+                        disabled={menuUploadLoading}
+                        className="w-full mt-4 px-6 py-3 bg-purple-500 text-white rounded-lg font-semibold disabled:opacity-50"
+                      >
+                        {menuUploadLoading ? 'Uploading...' : 'Upload Menu Image'}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Upload Menu Slideshow (1-5 images)
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                        onChange={handleSlideshowFilesChange}
+                        multiple
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        JPEG, PNG, or WebP • Max 10MB each • {menuFiles.length}/5 selected
+                      </p>
+                    </div>
                     {menuPreviews.length > 0 && (
-                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <p className="text-sm font-medium text-gray-700 mb-2">
-                          Selected {menuFiles.length} image(s):
-                        </p>
+                      <div className="mt-4">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Preview ({menuPreviews.length} images):</p>
                         <div className="grid grid-cols-3 gap-2">
                           {menuPreviews.map((preview, index) => (
                             <div key={index} className="relative">
                               <div className="aspect-[4/5] rounded-lg overflow-hidden border border-gray-300">
-                                <img 
-                                  src={preview} 
-                                  alt={`Preview ${index + 1}`} 
+                                <img
+                                  src={preview}
+                                  alt={`Preview ${index + 1}`}
                                   className="w-full h-full object-cover"
                                 />
                               </div>
                               <button
                                 onClick={() => removeSlideshowImage(index)}
-                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
-                                title="Remove image"
+                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs"
                               >
                                 ×
                               </button>
@@ -1671,127 +1947,270 @@ export default function MenuManagementPage() {
                         </div>
                       </div>
                     )}
-
-                    {/* Slideshow Settings */}
                     {menuFiles.length > 0 && (
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Slideshow Settings</label>
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                          <p className="text-sm text-blue-800 mb-1">
-                            ⚙️ Manual slideshow settings
-                          </p>
-                          <p className="text-xs text-blue-600">
-                            • Customers swipe to navigate between slides<br/>
-                            • Slides stay static until manually changed<br/>
-                            • Pinch to zoom works on each slide<br/>
-                            • Double tap resets zoom
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Upload Button */}
-                    {((uploadMode === 'single' && !!menuFile) || (uploadMode === 'slideshow' && menuFiles.length > 0)) && (
                       <button
-                        onClick={uploadMode === 'slideshow' ? handleSlideshowUpload : handleMenuUpload}
+                        onClick={handleSlideshowUpload}
                         disabled={menuUploadLoading}
-                        className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full mt-4 px-6 py-3 bg-purple-500 text-white rounded-lg font-semibold disabled:opacity-50"
                       >
-                        {menuUploadLoading ? (
-                          <>
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                            Uploading {uploadMode === 'slideshow' ? `${menuFiles.length} images...` : '...'}
-                          </>
-                        ) : (
-                          <>
-                            <Upload size={20} />
-                            Upload {uploadMode === 'slideshow' ? `${menuFiles.length} Image${menuFiles.length > 1 ? 's' : ''} (Slideshow)` : 'Menu'}
-                          </>
-                        )}
+                        {menuUploadLoading ? 'Uploading...' : `Upload ${menuFiles.length} Image${menuFiles.length > 1 ? 's' : ''} as Slideshow`}
                       </button>
                     )}
                   </div>
-                </div>
-
-                {/* Help Text */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                  <p className="text-sm text-yellow-800">
-                    💡 <strong>Tip:</strong> Upload a PDF for multi-page menus or an image for simple single-page menus.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Pro Feature Modal */}
-          {showProModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xl font-bold">✨</span>
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-800">Upgrade to Pro</h3>
-                      <p className="text-sm text-gray-500">Unlock premium features</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-                  <p className="text-sm text-gray-700 mb-3">
-                    <strong>{proFeature}</strong> is a Pro feature that helps you:
-                  </p>
-                  <ul className="text-sm text-gray-600 space-y-2 ml-4">
-                    {proFeature === 'Interactive Menu' ? (
-                      <>
-                        <li>• Full digital ordering experience</li>
-                        <li>• Real-time menu updates</li>
-                        <li>• Customer order tracking</li>
-                      </>
-                    ) : proFeature === 'Slideshow Images' ? (
-                      <>
-                        <li>• Multiple menu images display</li>
-                        <li>• Automatic slideshow transitions</li>
-                        <li>• Enhanced visual presentation</li>
-                      </>
-                    ) : (
-                      <>
-                        <li>• Advanced menu features</li>
-                        <li>• Enhanced customer experience</li>
-                        <li>• Professional tools</li>
-                      </>
-                    )}
-                  </ul>
-                </div>
-
-                <div className="space-y-3">
-                  <button 
-                    onClick={() => setShowProModal(false)}
-                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition"
-                  >
-                    Coming Soon
-                  </button>
-                  <button 
-                    onClick={() => setShowProModal(false)}
-                    className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition"
-                  >
-                    Close
-                  </button>
-                </div>
-
-                <p className="text-xs text-gray-500 text-center mt-4">
-                  Join the waitlist • Be notified when Pro launches
-                </p>
+                )}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
+
+      {/* CSV Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Import Products via CSV</h3>
+                  <p className="text-sm text-gray-600">Bulk create custom products from CSV file</p>
+                </div>
+                <button onClick={() => setShowImportModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="space-y-6">
+                {/* Download Template */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-blue-800">Download CSV Template</p>
+                      <p className="text-sm text-blue-600">Use our template to ensure proper formatting</p>
+                    </div>
+                    <button
+                      onClick={downloadCsvTemplate}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center gap-2"
+                    >
+                      <Download size={16} />
+                      Download Template
+                    </button>
+                  </div>
+                </div>
+
+                {/* File Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Upload CSV File</label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    <FileSpreadsheet size={48} className="mx-auto mb-3 text-gray-400" />
+                    <p className="text-gray-600 mb-2">Drag & drop CSV file or click to browse</p>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCsvFileChange}
+                      className="mx-auto"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      Required columns: name, category, price. Optional: description, sku, image_url
+                    </p>
+                  </div>
+                </div>
+
+                {/* CSV Preview */}
+                {csvPreview.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">CSV Preview (first 5 rows)</label>
+                    <div className="bg-gray-50 border rounded-lg overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              {csvPreview[0] && Object.keys(csvPreview[0]).map((header, index) => (
+                                <th key={index} className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                                  {header}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {csvPreview.slice(0, 5).map((row, rowIndex) => (
+                              <tr key={rowIndex}>
+                                {Object.values(row).map((cell, cellIndex) => (
+                                  <td key={cellIndex} className="px-3 py-2 text-sm text-gray-500">
+                                    {cell as string}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Column Mapping (if needed) */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start gap-2 mb-2">
+                    <AlertCircle size={18} className="text-yellow-600 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-yellow-800">CSV Format Tips</p>
+                      <ul className="text-sm text-yellow-700 mt-1 space-y-1">
+                        <li>• Use the downloaded template for correct formatting</li>
+                        <li>• Make sure all required columns are present</li>
+                        <li>• Price should be numbers only (no currency symbols)</li>
+                        <li>• Image URLs should be direct links to images</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Import Results */}
+                {importResult && (
+                  <div className={`p-4 rounded-lg ${
+                    importResult.failed > 0 ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'
+                  }`}>
+                    <p className={`font-medium ${importResult.failed > 0 ? 'text-red-800' : 'text-green-800'}`}>
+                      {importResult.failed > 0 ? 'Import completed with errors' : 'Import successful!'}
+                    </p>
+                    <p className="text-sm mt-1">
+                      Successfully imported: {importResult.success} | Failed: {importResult.failed}
+                    </p>
+                    {importResult.errors.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-sm font-medium">Errors:</p>
+                        <ul className="text-sm text-red-700 mt-1 space-y-1">
+                          {importResult.errors.slice(0, 3).map((error, index) => (
+                            <li key={index}>• {error}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-4">
+                  <button
+                    onClick={handleCsvImport}
+                    disabled={!csvFile || csvUploading}
+                    className="flex-1 px-6 py-3 bg-green-500 text-white rounded-lg font-semibold disabled:opacity-50"
+                  >
+                    {csvUploading ? 'Importing...' : 'Import Products'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowImportModal(false);
+                      setCsvFile(null);
+                      setCsvPreview([]);
+                      setImportResult(null);
+                    }}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSV Guide Modal */}
+      {showCsvGuide && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">CSV Import Guide</h3>
+              <button onClick={() => setShowCsvGuide(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="font-medium text-gray-800 mb-2">Required Columns:</p>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li><strong>name</strong> - Product name (e.g., "Special Mojito")</li>
+                  <li><strong>category</strong> - Product category (e.g., "Cocktails")</li>
+                  <li><strong>price</strong> - Sale price in KSh (numbers only, e.g., "850")</li>
+                </ul>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="font-medium text-gray-800 mb-2">Optional Columns:</p>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li><strong>description</strong> - Product description</li>
+                  <li><strong>sku</strong> - Stock Keeping Unit (e.g., "CUSTOM-MOJ-001")</li>
+                  <li><strong>image_url</strong> - Direct URL to product image</li>
+                </ul>
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                <p className="font-medium text-yellow-800 mb-2">Important Notes:</p>
+                <ul className="text-sm text-yellow-700 space-y-1">
+                  <li>• Save your CSV file in UTF-8 encoding</li>
+                  <li>• Price should not include currency symbols</li>
+                  <li>• Image URLs must be direct links (not Google Drive share links)</li>
+                  <li>• Maximum 100 products per import</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => setShowCsvGuide(false)}
+                className="w-full px-6 py-3 bg-orange-500 text-white rounded-lg font-semibold"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Cropper Modal */}
+      {showCropper && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-4 max-w-lg w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Crop Image</h3>
+              <button onClick={() => setShowCropper(false)} className="p-1 hover:bg-gray-100 rounded">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="mb-4">
+              <img
+                src={cropImage}
+                alt="Crop preview"
+                className="w-full max-h-64 object-contain rounded border"
+                id="crop-image"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  const img = document.getElementById('crop-image') as HTMLImageElement;
+                  if (img && ctx) {
+                    canvas.width = 400;
+                    canvas.height = 500; // 4:5 ratio
+                    ctx.drawImage(img, 0, 0, 400, 500);
+                    canvas.toBlob(async (blob) => {
+                      if (blob) {
+                        const file = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
+                        await handleImageCropped(file, URL.createObjectURL(blob));
+                      }
+                    }, 'image/jpeg');
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-green-500 text-white rounded"
+              >
+                Crop & Save
+              </button>
+              <button
+                onClick={() => setShowCropper(false)}
+                className="px-4 py-2 bg-gray-200 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
