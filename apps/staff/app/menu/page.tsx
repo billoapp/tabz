@@ -1189,7 +1189,12 @@ export default function MenuManagementPage() {
                         </div>
                       ) : (
                         <div className="w-20 h-20 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
-                          <span className="text-3xl">🍺</span>
+                          <span className="text-3xl">
+                            {(() => {
+                              const Icon = getCategoryIcon(product.category);
+                              return <Icon size={32} className="text-orange-500" />;
+                            })()}
+                          </span>
                         </div>
                       )}
                       <div className="flex-1 min-w-0">

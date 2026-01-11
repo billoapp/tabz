@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import ReactDOM from 'react-dom/client';
 import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign, MessageCircle, Send, AlertCircle, FileText, ZoomIn, ZoomOut, Maximize2, Package,
   // Food & Drink Icons
   Coffee, Utensils, Pizza, Sandwich, Cookie, IceCream, Apple, Beef, Fish, Wine, Beer, Sunrise, Sunset, Moon, Star, Heart, Flame, Zap, Droplets, Leaf, Wheat, Milk, Egg, ChefHat, Cake, Candy, Popcorn, IceCream2, Glasses, Martini, LayoutGrid } from 'lucide-react';
@@ -1675,16 +1676,13 @@ export default function MenuPage() {
                                     e.currentTarget.style.display = 'none';
                                     const parent = e.currentTarget.parentElement;
                                     if (parent) {
-                                      const fallback = document.createElement('div');
-                                      fallback.className = 'absolute inset-0 flex items-center justify-center text-2xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300';
-                                      fallback.textContent = product.category?.charAt(0) || 'P';
-                                      parent.appendChild(fallback);
+                                      parent.innerHTML = `<span class="text-2xl text-gray-400 font-semibold">${getCategoryIcon(product.category || 'Uncategorized').name}</span>`;
                                     }
                                   }}
                                 />
                               ) : (
-                                <div className="absolute inset-0 flex items-center justify-center text-2xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300">
-                                  {product.category?.charAt(0) || 'P'}
+                                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
+                                  {getCategoryIcon(product.category || 'Uncategorized').name}
                                 </div>
                               )}
                             </div>
