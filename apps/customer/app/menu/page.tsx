@@ -1,7 +1,9 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign, MessageCircle, Send, AlertCircle, FileText, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { ShoppingCart, Plus, Search, X, CreditCard, Clock, CheckCircle, Minus, User, UserCog, ThumbsUp, ChevronDown, ChevronUp, Eye, EyeOff, Phone, CreditCardIcon, DollarSign, MessageCircle, Send, AlertCircle, FileText, ZoomIn, ZoomOut, Maximize2,
+  // Food & Drink Icons
+  Coffee, Utensils, Pizza, Sandwich, Cookie, IceCream, Apple, Beef, Fish, Wine, Beer, Sunrise, Sunset, Moon, Star, Heart, Flame, Zap, Droplets, Leaf, Wheat, Milk, Egg, ChefHat, Cake, Candy, Popcorn, IceCream2, Glasses, Martini, LayoutGrid } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/formatUtils';
 import { useVibrate } from '@/hooks/useVibrate';
@@ -154,13 +156,104 @@ export default function MenuPage() {
   // Helper function to get display image with category fallback
   const getDisplayImage = (product: any, categoryName?: string) => {
     if (!product || typeof product !== 'object') return null;
-    if (product && product.image_url) {
+    if (product.image_url) {
       return product.image_url;
     }
     const category = categories.find(cat =>
       cat.name === (categoryName || product?.category)
     );
     return category?.image_url || null;
+  };
+
+  // Helper function to get icon for category based on keywords
+  const getCategoryIcon = (categoryName: string) => {
+    const category = categoryName.toLowerCase();
+    
+    // Drinks
+    if (category.includes('coffee') || category.includes('espresso') || category.includes('cappuccino')) {
+      return Coffee;
+    }
+    if (category.includes('beer') || category.includes('lager') || category.includes('ale') || category.includes('stout')) {
+      return Beer;
+    }
+    if (category.includes('wine') || category.includes('red') || category.includes('white')) {
+      return Wine;
+    }
+    if (category.includes('cocktail') || category.includes('martini') || category.includes('mojito')) {
+      return Martini;
+    }
+    if (category.includes('juice') || category.includes('smoothie') || category.includes('fresh')) {
+      return Droplets;
+    }
+    if (category.includes('water') || category.includes('soda') || category.includes('soft')) {
+      return Droplets;
+    }
+    
+    // Food
+    if (category.includes('pizza')) {
+      return Pizza;
+    }
+    if (category.includes('burger') || category.includes('beef') || category.includes('meat')) {
+      return Beef;
+    }
+    if (category.includes('sandwich') || category.includes('sub')) {
+      return Sandwich;
+    }
+    if (category.includes('fish') || category.includes('seafood')) {
+      return Fish;
+    }
+    if (category.includes('breakfast') || category.includes('egg')) {
+      return Egg;
+    }
+    if (category.includes('dessert') || category.includes('cake') || category.includes('sweet')) {
+      return Cake;
+    }
+    if (category.includes('ice cream') || category.includes('gelato')) {
+      return IceCream2;
+    }
+    if (category.includes('snack') || category.includes('chips') || category.includes('popcorn')) {
+      return Popcorn;
+    }
+    if (category.includes('cookie') || category.includes('biscuit')) {
+      return Cookie;
+    }
+    if (category.includes('fruit') || category.includes('apple')) {
+      return Apple;
+    }
+    if (category.includes('salad') || category.includes('vegetable') || category.includes('vegan')) {
+      return Leaf;
+    }
+    if (category.includes('bread') || category.includes('bakery') || category.includes('wheat')) {
+      return Wheat;
+    }
+    if (category.includes('milk') || category.includes('dairy')) {
+      return Milk;
+    }
+    
+    // General food
+    if (category.includes('food') || category.includes('meal') || category.includes('dish')) {
+      return Utensils;
+    }
+    if (category.includes('hot') || category.includes('spicy') || category.includes('grill')) {
+      return Flame;
+    }
+    if (category.includes('special') || category.includes('chef')) {
+      return ChefHat;
+    }
+    
+    // Time-based
+    if (category.includes('breakfast') || category.includes('morning')) {
+      return Sunrise;
+    }
+    if (category.includes('dinner') || category.includes('evening')) {
+      return Sunset;
+    }
+    if (category.includes('night') || category.includes('late')) {
+      return Moon;
+    }
+    
+    // Default
+    return LayoutGrid;
   };
 
   const menuRef = useRef<HTMLDivElement>(null);
@@ -2152,11 +2245,10 @@ export default function MenuPage() {
                   <div className="flex items-center gap-2">
                     <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                       <span className="text-2xl">
-                        {item.category === 'Beer' ? '🍺' :
-                          item.category === 'Wine' ? '🍷' :
-                            item.category === 'Spirits' ? '🥃' :
-                              item.category === 'Cocktails' ? '🍸' :
-                                item.category === 'Non-Alcoholic' ? '🥤' : '🍴'}
+                        {(() => {
+                          const Icon = getCategoryIcon(item.category);
+                          return <Icon size={32} className="text-blue-600" />;
+                        })()}
                       </span>
                     </div>
                     <div>

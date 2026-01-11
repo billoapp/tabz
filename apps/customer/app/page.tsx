@@ -392,7 +392,7 @@ function LandingContent() {
             <input
               type="text"
               value={manualCode}
-              onChange={(e) => setManualCode(e.target.value)}
+              onChange={(e) => setManualCode(e.target.value.toLowerCase())}
               placeholder="e.g., sunset-lounge"
               className="flex-1 px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
               onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}

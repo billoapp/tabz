@@ -32,6 +32,38 @@ import {
   BarChart3,
   Database,
   RefreshCw,
+  // Food & Drink Icons
+  Coffee,
+  Utensils,
+  Pizza,
+  Sandwich,
+  Cookie,
+  IceCream,
+  Apple,
+  Beef,
+  Fish,
+  ChevronRight,
+  Wine,
+  Beer,
+  Sunrise,
+  Sunset,
+  Moon,
+  Star,
+  Heart,
+  Flame,
+  Zap,
+  Droplets,
+  Leaf,
+  Wheat,
+  Milk,
+  Egg,
+  ChefHat,
+  Cake,
+  Candy,
+  Popcorn,
+  IceCream2,
+  Glasses,
+  Martini,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import InteractiveImageCropper from '@/components/InteractiveImageCropper';
@@ -217,6 +249,97 @@ export default function MenuManagementPage() {
     }
     const category = categories.find((cat) => cat.name === (categoryName || product.category));
     return category?.image_url || null;
+  };
+
+  // Helper function to get icon for category based on keywords
+  const getCategoryIcon = (categoryName: string) => {
+    const category = categoryName.toLowerCase();
+    
+    // Drinks
+    if (category.includes('coffee') || category.includes('espresso') || category.includes('cappuccino')) {
+      return Coffee;
+    }
+    if (category.includes('beer') || category.includes('lager') || category.includes('ale') || category.includes('stout')) {
+      return Beer;
+    }
+    if (category.includes('wine') || category.includes('red') || category.includes('white')) {
+      return Wine;
+    }
+    if (category.includes('cocktail') || category.includes('martini') || category.includes('mojito')) {
+      return Martini;
+    }
+    if (category.includes('juice') || category.includes('smoothie') || category.includes('fresh')) {
+      return Droplets;
+    }
+    if (category.includes('water') || category.includes('soda') || category.includes('soft')) {
+      return Droplets;
+    }
+    
+    // Food
+    if (category.includes('pizza')) {
+      return Pizza;
+    }
+    if (category.includes('burger') || category.includes('beef') || category.includes('meat')) {
+      return Beef;
+    }
+    if (category.includes('sandwich') || category.includes('sub')) {
+      return Sandwich;
+    }
+    if (category.includes('fish') || category.includes('seafood')) {
+      return Fish;
+    }
+    if (category.includes('breakfast') || category.includes('egg')) {
+      return Egg;
+    }
+    if (category.includes('dessert') || category.includes('cake') || category.includes('sweet')) {
+      return Cake;
+    }
+    if (category.includes('ice cream') || category.includes('gelato')) {
+      return IceCream2;
+    }
+    if (category.includes('snack') || category.includes('chips') || category.includes('popcorn')) {
+      return Popcorn;
+    }
+    if (category.includes('cookie') || category.includes('biscuit')) {
+      return Cookie;
+    }
+    if (category.includes('fruit') || category.includes('apple')) {
+      return Apple;
+    }
+    if (category.includes('salad') || category.includes('vegetable') || category.includes('vegan')) {
+      return Leaf;
+    }
+    if (category.includes('bread') || category.includes('bakery') || category.includes('wheat')) {
+      return Wheat;
+    }
+    if (category.includes('milk') || category.includes('dairy')) {
+      return Milk;
+    }
+    
+    // General food
+    if (category.includes('food') || category.includes('meal') || category.includes('dish')) {
+      return Utensils;
+    }
+    if (category.includes('hot') || category.includes('spicy') || category.includes('grill')) {
+      return Flame;
+    }
+    if (category.includes('special') || category.includes('chef')) {
+      return ChefHat;
+    }
+    
+    // Time-based
+    if (category.includes('breakfast') || category.includes('morning')) {
+      return Sunrise;
+    }
+    if (category.includes('dinner') || category.includes('evening')) {
+      return Sunset;
+    }
+    if (category.includes('night') || category.includes('late')) {
+      return Moon;
+    }
+    
+    // Default
+    return Package;
   };
 
   // Upload image to server
@@ -1009,23 +1132,28 @@ export default function MenuManagementPage() {
           <div className="flex gap-2 overflow-x-auto pb-2">
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center gap-2 ${
                 selectedCategory === 'all' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
               }`}
             >
+              <LayoutGrid size={16} />
               All
             </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.name}
-                onClick={() => setSelectedCategory(cat.name)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                  selectedCategory === cat.name ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
+            {categories.map((cat) => {
+              const Icon = getCategoryIcon(cat.name);
+              return (
+                <button
+                  key={cat.name}
+                  onClick={() => setSelectedCategory(cat.name)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center gap-2 ${
+                    selectedCategory === cat.name ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  <Icon size={16} />
+                  {cat.name}
+                </button>
+              );
+            })}
           </div>
         </div>
         <div className="p-4">
