@@ -156,13 +156,31 @@ export default function MenuPage() {
   // Helper function to get display image with category fallback
   const getDisplayImage = (product: any, categoryName?: string) => {
     if (!product || typeof product !== 'object') return null;
+    
+    // First check if product has its own image
     if (product.image_url) {
+      console.log('📸 Customer using product image:', product.image_url);
       return product.image_url;
     }
+    
+    // Fall back to category image
+    const productCategory = categoryName || product.category;
+    console.log('🔍 Customer looking for category image for:', productCategory);
+    console.log('📊 Customer available categories:', categories.map(c => c.name));
+    
     const category = categories.find(cat =>
-      cat.name === (categoryName || product?.category)
+      cat.name.toLowerCase() === productCategory?.toLowerCase() ||
+      cat.name.toLowerCase().includes(productCategory?.toLowerCase()) ||
+      productCategory?.toLowerCase().includes(cat.name.toLowerCase())
     );
-    return category?.image_url || null;
+    
+    if (category?.image_url) {
+      console.log('✅ Customer using category image:', category.image_url);
+      return category.image_url;
+    }
+    
+    console.log('❌ Customer no category image found for:', productCategory);
+    return null;
   };
 
   // Helper function to get icon for category based on final category list

@@ -244,11 +244,31 @@ export default function MenuManagementPage() {
     if (!product) {
       return null;
     }
+    
+    // First check if product has its own image
     if (product.image_url) {
+      console.log('📸 Using product image:', product.image_url);
       return product.image_url;
     }
-    const category = categories.find((cat) => cat.name === (categoryName || product.category));
-    return category?.image_url || null;
+    
+    // Fall back to category image
+    const productCategory = categoryName || product.category;
+    console.log('🔍 Looking for category image for:', productCategory);
+    console.log('📊 Available categories:', categories.map(c => c.name));
+    
+    const category = categories.find((cat) => 
+      cat.name.toLowerCase() === productCategory?.toLowerCase() ||
+      cat.name.toLowerCase().includes(productCategory?.toLowerCase()) ||
+      productCategory?.toLowerCase().includes(cat.name.toLowerCase())
+    );
+    
+    if (category?.image_url) {
+      console.log('✅ Using category image:', category.image_url);
+      return category.image_url;
+    }
+    
+    console.log('❌ No category image found for:', productCategory);
+    return null;
   };
 
   // Helper function to get icon for category based on final category list
