@@ -463,7 +463,7 @@ function LandingContent() {
                       </p>
                     </div>
                     <div className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
-                      ${tab.balance || '0.00'}
+                      Ksh {tab.balance || '0.00'}
                     </div>
                   </div>
                   {tab.status === 'overdue' && (
