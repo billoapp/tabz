@@ -1,7 +1,7 @@
 // app/start/page.tsx - COMPLETE WITH FLAG SUPPORT
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Bell, Store, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -35,6 +35,9 @@ function ConsentContent() {
   // QR Scanner states
   const [isScannerMode, setIsScannerMode] = useState(false);
   const [scannedCode, setScannedCode] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   
   // Bar data
   const [barSlug, setBarSlug] = useState<string | null>(null);
@@ -47,34 +50,29 @@ function ConsentContent() {
   // QR Scanner functions
   const startQRScanner = async () => {
     try {
+      setIsScanning(true);
+      
       // Request camera access
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'environment' } 
       });
       
-      // Stop the stream - we just needed permission
-      stream.getTracks().forEach(track => track.stop());
+      setStream(mediaStream);
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        videoRef.current.play();
+      }
       
       showToast({
         type: 'success',
-        title: 'Camera Ready',
-        message: 'Point camera at QR code and wait for scan...'
+        title: 'Camera Active',
+        message: 'Point camera at QR code'
       });
-      
-      // In a real implementation, you would initialize QR scanner here
-      // For now, we'll simulate QR code detection after 3 seconds
-      setTimeout(() => {
-        const simulatedCode = 'DEMO-QR-CODE';
-        setScannedCode(simulatedCode);
-        showToast({
-          type: 'info',
-          title: 'QR Code Detected',
-          message: `Scanned: ${simulatedCode}`
-        });
-      }, 3000);
       
     } catch (error) {
       console.error('Camera access error:', error);
+      setIsScanning(false);
       showToast({
         type: 'error',
         title: 'Camera Error',
@@ -83,14 +81,28 @@ function ConsentContent() {
     }
   };
   
+  const stopScanner = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setIsScanning(false);
+  };
+  
   const handleQRCodeDetected = (code: string) => {
+    stopScanner();
     setScannedCode(code);
     setBarSlug(code);
+    setIsScannerMode(false);
+    
     showToast({
       type: 'success',
       title: 'QR Code Scanned',
       message: `Code: ${code}`
     });
+    
+    // Load bar info for the scanned code
+    loadBarInfo(code);
   };
 
   useEffect(() => {
@@ -101,6 +113,15 @@ function ConsentContent() {
   useEffect(() => {
     initializeConsent();
   }, []);
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
 
   const initializeConsent = async () => {
     try {
@@ -484,22 +505,36 @@ function ConsentContent() {
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full">
           <div className="text-center mb-6">
-            <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
-            </div>
             <h1 className="text-2xl font-bold text-gray-800 mb-2">QR Scanner</h1>
             <p className="text-gray-600">Point camera at QR code</p>
           </div>
           
-          {/* QR Code Display */}
-          {scannedCode && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
-              <div className="text-center">
-                <div className="text-2xl font-mono text-green-800 mb-2">{scannedCode}</div>
-                <p className="text-sm text-green-600">QR Code Detected!</p>
+          {/* Camera View */}
+          <div className="mb-6 relative">
+            {isScanning ? (
+              <div className="relative">
+                <video
+                  ref={videoRef}
+                  className="w-full h-64 bg-black rounded-lg object-cover"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+                <div className="absolute inset-0 border-4 border-orange-500 rounded-lg pointer-events-none">
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-white rounded-lg"></div>
+                </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
+                <button
+                  onClick={startQRScanner}
+                  className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+                >
+                  Open Camera
+                </button>
+              </div>
+            )}
+          </div>
           
           {/* Manual Code Input */}
           <div className="mb-6">
@@ -526,12 +561,14 @@ function ConsentContent() {
           
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <button
-              onClick={startQRScanner}
-              className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-            >
-              Scan Again
-            </button>
+            {isScanning && (
+              <button
+                onClick={stopScanner}
+                className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+              >
+                Stop Scanner
+              </button>
+            )}
             <button
               onClick={() => router.push('/')}
               className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
