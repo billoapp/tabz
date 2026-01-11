@@ -1550,49 +1550,62 @@ export default function MenuPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search products..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
                 </div>
               </div>
               <div className="relative">
                 <div className="overflow-x-auto scrollbar-hide px-4 pb-4">
                   <div className="flex gap-4 pb-4" style={{ paddingLeft: '16px' }}>
-                    {(() => {
-                      const productsPerColumn = 3;
-                      const columns = [];
-                      for (let i = 0; i < filteredProducts.length; i += productsPerColumn) {
-                        columns.push(filteredProducts.slice(i, i + productsPerColumn));
-                      }
-                      return columns.map((column, colIndex) => (
-                        <div key={colIndex} className="flex flex-col gap-3 flex-shrink-0">
-                          {column.map((barProduct, index) => {
-                            const product = barProduct.product;
-                            if (!product) return null;
-                            return (
-                              <div
-                                key={barProduct.id}
-                                className="transform transition-all duration-300 hover:scale-105"
-                                style={{ 
-                                  animationDelay: `${(colIndex * productsPerColumn + index) * 50}ms`,
-                                  opacity: interactiveMenuCollapsed ? 0 : 1,
-                                  transform: `translateY(${interactiveMenuCollapsed ? '20px' : '0'})`
-                                }}
-                              >
-                                <div
-                                  className="bg-white rounded-full overflow-hidden border-2 border-orange-400 cursor-pointer flex flex-col transition-all duration-300 px-3 py-2 h-12"
-                                  onClick={() => addToCart(barProduct)}
-                                >
-                                  <div className="flex-1 flex flex-col justify-center">
-                                    <h3 className="text-xs font-medium text-gray-900 text-left truncate leading-3">{product.name || 'Product'}</h3>
-                                    <p className="text-[10px] text-gray-500 text-left leading-3">{tempFormatCurrency(barProduct.sale_price)}</p>
-                                  </div>
+                    {filteredProducts.map((barProduct, index) => {
+                      const product = barProduct.product;
+                      if (!product) return null;
+                      const displayImage = product ? getDisplayImage(product, product.category) : null;
+                      return (
+                        <div
+                          key={barProduct.id}
+                          className="flex-shrink-0 w-32 transform transition-all duration-300 hover:scale-105"
+                          style={{ 
+                            animationDelay: `${index * 50}ms`,
+                            opacity: interactiveMenuCollapsed ? 0 : 1,
+                            transform: `translateY(${interactiveMenuCollapsed ? '20px' : '0'})`
+                          }}
+                        >
+                          <div
+                            className="bg-white overflow-hidden border-2 border-orange-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-40"
+                            onClick={() => addToCart(barProduct)}
+                          >
+                            <div className="w-full h-24 relative bg-gray-100">
+                              {displayImage ? (
+                                <img
+                                  src={displayImage}
+                                  alt={product.name || 'Product'}
+                                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const parent = e.currentTarget.parentElement;
+                                    if (parent) {
+                                      const fallback = document.createElement('div');
+                                      fallback.className = 'absolute inset-0 flex items-center justify-center text-2xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300';
+                                      fallback.textContent = product.category?.charAt(0) || 'P';
+                                      parent.appendChild(fallback);
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-2xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300">
+                                  {product.category?.charAt(0) || 'P'}
                                 </div>
-                              </div>
-                            );
-                          })}
+                              )}
+                            </div>
+                            <div className="flex-1 p-3 flex flex-col justify-between">
+                              <h3 className="text-sm font-medium text-gray-900 text-left">{product.name || 'Product'}</h3>
+                              <p className="text-sm text-gray-600 mt-2 text-left">{tempFormatCurrency(barProduct.sale_price)}</p>
+                            </div>
+                          </div>
                         </div>
-                      ));
-                    })()}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
