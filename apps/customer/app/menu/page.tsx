@@ -11,7 +11,7 @@ import { MessageAlert, InitiatedBy } from '../../../../packages/shared/types';
 import { TokensService } from '../../../../packages/shared/tokens-service';
 import { useToast } from '@/components/ui/Toast';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
-// import PDFViewer from '../../../../components/PDFViewer'; // PDF support temporarily disabled
+import PDFViewer from '../../../../components/PDFViewer'; 
 import MessagePanel from './MessagePanel';
 
 // Temporary format function to bypass import issue
@@ -1490,115 +1490,111 @@ export default function MenuPage() {
         </div>
       </div>
 
-      
-      
-      {/* Interactive Menu - DISABLED for development */}
-      {/* {barProducts.length > 0 && (
-        <div className="bg-gray-50 px-4">
-          <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
-            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
-              <div>
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Interactive Menu</h2>
-                <p className="text-sm text-gray-600 mt-1">Browse products & add to cart</p>
-              </div>
-              <button
-                onClick={toggleInteractiveMenu}
-                className="text-orange-600 hover:text-orange-700 p-2 transform transition-transform duration-200 hover:scale-110"
-              >
-                <ChevronDown 
-                  size={20} 
-                  className={`transform transition-transform duration-300 ease-in-out ${
-                    interactiveMenuCollapsed ? 'rotate-0' : 'rotate-180'
-                  }`}
-                />
-              </button>
+      {/* Interactive Menu Section */}
+      <div className="bg-gray-50 px-4">
+        <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
+          <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
+            <div>
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Interactive Menu</h2>
+              <p className="text-sm text-gray-600 mt-1">Browse products & add to cart</p>
             </div>
-            
-            <div 
-              className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                interactiveMenuCollapsed 
-                  ? 'max-h-0 opacity-0' 
-                  : 'max-h-[1000px] opacity-100'
-              }`}
+            <button
+              onClick={toggleInteractiveMenu}
+              className="text-orange-600 hover:text-orange-700 p-2 transform transition-transform duration-200 hover:scale-110"
             >
-              <div ref={menuRef} className="relative overflow-hidden">
-                <div className="p-4 border-b">
-                  <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
-                    {categoryOptions.map((category) => (
-                      <button
-                        key={category}
-                        onClick={() => setSelectedCategory(category)}
-                        className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transform transition-all duration-200 hover:scale-105 ${
-                          selectedCategory === category
-                            ? 'bg-orange-500 text-white scale-105 shadow-lg'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        {category}
-                      </button>
-                    ))}
-                  </div>
+              <ChevronDown 
+                size={20} 
+                className={`transform transition-transform duration-300 ease-in-out ${
+                  interactiveMenuCollapsed ? 'rotate-0' : 'rotate-180'
+                }`}
+              />
+            </button>
+          </div>
+          
+          <div 
+            className={`overflow-hidden transition-all duration-500 ease-in-out ${
+              interactiveMenuCollapsed 
+                ? 'max-h-0 opacity-0' 
+                : 'max-h-[1000px] opacity-100'
+            }`}
+          >
+            <div ref={menuRef} className="relative overflow-hidden">
+              <div className="p-4 border-b">
+                <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
+                  {categoryOptions.map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transform transition-all duration-200 hover:scale-105 ${
+                        selectedCategory === category
+                          ? 'bg-orange-500 text-white scale-105 shadow-lg'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
                 </div>
-                <div className="relative">
-                  <div className="overflow-x-auto scrollbar-hide px-4 pb-4">
-                    <div className="flex gap-4 pb-4" style={{ paddingLeft: '16px' }}>
-                      {filteredProducts.map((barProduct, index) => {
-                        const product = barProduct.product;
-                        if (!product) return null;
-                        const displayImage = product ? getDisplayImage(product, product.category) : null;
-                        return (
+              </div>
+              <div className="relative">
+                <div className="overflow-x-auto scrollbar-hide px-4 pb-4">
+                  <div className="flex gap-4 pb-4" style={{ paddingLeft: '16px' }}>
+                    {filteredProducts.map((barProduct, index) => {
+                      const product = barProduct.product;
+                      if (!product) return null;
+                      const displayImage = product ? getDisplayImage(product, product.category) : null;
+                      return (
+                        <div
+                          key={barProduct.id}
+                          className="flex-shrink-0 w-64 transform transition-all duration-300 hover:scale-105"
+                          style={{ 
+                            animationDelay: `${index * 50}ms`,
+                            opacity: interactiveMenuCollapsed ? 0 : 1,
+                            transform: `translateY(${interactiveMenuCollapsed ? '20px' : '0'})`
+                          }}
+                        >
                           <div
-                            key={barProduct.id}
-                            className="flex-shrink-0 w-64 transform transition-all duration-300 hover:scale-105"
-                            style={{ 
-                              animationDelay: `${index * 50}ms`,
-                              opacity: interactiveMenuCollapsed ? 0 : 1,
-                              transform: `translateY(${interactiveMenuCollapsed ? '20px' : '0'})`
-                            }}
+                            className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300"
+                            onClick={() => addToCart(barProduct)}
                           >
-                            <div
-                              className="bg-white rounded-lg overflow-hidden border border-gray-100 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300"
-                              onClick={() => addToCart(barProduct)}
-                            >
-                              <div className="w-full pb-[125%] relative bg-gray-100">
-                                {displayImage ? (
-                                  <img
-                                    src={displayImage}
-                                    alt={product.name || 'Product'}
-                                    className="absolute inset-0 w-full h-full object-contain transition-transform duration-300"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = 'none';
-                                      const parent = e.currentTarget.parentElement;
-                                      if (parent) {
-                                        const fallback = document.createElement('div');
-                                        fallback.className = 'absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300';
-                                        fallback.textContent = product.category?.charAt(0) || 'P';
-                                        parent.appendChild(fallback);
-                                      }
-                                    }}
-                                  />
-                                ) : (
-                                  <div className="absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300">
-                                    {product.category?.charAt(0) || 'P'}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="p-4">
-                                <h3 className="text-sm font-medium text-gray-900">{product.name || 'Product'}</h3>
-                                <p className="text-xs text-gray-500 mt-1">{tempFormatCurrency(barProduct.sale_price)}</p>
-                              </div>
+                            <div className="w-full pb-[125%] relative bg-gray-100">
+                              {displayImage ? (
+                                <img
+                                  src={displayImage}
+                                  alt={product.name || 'Product'}
+                                  className="absolute inset-0 w-full h-full object-contain transition-transform duration-300"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const parent = e.currentTarget.parentElement;
+                                    if (parent) {
+                                      const fallback = document.createElement('div');
+                                      fallback.className = 'absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300';
+                                      fallback.textContent = product.category?.charAt(0) || 'P';
+                                      parent.appendChild(fallback);
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-4xl text-gray-400 font-semibold bg-gradient-to-br from-gray-200 to-gray-300">
+                                  {product.category?.charAt(0) || 'P'}
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-4">
+                              <h3 className="text-sm font-medium text-gray-900">{product.name || 'Product'}</h3>
+                              <p className="text-xs text-gray-500 mt-1">{tempFormatCurrency(barProduct.sale_price)}</p>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      )} */}
+      </div>
 
       {/* Menu Viewer - RENAMED from "Static Menu" */}
       {(staticMenuUrl || staticMenuType === 'slideshow') && (
@@ -1762,6 +1758,7 @@ export default function MenuPage() {
           </div>
         </div>
       )}
+
       <div ref={ordersRef} className="p-4">
         {/* Section Header - NEW */}
         <div className="mb-3">

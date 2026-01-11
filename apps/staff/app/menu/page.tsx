@@ -101,64 +101,40 @@ export default function MenuManagementPage() {
   const [barId, setBarId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Catalog data - DISABLED
-  // const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  // const [categories, setCategories] = useState<Category[]>([]);
-  // const [products, setProducts] = useState<Product[]>([]);
-  const [suppliers] = useState<Supplier[]>([]);
-  const [categories] = useState<Category[]>([]);
-  const [products] = useState<Product[]>([]);
+  // Catalog data - ENABLED
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
-  // const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  // const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  // const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSupplier] = useState<Supplier | null>(null);
-  const [selectedCategory] = useState<string>('all');
-  const [searchQuery] = useState('');
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Bar menu (published items) - DISABLED
-  // const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
-  // const [addingPrice, setAddingPrice] = useState<Record<string, string>>({});
-  const [barProducts] = useState<BarProduct[]>([]);
-  const [addingPrice] = useState<Record<string, string>>({});
+  // Bar menu (published items) - ENABLED
+  const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
+  const [addingPrice, setAddingPrice] = useState<Record<string, string>>({});
 
-  // Custom products (unpublished) - DISABLED
-  // const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
-  // const [showAddCustom, setShowAddCustom] = useState(false);
-  // const [newCustomItem, setNewCustomItem] = useState({
-  //   name: '',
-  //   category: '',
-  //   description: '',
-  //   image_url: '',
-  // });
-  const [customProducts] = useState<CustomProduct[]>([]);
-  const [showAddCustom] = useState(false);
-  const [newCustomItem] = useState({
+  // Custom products (unpublished) - ENABLED
+  const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
+  const [showAddCustom, setShowAddCustom] = useState(false);
+  const [newCustomItem, setNewCustomItem] = useState({
     name: '',
     category: '',
     description: '',
     image_url: '',
   });
 
-  // Editing states - DISABLED
-  // const [editingPrice, setEditingPrice] = useState<string | null>(null);
-  // const [editingCustom, setEditingCustom] = useState<string | null>(null);
-  // const [editForm, setEditForm] = useState<Partial<CustomProduct>>({
-  //   name: '',
-  //   category: '',
-  //   description: '',
-  //   image_url: '',
-  // });
-  const [editingPrice] = useState<string | null>(null);
-  const [editingCustom] = useState<string | null>(null);
-  const [editForm] = useState<Partial<CustomProduct>>({
+  // Editing states - ENABLED
+  const [editingPrice, setEditingPrice] = useState<string | null>(null);
+  const [editingCustom, setEditingCustom] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<CustomProduct>>({
     name: '',
     category: '',
     description: '',
     image_url: '',
   });
 
-  // Cropper states - DISABLED (keep for image sets only)
+  // Cropper states - ENABLED
   const [showCropper, setShowCropper] = useState(false);
   const [currentImageField, setCurrentImageField] = useState<'new' | 'edit'>('new');
 
@@ -187,8 +163,7 @@ export default function MenuManagementPage() {
     setShowProModal(true);
   };
 
-  // Helper function to get display image with category fallback - DISABLED
-  /*
+  // Helper function to get display image with category fallback - ENABLED
   const getDisplayImage = (product: Product | undefined, categoryName?: string) => {
     if (!product) {
       return null;
@@ -199,11 +174,8 @@ export default function MenuManagementPage() {
     const category = categories.find((cat) => cat.name === (categoryName || product.category));
     return category?.image_url || null;
   };
-  */
-  const getDisplayImage = () => null;
 
-  // Helper function to convert Google Drive share links to direct links - DISABLED
-  /*
+  // Helper function to convert Google Drive share links to direct links - ENABLED
   const convertGoogleDriveLink = (url: string): string => {
     if (!url) return url;
     if (url.includes('drive.google.com') && url.includes('/file/d/')) {
@@ -215,10 +187,8 @@ export default function MenuManagementPage() {
     }
     return url;
   };
-  */
-  const convertGoogleDriveLink = (url: string): string => url;
 
-  // Upload image to server and get URL - DISABLED (keep for image sets only)
+  // Upload image to server and get URL - ENABLED
   const uploadImageToServer = async (file: File): Promise<string> => {
     try {
       const formData = new FormData();
@@ -264,15 +234,14 @@ export default function MenuManagementPage() {
 
   useEffect(() => {
     if (barId) {
-      // DISABLED: loadCatalogData();
-      // DISABLED: loadBarMenu();
-      // DISABLED: loadCustomProducts();
+      loadCatalogData(); // ENABLED
+      loadBarMenu(); // ENABLED
+      loadCustomProducts(); // ENABLED
       loadBarSettings(); // KEEP ACTIVE
     }
   }, [barId]);
 
-  // DISABLED: Catalog data loading
-  /*
+  // ENABLED: Catalog data loading
   const loadCatalogData = async () => {
     try {
       setLoading(true);
@@ -309,10 +278,8 @@ export default function MenuManagementPage() {
       setLoading(false);
     }
   };
-  */
 
-  // DISABLED: Bar menu loading
-  /*
+  // ENABLED: Bar menu loading
   const loadBarMenu = async () => {
     try {
       if (!barId) return;
@@ -332,10 +299,8 @@ export default function MenuManagementPage() {
       console.error('Unexpected error in loadBarMenu:', error);
     }
   };
-  */
 
-  // DISABLED: Custom products loading
-  /*
+  // ENABLED: Custom products loading
   const loadCustomProducts = async () => {
     try {
       if (!barId) return;
@@ -361,7 +326,6 @@ export default function MenuManagementPage() {
       console.error('Error loading custom products:', error);
     }
   };
-  */
 
   // KEEP ACTIVE: Bar settings loading
   const loadBarSettings = async () => {
@@ -408,7 +372,6 @@ export default function MenuManagementPage() {
   }, [barSettings, barId]);
 
   // KEEP ACTIVE: Handle menu file change
-  // Update the handleMenuFileChange function
   const handleMenuFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -628,12 +591,10 @@ export default function MenuManagementPage() {
   };
 
   useEffect(() => {
-    // DISABLED: Reload custom products when bar products change
-    /*
+    // ENABLED: Reload custom products when bar products change
     if (barId && barProducts.length >= 0) {
       loadCustomProducts();
     }
-    */
   }, [barProducts.length]);
 
   // RENDER: Single image preview helper to avoid JSX type widening
@@ -653,8 +614,7 @@ export default function MenuManagementPage() {
     );
   };
 
-  // DISABLED: Product filtering
-  /*
+  // ENABLED: Product filtering
   const filteredProducts = products.filter((product) => {
     if (selectedSupplier && product.supplier_id !== selectedSupplier.id) {
       return false;
@@ -672,19 +632,13 @@ export default function MenuManagementPage() {
     }
     return true;
   });
-  */
-  const filteredProducts: Product[] = [];
 
-  // DISABLED: Check if product is in menu
-  /*
+  // ENABLED: Check if product is in menu
   const isProductInMenu = (productId: string) => {
     return barProducts.some((item) => item.product_id === productId);
   };
-  */
-  const isProductInMenu = () => false;
 
-  // DISABLED: Handle add to menu
-  /*
+  // ENABLED: Handle add to menu
   const handleAddToMenu = async (product: Product) => {
     const price = addingPrice[product.id];
     if (!price || parseFloat(price) <= 0) {
@@ -728,10 +682,8 @@ export default function MenuManagementPage() {
       alert('Failed to add item: ' + error.message);
     }
   };
-  */
 
-  // DISABLED: Handle publish custom product
-  /*
+  // ENABLED: Handle publish custom product
   const handlePublishCustomProduct = async (customProduct: CustomProduct) => {
     const price = addingPrice[customProduct.id];
     if (!price || parseFloat(price) <= 0) {
@@ -765,10 +717,8 @@ export default function MenuManagementPage() {
       alert('Failed to publish: ' + error.message);
     }
   };
-  */
 
-  // DISABLED: Handle create custom product
-  /*
+  // ENABLED: Handle create custom product
   const handleCreateCustomProduct = async () => {
     if (!newCustomItem.name || !newCustomItem.category) {
       alert('Please fill in name and category');
@@ -801,10 +751,8 @@ export default function MenuManagementPage() {
       alert('Failed to create: ' + error.message);
     }
   };
-  */
 
-  // DISABLED: Handle update price
-  /*
+  // ENABLED: Handle update price
   const handleUpdatePrice = async (barProductId: string, newPrice: number) => {
     try {
       const { error } = await supabase
@@ -826,10 +774,8 @@ export default function MenuManagementPage() {
       alert('Failed to update price: ' + error.message);
     }
   };
-  */
 
-  // DISABLED: Handle update custom product
-  /*
+  // ENABLED: Handle update custom product
   const handleUpdateCustomProduct = async (customProductId: string) => {
     try {
       const { error } = await supabase
@@ -856,10 +802,8 @@ export default function MenuManagementPage() {
       alert('Failed to update: ' + error.message);
     }
   };
-  */
 
-  // DISABLED: Handle remove from menu
-  /*
+  // ENABLED: Handle remove from menu
   const handleRemoveFromMenu = async (menuItemId: string) => {
     if (!window.confirm('Remove this item from your menu?')) return;
 
@@ -879,10 +823,8 @@ export default function MenuManagementPage() {
       alert('Failed to remove: ' + error.message);
     }
   };
-  */
 
-  // DISABLED: Handle delete custom product
-  /*
+  // ENABLED: Handle delete custom product
   const handleDeleteCustomProduct = async (customProductId: string) => {
     if (!window.confirm('Permanently delete this custom product?')) return;
 
@@ -902,10 +844,8 @@ export default function MenuManagementPage() {
       alert('Failed to delete: ' + error.message);
     }
   };
-  */
 
-  // DISABLED: Handle image crop completion
-  /*
+  // ENABLED: Handle image crop completion
   const handleImageCropped = async (file: File, imageUrl: string) => {
     try {
       // Upload to server to get permanent URL
@@ -922,11 +862,6 @@ export default function MenuManagementPage() {
       console.error('Error processing image:', error);
       alert('Failed to upload image: ' + error.message);
     }
-  };
-  */
-  const handleImageCropped = async () => {
-    alert('Image upload is disabled for interactive menu features.');
-    setShowCropper(false);
   };
 
   if (loading) {
@@ -960,8 +895,7 @@ export default function MenuManagementPage() {
     );
   }
 
-  // DISABLED: Browsing products view
-  /*
+  // Browsing products view
   if (selectedSupplier || searchQuery || selectedCategory !== 'all') {
     return (
       <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
@@ -1094,9 +1028,8 @@ export default function MenuManagementPage() {
       </div>
     );
   }
-  */
 
-  // Main menu management view - ONLY STATIC MENU FEATURES
+  // Main menu management view - BOTH INTERACTIVE AND STATIC MENU FEATURES
   return (
     <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
       <div className="w-full" style={{ maxWidth: '80%' }}>
@@ -1113,7 +1046,6 @@ export default function MenuManagementPage() {
           <p className="text-orange-100 text-sm">Manage your menu here</p>
         </div>
         <div className="p-4 space-y-6">
-          {/* Interactive Menu Section */}
           <div className="bg-white rounded-xl shadow-sm p-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -1144,7 +1076,6 @@ export default function MenuManagementPage() {
             </div>
           </div>
 
-          {/* DISABLED: Browse Product Catalog 
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-800">Browse Product Catalog</h2>
@@ -1203,9 +1134,8 @@ export default function MenuManagementPage() {
               </button>
             </div>
           </div>
-          */}
 
-          {/* DISABLED: Unpublished Custom Products 
+          {/* ENABLED: Unpublished Custom Products */}
           {customProducts.length > 0 && (
             <div>
               <h2 className="text-lg font-bold text-gray-800 mb-3">
@@ -1243,7 +1173,7 @@ export default function MenuManagementPage() {
                           className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
                         />
                         
-                        {/* Image upload section for edit form 
+                        {/* Image upload section for edit form */}
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-gray-700">Product Image</label>
                           {editForm.image_url ? (
@@ -1379,9 +1309,8 @@ export default function MenuManagementPage() {
               </div>
             </div>
           )}
-          */}
 
-          {/* DISABLED: Your Menu (Published Items) 
+          {/* ENABLED: Your Menu (Published Items) */}
           <div>
             <h2 className="text-lg font-bold text-gray-800 mb-3">Your Menu ({barProducts.length} items)</h2>
             {barProducts.length === 0 ? (
@@ -1513,7 +1442,6 @@ export default function MenuManagementPage() {
               </div>
             )}
           </div>
-          */}
 
           {/* Static Menu Management - KEEP ACTIVE */}
           <div className="bg-white rounded-xl shadow-sm p-4 border-2 border-purple-200">
@@ -1532,7 +1460,7 @@ export default function MenuManagementPage() {
             
             {!staticMenuCollapsed && (
               <div className="space-y-4">
-                {/* Current Status
+                {/* Current Status */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <p className="text-sm font-medium text-blue-800 mb-1">
                     Static Menu Status
@@ -1546,7 +1474,7 @@ export default function MenuManagementPage() {
                       ℹ️ No static menu uploaded yet - Upload a PDF or image for customers to view
                     </p>
                   )}
-                </div> */}
+                </div>
 
                 {/* Current Upload Status */}
                 {barSettings?.static_menu_url && (
@@ -1712,7 +1640,6 @@ export default function MenuManagementPage() {
                     {/* Single Image Preview */}
                       {renderSingleImagePreview()}
 
-
                     {/* Slideshow Preview Grid */}
                     {menuPreviews.length > 0 && (
                       <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
@@ -1786,12 +1713,12 @@ export default function MenuManagementPage() {
                   </div>
                 </div>
 
-                {/* Help Text
+                {/* Help Text */}
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                   <p className="text-sm text-yellow-800">
                     💡 <strong>Tip:</strong> Upload a PDF for multi-page menus or an image for simple single-page menus.
                   </p>
-                </div> */}
+                </div>
               </div>
             )}
           </div>
