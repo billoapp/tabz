@@ -111,7 +111,10 @@ function ConsentContent() {
   };
   
   const handleQRCodeDetected = (code: string) => {
-    console.log('🎯 Raw QR code detected:', JSON.stringify(code));
+    console.log('🎯 ========== QR CODE DETECTED ==========');
+    console.log('📊 Raw QR code:', JSON.stringify(code));
+    console.log('📏 Length:', code.length);
+    console.log('🔤 First 100 chars:', code.substring(0, 100));
     
     stopScanner();
     
@@ -119,81 +122,146 @@ function ConsentContent() {
     const cleanCode = code.trim().replace(/^\s+|\s+$/g, '');
     console.log('🧹 Cleaned QR code:', JSON.stringify(cleanCode));
     
-    // Extract bar slug from different QR code formats
     let extractedSlug = '';
+    let extractionMethod = '';
     
     try {
-      if (cleanCode.includes('tabeza.co.ke/start?bar=')) {
-        // Format: https://app.tabeza.co.ke/start?bar=sunset-lounge
-        const url = new URL(cleanCode);
-        const urlParams = new URLSearchParams(url.search);
-        extractedSlug = urlParams.get('bar') || '';
-        console.log('📋 Extracted from bar param:', extractedSlug);
-      } else if (cleanCode.includes('tabeza.co.ke/start?slug=')) {
-        // Format: https://app.tabeza.co.ke/start?slug=sunset-lounge
-        const url = new URL(cleanCode);
-        const urlParams = new URLSearchParams(url.search);
-        extractedSlug = urlParams.get('slug') || '';
-        console.log('📋 Extracted from slug param:', extractedSlug);
-      } else if (cleanCode.includes('tabeza.co.ke')) {
-        // Generic tabeza URL - redirect to scanner mode
-        console.log('🔄 Generic tabeza URL detected');
-        setIsScannerMode(true);
-        showToast({
-          type: 'info',
-          title: 'Generic QR Code',
-          message: 'Please scan a specific bar QR code'
-        });
-        return;
-      } else if (cleanCode.includes('?bar=')) {
-        // Generic format with bar parameter
-        const url = new URL(cleanCode);
-        const urlParams = new URLSearchParams(url.search);
-        extractedSlug = urlParams.get('bar') || '';
-        console.log('📋 Extracted from generic bar param:', extractedSlug);
-      } else if (cleanCode.includes('?slug=')) {
-        // Generic format with slug parameter
-        const url = new URL(cleanCode);
-        const urlParams = new URLSearchParams(url.search);
-        extractedSlug = urlParams.get('slug') || '';
-        console.log('📋 Extracted from generic slug param:', extractedSlug);
-      } else {
-        // Direct slug format
-        extractedSlug = cleanCode;
-        console.log('📋 Using as direct slug:', extractedSlug);
+      // Method 1: Check for exact patterns first
+      console.log('🔍 Starting extraction process...');
+      
+      // Try to parse as URL if it looks like one
+      if (cleanCode.includes('://') || cleanCode.startsWith('http')) {
+        console.log('🌐 Looks like a URL, trying to parse...');
+        try {
+          // Ensure it has a protocol for URL parsing
+          const urlToParse = cleanCode.includes('://') ? cleanCode : `https://${cleanCode}`;
+          const url = new URL(urlToParse);
+          const params = new URLSearchParams(url.search);
+          
+          extractedSlug = params.get('bar') || params.get('slug') || '';
+          extractionMethod = 'URL parsing';
+          console.log('✅ URL parsed successfully:', {
+            hostname: url.hostname,
+            pathname: url.pathname,
+            search: url.search,
+            extractedSlug
+          });
+          
+        } catch (urlError) {
+          console.log('⚠️ URL parsing failed, trying regex');
+        }
       }
+      
+      // Method 2: Regex patterns if URL parsing failed or no slug found
+      if (!extractedSlug) {
+        console.log('🔄 Trying regex patterns...');
+        
+        // Pattern A: bar= parameter anywhere in string
+        const barMatch = cleanCode.match(/[?&]bar=([^&\s#]+)/i);
+        if (barMatch && barMatch[1]) {
+          extractedSlug = barMatch[1];
+          extractionMethod = 'bar= parameter regex';
+          console.log('✅ Found with bar= regex:', extractedSlug);
+        }
+        // Pattern B: slug= parameter anywhere in string
+        else if (cleanCode.match(/[?&]slug=([^&\s#]+)/i)) {
+          const slugMatch = cleanCode.match(/[?&]slug=([^&\s#]+)/i);
+          if (slugMatch && slugMatch[1]) {
+            extractedSlug = slugMatch[1];
+            extractionMethod = 'slug= parameter regex';
+            console.log('✅ Found with slug= regex:', extractedSlug);
+          }
+        }
+        // Pattern C: Direct slug pattern (vovo-cafe format)
+        else if (/^[a-z0-9\-]+$/i.test(cleanCode)) {
+          extractedSlug = cleanCode.toLowerCase(); // Normalize to lowercase
+          extractionMethod = 'direct slug';
+          console.log('✅ Using as direct slug:', extractedSlug);
+        }
+        // Pattern D: Contains tabeza.co.ke domain
+        else if (cleanCode.includes('tabeza.co.ke')) {
+          console.log('🏠 Tabeza domain detected, looking for patterns...');
+          
+          // Look for /menu?bar=
+          const menuMatch = cleanCode.match(/\/menu[?&]bar=([^&\s#]+)/i);
+          if (menuMatch && menuMatch[1]) {
+            extractedSlug = menuMatch[1];
+            extractionMethod = '/menu?bar= pattern';
+            console.log('✅ Found in /menu path:', extractedSlug);
+          }
+          // Look for /start?bar=
+          else {
+            const startMatch = cleanCode.match(/\/start[?&]bar=([^&\s#]+)/i);
+            if (startMatch && startMatch[1]) {
+              extractedSlug = startMatch[1];
+              extractionMethod = '/start?bar= pattern';
+              console.log('✅ Found in /start path:', extractedSlug);
+            }
+          }
+        }
+      }
+      
+      // Method 3: Last resort - find any slug-like pattern
+      if (!extractedSlug) {
+        console.log('🆘 Last resort: looking for any slug-like pattern...');
+        // Look for pattern like vovo-cafe (letters, numbers, hyphens)
+        const slugPattern = cleanCode.match(/([a-z0-9\-]+)/gi);
+        if (slugPattern) {
+          // Filter out common words and take first good candidate
+          const commonWords = ['http', 'https', 'www', 'com', 'co', 'ke', 'app', 'menu', 'start'];
+          const candidates = slugPattern.filter(slug => 
+            slug.length > 3 && 
+            !commonWords.includes(slug.toLowerCase()) &&
+            /^[a-z0-9\-]+$/i.test(slug)
+          );
+          
+          if (candidates.length > 0) {
+            extractedSlug = candidates[0].toLowerCase();
+            extractionMethod = 'slug-like pattern match';
+            console.log('✅ Found slug-like pattern:', extractedSlug);
+          }
+        }
+      }
+      
     } catch (parseError) {
-      console.error('❌ URL parsing error:', parseError);
-      // Fallback: treat as direct slug
-      extractedSlug = cleanCode;
-      console.log('📋 Fallback - using as direct slug:', extractedSlug);
+      console.error('❌ Parsing error:', parseError);
     }
     
-    console.log('🔍 Final extracted slug:', JSON.stringify(extractedSlug));
+    console.log('📋 Extraction Summary:', {
+      extractedSlug: JSON.stringify(extractedSlug),
+      method: extractionMethod,
+      valid: !!extractedSlug
+    });
     
     if (!extractedSlug) {
-      console.log('❌ No slug extracted from QR code');
+      console.log('❌ FAILED: No slug could be extracted');
+      console.log('💡 QR code content was:', cleanCode);
+      
       showToast({
         type: 'error',
         title: 'Invalid QR Code',
-        message: 'This QR code does not contain bar information'
+        message: `Could not extract bar information from QR code. Content: ${cleanCode.substring(0, 50)}...`
       });
       setIsScannerMode(true);
       return;
     }
     
-    setScannedCode(extractedSlug);
-    setBarSlug(extractedSlug);
+    // Normalize slug (lowercase, trim)
+    const normalizedSlug = extractedSlug.toLowerCase().trim();
+    console.log('🎯 Normalized slug:', normalizedSlug);
+    
+    setScannedCode(normalizedSlug);
+    setBarSlug(normalizedSlug);
     setIsScannerMode(false);
     
     showToast({
       type: 'success',
       title: 'QR Code Scanned',
-      message: `Looking for bar: ${extractedSlug}`
+      message: `Found bar: ${normalizedSlug}`
     });
     
-    // Load bar info for the extracted slug
-    loadBarInfo(extractedSlug);
+    // Load bar info for extracted slug
+    loadBarInfo(normalizedSlug);
   };
 
   useEffect(() => {
@@ -267,12 +335,15 @@ function ConsentContent() {
   const loadBarInfo = async (slug: string) => {
     try {
       console.log('📡 Loading bar info for:', slug);
+      console.log('🔍 Searching for bar with slug:', JSON.stringify(slug));
       
       const { data: bar, error: barError } = await (supabase as any)
         .from('bars')
         .select('id, name, active, location, slug')
         .eq('slug', slug)
         .maybeSingle();
+
+      console.log('🗄️ Database query result:', { bar, barError });
 
       if (barError) {
         console.error('❌ Database error:', barError);
@@ -283,6 +354,17 @@ function ConsentContent() {
 
       if (!bar) {
         console.log('❌ Bar not found with slug:', slug);
+        console.log('🔎 Let me check what bars exist...');
+        
+        // Check what bars actually exist
+        const { data: allBars, error: allBarsError } = await (supabase as any)
+          .from('bars')
+          .select('id, name, slug')
+          .limit(10);
+          
+        console.log('📋 Available bars:', allBars);
+        console.log('❌ Bars query error:', allBarsError);
+        
         setError(`Bar not found with slug: "${slug}". Please scan a valid QR code.`);
         setLoading(false);
         return;
@@ -600,6 +682,45 @@ function ConsentContent() {
   if (isScannerMode) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center relative">
+        {/* Debug test buttons */}
+        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+          <button
+            onClick={() => {
+              handleQRCodeDetected('https://app.tabeza.co.ke/menu?bar=vovo-cafe');
+            }}
+            className="bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-medium"
+          >
+            Test: Full URL
+          </button>
+          <button
+            onClick={() => {
+              handleQRCodeDetected('app.tabeza.co.ke/menu?bar=vovo-cafe');
+            }}
+            className="bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-medium"
+          >
+            Test: No https
+          </button>
+          <button
+            onClick={() => {
+              handleQRCodeDetected('vovo-cafe');
+            }}
+            className="bg-purple-500 text-white px-3 py-2 rounded-lg text-xs font-medium"
+          >
+            Test: Direct slug
+          </button>
+          <button
+            onClick={() => {
+              const manualCode = prompt('Enter QR code content manually:');
+              if (manualCode) {
+                handleQRCodeDetected(manualCode);
+              }
+            }}
+            className="bg-yellow-500 text-white px-3 py-2 rounded-lg text-xs font-medium"
+          >
+            Manual Input
+          </button>
+        </div>
+        
         {/* Close button */}
         <button
           onClick={() => {
