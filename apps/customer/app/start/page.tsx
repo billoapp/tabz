@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Shield, Bell, Store, AlertCircle, CheckCircle } from 'lucide-react';
+import { Shield, Bell, Store, AlertCircle, CheckCircle, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { 
   getDeviceId, 
@@ -13,6 +13,7 @@ import {
 import { useToast } from '@/components/ui/Toast';
 import { TokensService, TOKENS_CONFIG } from '../../../../packages/shared/tokens-service';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
+import QrScanner from 'qr-scanner';
 
 function ConsentContent() {
   const router = useRouter();
@@ -35,8 +36,7 @@ function ConsentContent() {
   // QR Scanner states
   const [isScannerMode, setIsScannerMode] = useState(false);
   const [scannedCode, setScannedCode] = useState('');
-  const [isScanning, setIsScanning] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [qrScanner, setQrScanner] = useState<QrScanner | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   
   // Bar data
@@ -49,30 +49,32 @@ function ConsentContent() {
 
   // QR Scanner functions
   const startQRScanner = async () => {
+    if (!videoRef.current) return;
+    
     try {
-      setIsScanning(true);
+      const scanner = new QrScanner(
+        videoRef.current,
+        (result) => {
+          console.log('QR Code detected:', result.data);
+          handleQRCodeDetected(result.data);
+        },
+        {
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+        }
+      );
       
-      // Request camera access
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
-      });
-      
-      setStream(mediaStream);
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        videoRef.current.play();
-      }
+      setQrScanner(scanner);
+      await scanner.start();
       
       showToast({
         type: 'success',
-        title: 'Camera Active',
+        title: 'Scanner Active',
         message: 'Point camera at QR code'
       });
       
     } catch (error) {
       console.error('Camera access error:', error);
-      setIsScanning(false);
       showToast({
         type: 'error',
         title: 'Camera Error',
@@ -82,11 +84,11 @@ function ConsentContent() {
   };
   
   const stopScanner = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
+    if (qrScanner) {
+      qrScanner.stop();
+      qrScanner.destroy();
+      setQrScanner(null);
     }
-    setIsScanning(false);
   };
   
   const handleQRCodeDetected = (code: string) => {
@@ -114,14 +116,20 @@ function ConsentContent() {
     initializeConsent();
   }, []);
 
-  // Cleanup camera on unmount
   useEffect(() => {
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (qrScanner) {
+        qrScanner.stop();
+        qrScanner.destroy();
       }
     };
-  }, [stream]);
+  }, [qrScanner]);
+
+  useEffect(() => {
+    if (isScannerMode && videoRef.current && !qrScanner) {
+      startQRScanner();
+    }
+  }, [isScannerMode]);
 
   const initializeConsent = async () => {
     try {
@@ -502,79 +510,42 @@ function ConsentContent() {
   // Scanner mode
   if (isScannerMode) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full">
-          <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">QR Scanner</h1>
-            <p className="text-gray-600">Point camera at QR code</p>
-          </div>
+      <div className="min-h-screen bg-black flex items-center justify-center relative">
+        {/* Close button */}
+        <button
+          onClick={() => {
+            stopScanner();
+            router.push('/');
+          }}
+          className="absolute top-4 right-4 z-10 p-2 bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/30 transition"
+        >
+          <X size={24} />
+        </button>
+        
+        {/* Camera View */}
+        <div className="w-full h-full relative">
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            autoPlay
+            playsInline
+            muted
+          />
           
-          {/* Camera View */}
-          <div className="mb-6 relative">
-            {isScanning ? (
-              <div className="relative">
-                <video
-                  ref={videoRef}
-                  className="w-full h-64 bg-black rounded-lg object-cover"
-                  autoPlay
-                  playsInline
-                  muted
-                />
-                <div className="absolute inset-0 border-4 border-orange-500 rounded-lg pointer-events-none">
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-white rounded-lg"></div>
-                </div>
-              </div>
-            ) : (
-              <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
-                <button
-                  onClick={startQRScanner}
-                  className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
-                >
-                  Open Camera
-                </button>
-              </div>
-            )}
-          </div>
-          
-          {/* Manual Code Input */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Enter bar code manually:
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={scannedCode}
-                onChange={(e) => setScannedCode(e.target.value)}
-                placeholder="e.g., sunset-lounge"
-                className="flex-1 px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-              <button
-                onClick={() => handleQRCodeDetected(scannedCode)}
-                disabled={!scannedCode.trim()}
-                className="px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
-              >
-                Use Code
-              </button>
+          {/* Scanner overlay */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-4 border-white rounded-lg">
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-orange-500 rounded-tl-lg"></div>
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-orange-500 rounded-tr-lg"></div>
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-orange-500 rounded-bl-lg"></div>
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-orange-500 rounded-br-lg"></div>
             </div>
           </div>
           
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            {isScanning && (
-              <button
-                onClick={stopScanner}
-                className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
-              >
-                Stop Scanner
-              </button>
-            )}
-            <button
-              onClick={() => router.push('/')}
-              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
-            >
-              Back
-            </button>
+          {/* Instructions */}
+          <div className="absolute bottom-8 left-0 right-0 text-center">
+            <p className="text-white text-lg font-medium mb-2">Point camera at QR code</p>
+            <p className="text-white/80 text-sm">The scanner will detect the code automatically</p>
           </div>
         </div>
       </div>
