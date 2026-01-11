@@ -218,20 +218,11 @@ function LandingContent() {
     console.log('🚀 Start clicked, bar slug:', slug);
     
     if (!slug) {
-      showToast({
-        type: 'error',
-        title: 'No Bar Code',
-        message: 'Please scan a QR code or enter a bar code'
-      });
-      return;
-    }
-
-    if (slug) {
-      console.log('✅ Code provided, going to consent page');
-      router.push(`/consent?bar=${slug}`);
-    } else {
       console.log('📷 No code provided, opening scanner');
       handleScanNewCode();
+    } else {
+      console.log('✅ Code provided, going to consent page');
+      router.push(`/consent?bar=${slug}`);
     }
   };
 
@@ -244,29 +235,61 @@ function LandingContent() {
     setShowExistingTabsModal(false);
   };
 
-  const handleScanNewCode = () => {
+  const handleScanNewCode = async () => {
     sessionStorage.removeItem('just_created_tab');
     setShowExistingTabsModal(false);
     
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
     if (isMobile) {
+      // Try to access camera for QR scanning
       try {
-        navigator.mediaDevices.getUserMedia({ 
+        const stream = await navigator.mediaDevices.getUserMedia({ 
           video: { facingMode: 'environment' } 
-        }).then(async (stream) => {
-          stream.getTracks().forEach(track => track.stop());
-          router.push('/consent?scanner=true');
-        }).catch((error) => {
-          console.log('Camera access denied or not available:', error);
-          router.push('/consent');
         });
+        
+        // Stop the stream immediately - we just needed to check permission
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Show success message and redirect
+        showToast({
+          type: 'success',
+          title: 'Camera Access Granted',
+          message: 'Redirecting to QR scanner...'
+        });
+        
+        // Redirect to consent page with scanner intent
+        setTimeout(() => {
+          router.push('/consent?scanner=true');
+        }, 1000);
+        
       } catch (error) {
-        console.log('Scanner not supported:', error);
-        router.push('/consent');
+        console.log('Camera access denied or not available:', error);
+        
+        // Show fallback options
+        showToast({
+          type: 'warning',
+          title: 'Camera Access Required',
+          message: 'Please enable camera access or use manual code entry'
+        });
+        
+        // Still redirect to consent page but without scanner
+        setTimeout(() => {
+          router.push('/consent');
+        }, 2000);
       }
     } else {
-      router.push('/consent');
+      // Desktop environment - show instructions
+      showToast({
+        type: 'info',
+        title: 'Desktop Detected',
+        message: 'Please use your mobile device to scan QR codes or enter a bar code manually'
+      });
+      
+      // Redirect to consent page for manual entry
+      setTimeout(() => {
+        router.push('/consent');
+      }, 2000);
     }
   };
 

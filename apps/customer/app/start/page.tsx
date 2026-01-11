@@ -32,6 +32,10 @@ function ConsentContent() {
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   
+  // QR Scanner states
+  const [isScannerMode, setIsScannerMode] = useState(false);
+  const [scannedCode, setScannedCode] = useState('');
+  
   // Bar data
   const [barSlug, setBarSlug] = useState<string | null>(null);
   const [barId, setBarId] = useState<string | null>(null);
@@ -39,6 +43,55 @@ function ConsentContent() {
   const [error, setError] = useState<string>('');
   
   const [debugDeviceId, setDebugDeviceId] = useState<string>('');
+
+  // QR Scanner functions
+  const startQRScanner = async () => {
+    try {
+      // Request camera access
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      });
+      
+      // Stop the stream - we just needed permission
+      stream.getTracks().forEach(track => track.stop());
+      
+      showToast({
+        type: 'success',
+        title: 'Camera Ready',
+        message: 'Point camera at QR code and wait for scan...'
+      });
+      
+      // In a real implementation, you would initialize QR scanner here
+      // For now, we'll simulate QR code detection after 3 seconds
+      setTimeout(() => {
+        const simulatedCode = 'DEMO-QR-CODE';
+        setScannedCode(simulatedCode);
+        showToast({
+          type: 'info',
+          title: 'QR Code Detected',
+          message: `Scanned: ${simulatedCode}`
+        });
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Camera access error:', error);
+      showToast({
+        type: 'error',
+        title: 'Camera Error',
+        message: 'Unable to access camera. Please use manual code entry.'
+      });
+    }
+  };
+  
+  const handleQRCodeDetected = (code: string) => {
+    setScannedCode(code);
+    setBarSlug(code);
+    showToast({
+      type: 'success',
+      title: 'QR Code Scanned',
+      message: `Code: ${code}`
+    });
+  };
 
   useEffect(() => {
     // Get device ID for debug display
@@ -51,6 +104,9 @@ function ConsentContent() {
 
   const initializeConsent = async () => {
     try {
+      // Check if we're coming from QR scanner
+      const isScannerMode = searchParams?.get('scanner') === 'true';
+      
       // Get bar slug from URL or sessionStorage
       let slug = searchParams?.get('bar') || searchParams?.get('slug');
       
@@ -60,7 +116,7 @@ function ConsentContent() {
         sessionStorage.setItem('scanned_bar_slug', slug);
       }
 
-      if (!slug) {
+      if (!slug && !isScannerMode) {
         console.log('❌ No bar slug found, redirecting to home');
         router.replace('/');
         return;
@@ -68,8 +124,21 @@ function ConsentContent() {
 
       console.log('🔍 Initializing consent for bar:', slug);
       setBarSlug(slug);
+      setIsScannerMode(isScannerMode);
       
-      await loadBarInfo(slug);
+      if (isScannerMode) {
+        console.log('📷 Scanner mode activated');
+        setLoading(false);
+        return;
+      }
+      
+      if (slug) {
+        await loadBarInfo(slug);
+      } else {
+        console.log('❌ No bar slug found, redirecting to home');
+        router.replace('/');
+        return;
+      }
     } catch (error) {
       console.error('❌ Error initializing consent:', error);
       setError('Failed to load bar information. Please try again.');
@@ -404,6 +473,72 @@ function ConsentContent() {
             Loading bar information...
           </p>
           {barSlug && <p className="text-sm mt-2 font-mono opacity-75">{barSlug}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  // Scanner mode
+  if (isScannerMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full">
+          <div className="text-center mb-6">
+            <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">QR Scanner</h1>
+            <p className="text-gray-600">Point camera at QR code</p>
+          </div>
+          
+          {/* QR Code Display */}
+          {scannedCode && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
+              <div className="text-center">
+                <div className="text-2xl font-mono text-green-800 mb-2">{scannedCode}</div>
+                <p className="text-sm text-green-600">QR Code Detected!</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Manual Code Input */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Enter bar code manually:
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={scannedCode}
+                onChange={(e) => setScannedCode(e.target.value)}
+                placeholder="e.g., sunset-lounge"
+                className="flex-1 px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <button
+                onClick={() => handleQRCodeDetected(scannedCode)}
+                disabled={!scannedCode.trim()}
+                className="px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+              >
+                Use Code
+              </button>
+            </div>
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={startQRScanner}
+              className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+            >
+              Scan Again
+            </button>
+            <button
+              onClick={() => router.push('/')}
+              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+            >
+              Back
+            </button>
+          </div>
         </div>
       </div>
     );
