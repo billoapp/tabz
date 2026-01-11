@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.27",
-    "@types/react": "^19.2.7",
+    "@types/react": "^19.2.3",
     "@types/react-dom": "^19.2.3",
     "prettier": "^3.2.5",
     "rimraf": "^5.0.5",
@@ -35,8 +35,8 @@
     "@hcaptcha/react-hcaptcha": "^1.17.2",
     "@supabase/supabase-js": "^2.45.0",
     "@vercel/node": "^3.0.0",
-    "next": "^13.0.0",
-    "react": "^19.2.7",
+    "next": "^15.0.0",
+    "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "lucide-react": "^0.462.0"
   },
