@@ -251,95 +251,72 @@ export default function MenuManagementPage() {
     return category?.image_url || null;
   };
 
-  // Helper function to get icon for category based on keywords
+  // Helper function to get icon for category based on final category list
   const getCategoryIcon = (categoryName: string) => {
     const category = categoryName.toLowerCase();
     
-    // Drinks
-    if (category.includes('coffee') || category.includes('espresso') || category.includes('cappuccino')) {
-      return Coffee;
-    }
-    if (category.includes('beer') || category.includes('lager') || category.includes('ale') || category.includes('stout')) {
+    // Debug logging
+    console.log('🔍 getCategoryIcon called with:', categoryName);
+    
+    // DRINKS CATEGORIES
+    if (category.includes('beer & cider') || category.includes('beer') || category.includes('cider')) {
+      console.log('🍺 Returning Beer icon for:', categoryName);
       return Beer;
     }
-    if (category.includes('wine') || category.includes('red') || category.includes('white')) {
+    if (category.includes('wine & champagne') || category.includes('wine') || category.includes('champagne')) {
+      console.log('🍷 Returning Wine icon for:', categoryName);
       return Wine;
     }
-    if (category.includes('cocktail') || category.includes('martini') || category.includes('mojito')) {
+    if (category.includes('spirits') || category.includes('whiskey') || category.includes('gin') || category.includes('vodka') || category.includes('rum') || category.includes('tequila')) {
+      console.log('🥃 Returning Glasses icon for:', categoryName);
+      return Glasses;
+    }
+    if (category.includes('liqueurs & specialty') || category.includes('liqueur') || category.includes('brandy') || category.includes('cocktail')) {
+      console.log('🍸 Returning Martini icon for:', categoryName);
       return Martini;
     }
-    if (category.includes('juice') || category.includes('smoothie') || category.includes('fresh')) {
-      return Droplets;
-    }
-    if (category.includes('water') || category.includes('soda') || category.includes('soft')) {
+    if (category.includes('non-alcoholic') || category.includes('soft drink') || category.includes('juice') || category.includes('water') || category.includes('energy') || category.includes('coffee') || category.includes('tea')) {
+      console.log('🥤 Returning Droplets icon for:', categoryName);
       return Droplets;
     }
     
-    // Food
+    // FOOD CATEGORIES
     if (category.includes('pizza')) {
+      console.log('🍕 Returning Pizza icon for:', categoryName);
       return Pizza;
     }
-    if (category.includes('burger') || category.includes('beef') || category.includes('meat')) {
-      return Beef;
-    }
-    if (category.includes('sandwich') || category.includes('sub')) {
-      return Sandwich;
-    }
-    if (category.includes('fish') || category.includes('seafood')) {
-      return Fish;
-    }
-    if (category.includes('breakfast') || category.includes('egg')) {
-      return Egg;
-    }
-    if (category.includes('dessert') || category.includes('cake') || category.includes('sweet')) {
-      return Cake;
-    }
-    if (category.includes('ice cream') || category.includes('gelato')) {
-      return IceCream2;
-    }
-    if (category.includes('snack') || category.includes('chips') || category.includes('popcorn')) {
-      return Popcorn;
-    }
-    if (category.includes('cookie') || category.includes('biscuit')) {
-      return Cookie;
-    }
-    if (category.includes('fruit') || category.includes('apple')) {
-      return Apple;
-    }
-    if (category.includes('salad') || category.includes('vegetable') || category.includes('vegan')) {
-      return Leaf;
-    }
-    if (category.includes('bread') || category.includes('bakery') || category.includes('wheat')) {
-      return Wheat;
-    }
-    if (category.includes('milk') || category.includes('dairy')) {
-      return Milk;
-    }
-    
-    // General food
-    if (category.includes('food') || category.includes('meal') || category.includes('dish')) {
-      return Utensils;
-    }
-    if (category.includes('hot') || category.includes('spicy') || category.includes('grill')) {
+    if (category.includes('bbq') || category.includes('choma') || category.includes('grill')) {
+      console.log('🔥 Returning Flame icon for:', categoryName);
       return Flame;
     }
-    if (category.includes('special') || category.includes('chef')) {
-      return ChefHat;
+    if (category.includes('starters') || category.includes('appetizers') || category.includes('salad')) {
+      console.log('🥗 Returning Leaf icon for:', categoryName);
+      return Leaf;
     }
-    
-    // Time-based
-    if (category.includes('breakfast') || category.includes('morning')) {
-      return Sunrise;
+    if (category.includes('main courses') || category.includes('main') || category.includes('meal') || category.includes('dish')) {
+      console.log('🍽️ Returning Utensils icon for:', categoryName);
+      return Utensils;
     }
-    if (category.includes('dinner') || category.includes('evening')) {
-      return Sunset;
+    if (category.includes('side dishes') || category.includes('side') || category.includes('accompaniment')) {
+      console.log('🍚 Returning Wheat icon for:', categoryName);
+      return Wheat;
     }
-    if (category.includes('night') || category.includes('late')) {
-      return Moon;
+    if (category.includes('bakery') || category.includes('breakfast') || category.includes('bread') || category.includes('egg')) {
+      console.log('🍳 Returning Egg icon for:', categoryName);
+      return Egg;
+    }
+    if (category.includes('desserts') || category.includes('snacks') || category.includes('cake') || category.includes('ice cream') || category.includes('popcorn')) {
+      console.log('🍰 Returning Cake icon for:', categoryName);
+      return Cake;
+    }
+    if (category.includes('convenience') || category.includes('other') || category.includes('traditional') || category.includes('smoking') || category.includes('tobacco') || category.includes('vape')) {
+      console.log('📦 Returning Package icon for:', categoryName);
+      return Package;
     }
     
     // Default
-    return Package;
+    console.log('📦 Returning default LayoutGrid icon for:', categoryName);
+    return LayoutGrid;
   };
 
   // Upload image to server
@@ -424,6 +401,10 @@ export default function MenuManagementPage() {
       setSuppliers((suppliersRes.data || []).filter(s => s !== null) as Supplier[]);
       setCategories((categoriesRes.data || []).filter(c => c !== null) as Category[]);
       setProducts((productsRes.data || []).filter(p => p !== null) as Product[]);
+      
+      // Debug logging
+      console.log('📊 Loaded categories:', categoriesRes.data);
+      console.log('📊 Loaded products:', productsRes.data?.length);
     } catch (error) {
       console.error('Error loading catalog:', error);
       alert('Failed to load product catalog');
