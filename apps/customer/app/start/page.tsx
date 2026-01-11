@@ -44,41 +44,60 @@ function ConsentContent() {
   const [barId, setBarId] = useState<string | null>(null);
   const [barName, setBarName] = useState<string>('');
   const [error, setError] = useState<string>('');
-  
+
   const [debugDeviceId, setDebugDeviceId] = useState<string>('');
 
   // QR Scanner functions
   const startQRScanner = async () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current) {
+      console.error('Video ref not available');
+      return;
+    }
     
     try {
+      console.log('🎬 Starting QR scanner...');
+      
+      // Check if qr-scanner is available
+      if (typeof QrScanner === 'undefined') {
+        throw new Error('QR Scanner library not loaded');
+      }
+      
       const scanner = new QrScanner(
         videoRef.current,
         (result) => {
-          console.log('QR Code detected:', result.data);
+          console.log('✅ QR Code detected:', result.data);
+          showToast({
+            type: 'info',
+            title: 'QR Detected',
+            message: 'Processing...'
+          });
           handleQRCodeDetected(result.data);
         },
         {
           highlightScanRegion: true,
           highlightCodeOutline: true,
+          preferredCamera: 'environment',
+          maxScansPerSecond: 1,
+          returnDetailedScanResult: true
         }
       );
       
       setQrScanner(scanner);
       await scanner.start();
       
+      console.log('✅ QR scanner started successfully');
       showToast({
         type: 'success',
         title: 'Scanner Active',
         message: 'Point camera at QR code'
       });
       
-    } catch (error) {
-      console.error('Camera access error:', error);
+    } catch (error: unknown) {
+      console.error('❌ Camera access error:', error);
       showToast({
         type: 'error',
         title: 'Camera Error',
-        message: 'Unable to access camera. Please use manual code entry.'
+        message: `Unable to access camera: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     }
   };
@@ -92,19 +111,89 @@ function ConsentContent() {
   };
   
   const handleQRCodeDetected = (code: string) => {
+    console.log('🎯 Raw QR code detected:', JSON.stringify(code));
+    
     stopScanner();
-    setScannedCode(code);
-    setBarSlug(code);
+    
+    // Clean and normalize the QR code first
+    const cleanCode = code.trim().replace(/^\s+|\s+$/g, '');
+    console.log('🧹 Cleaned QR code:', JSON.stringify(cleanCode));
+    
+    // Extract bar slug from different QR code formats
+    let extractedSlug = '';
+    
+    try {
+      if (cleanCode.includes('tabeza.co.ke/start?bar=')) {
+        // Format: https://app.tabeza.co.ke/start?bar=sunset-lounge
+        const url = new URL(cleanCode);
+        const urlParams = new URLSearchParams(url.search);
+        extractedSlug = urlParams.get('bar') || '';
+        console.log('📋 Extracted from bar param:', extractedSlug);
+      } else if (cleanCode.includes('tabeza.co.ke/start?slug=')) {
+        // Format: https://app.tabeza.co.ke/start?slug=sunset-lounge
+        const url = new URL(cleanCode);
+        const urlParams = new URLSearchParams(url.search);
+        extractedSlug = urlParams.get('slug') || '';
+        console.log('📋 Extracted from slug param:', extractedSlug);
+      } else if (cleanCode.includes('tabeza.co.ke')) {
+        // Generic tabeza URL - redirect to scanner mode
+        console.log('🔄 Generic tabeza URL detected');
+        setIsScannerMode(true);
+        showToast({
+          type: 'info',
+          title: 'Generic QR Code',
+          message: 'Please scan a specific bar QR code'
+        });
+        return;
+      } else if (cleanCode.includes('?bar=')) {
+        // Generic format with bar parameter
+        const url = new URL(cleanCode);
+        const urlParams = new URLSearchParams(url.search);
+        extractedSlug = urlParams.get('bar') || '';
+        console.log('📋 Extracted from generic bar param:', extractedSlug);
+      } else if (cleanCode.includes('?slug=')) {
+        // Generic format with slug parameter
+        const url = new URL(cleanCode);
+        const urlParams = new URLSearchParams(url.search);
+        extractedSlug = urlParams.get('slug') || '';
+        console.log('📋 Extracted from generic slug param:', extractedSlug);
+      } else {
+        // Direct slug format
+        extractedSlug = cleanCode;
+        console.log('📋 Using as direct slug:', extractedSlug);
+      }
+    } catch (parseError) {
+      console.error('❌ URL parsing error:', parseError);
+      // Fallback: treat as direct slug
+      extractedSlug = cleanCode;
+      console.log('📋 Fallback - using as direct slug:', extractedSlug);
+    }
+    
+    console.log('🔍 Final extracted slug:', JSON.stringify(extractedSlug));
+    
+    if (!extractedSlug) {
+      console.log('❌ No slug extracted from QR code');
+      showToast({
+        type: 'error',
+        title: 'Invalid QR Code',
+        message: 'This QR code does not contain bar information'
+      });
+      setIsScannerMode(true);
+      return;
+    }
+    
+    setScannedCode(extractedSlug);
+    setBarSlug(extractedSlug);
     setIsScannerMode(false);
     
     showToast({
       type: 'success',
       title: 'QR Code Scanned',
-      message: `Code: ${code}`
+      message: `Looking for bar: ${extractedSlug}`
     });
     
-    // Load bar info for the scanned code
-    loadBarInfo(code);
+    // Load bar info for the extracted slug
+    loadBarInfo(extractedSlug);
   };
 
   useEffect(() => {

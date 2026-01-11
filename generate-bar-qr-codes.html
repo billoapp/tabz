@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Bar QR Codes</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .qr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .qr-item { border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; }
+        .qr-item img { max-width: 150px; height: auto; }
+        .bar-name { font-weight: bold; margin: 10px 0; }
+        .bar-url { font-size: 12px; color: #666; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <h1>Bar QR Code Generator</h1>
+    <p>Generate QR codes for each bar that link to their specific consent page</p>
+    
+    <div class="qr-grid" id="qrGrid">
+        <!-- QR codes will be generated here -->
+    </div>
+
+    <script>
+        // Sample bars - replace with actual data from your database
+        const bars = [
+            { name: "Sunset Lounge", slug: "sunset-lounge" },
+            { name: "The Local Pub", slug: "the-local-pub" },
+            { name: "Sky Bar", slug: "sky-bar" },
+            { name: "Beach Club", slug: "beach-club" },
+            { name: "Sports Bar", slug: "sports-bar" }
+        ];
+
+        function generateQRCodes() {
+            const grid = document.getElementById('qrGrid');
+            
+            bars.forEach(bar => {
+                const qrUrl = `https://app.tabeza.co.ke/start?bar=${bar.slug}`;
+                const qrImageUrl = `https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=${encodeURIComponent(qrUrl)}&choe=UTF-8`;
+                
+                const qrItem = document.createElement('div');
+                qrItem.className = 'qr-item';
+                qrItem.innerHTML = `
+                    <div class="bar-name">${bar.name}</div>
+                    <img src="${qrImageUrl}" alt="QR Code for ${bar.name}">
+                    <div class="bar-url">${qrUrl}</div>
+                `;
+                
+                grid.appendChild(qrItem);
+            });
+        }
+
+        // Generate QR codes on page load
+        generateQRCodes();
+    </script>
+</body>
+</html>
