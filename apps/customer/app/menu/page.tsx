@@ -1397,7 +1397,7 @@ export default function MenuPage() {
             <p className="text-sm text-white">{barName}</p>
             <div className="flex items-center gap-2 mt-2">
               <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
-                🪙 {currentBalance || 0} tokens
+                🪙 {currentBalance || 0} tokens (Coming Soon)
               </div>
             </div>
           </div>
