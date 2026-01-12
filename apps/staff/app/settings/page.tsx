@@ -485,7 +485,8 @@ export default function SettingsPage() {
 
   const handleCopyQRUrl = () => {
     if (barInfo.slug) {
-      const url = `${customerOrigin}/menu?bar=${barInfo.slug}`;
+      // FIXED: Use /start instead of /menu for direct consent page access
+      const url = `${customerOrigin}/start?bar=${barInfo.slug}`;
       navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -499,7 +500,8 @@ export default function SettingsPage() {
         return;
       }
 
-      const qrData = `${customerOrigin}/menu?bar=${barInfo.slug}`;
+      // FIX: Use /start instead of /menu for direct consent page access
+      const qrData = `${customerOrigin}/start?bar=${barInfo.slug}`;
       
       const printContent = `
         <!DOCTYPE html>
@@ -660,7 +662,7 @@ export default function SettingsPage() {
     );
   }
 
-  const qrUrl = barInfo.slug ? `${customerOrigin}/menu?bar=${barInfo.slug}` : '';
+  const qrUrl = barInfo.slug ? `${customerOrigin}/start?bar=${barInfo.slug}` : '';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24 flex justify-center">
