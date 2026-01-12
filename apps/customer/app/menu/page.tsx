@@ -1678,7 +1678,7 @@ export default function MenuPage() {
                               )}
                             </div>
                             <div className="flex-1 p-3 flex flex-col justify-between">
-                              <h3 className="text-sm font-medium text-gray-900 text-left">{product.name || 'Product'}</h3>
+                              <h3 className={`text-sm font-medium text-gray-900 text-left leading-tight ${product.name && product.name.length > 20 ? 'text-xs' : ''}`}>{product.name || 'Product'}</h3>
                               <p className="text-sm text-gray-600 mt-2 text-left">{tempFormatCurrency(barProduct.sale_price)}</p>
                             </div>
                           </div>
@@ -1698,8 +1698,8 @@ export default function MenuPage() {
         <div className="p-4">
           {/* Section Header - NEW */}
           <div className="mb-3">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">MENU</h2>
-            <p className="text-sm text-gray-600 mt-1">View menu items</p>
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PROMOS</h2>
+            <p className="text-sm text-gray-600 mt-1">View your promotions</p>
           </div>
           
           <div className="bg-white border border-gray-100 overflow-hidden rounded-lg">
