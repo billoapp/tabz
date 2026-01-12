@@ -20,6 +20,9 @@ function ConsentContent() {
   const searchParams = useSearchParams();
   const { showToast } = useToast();
   
+  // Customer app origin for QR code validation
+  const customerOrigin = process.env.NEXT_PUBLIC_CUSTOMER_ORIGIN || 'https://app.tabeza.co.ke';
+  
   // Token service and notifications
   const tokensService = new TokensService(supabase);
   const { showNotification } = useTokenNotifications();
@@ -89,8 +92,14 @@ function ConsentContent() {
   const handleQRCodeDetected = (code: string) => {
     stopScanner();
     
+    // DEBUG: Log the raw QR code for troubleshooting
+    console.log(' QR CODE DETECTED:', JSON.stringify(code));
+    console.log(' QR CODE LENGTH:', code.length);
+    console.log(' QR CODE TYPE:', typeof code);
+    
     // Clean and normalize the QR code
     const cleanCode = code.trim().replace(/^\s+|\s+$/g, '');
+    console.log(' CLEANED CODE:', cleanCode);
     
     let extractedSlug = '';
     
@@ -159,7 +168,27 @@ function ConsentContent() {
         }
       }
       
+      // DEBUG: Show parsing results
+      console.log(' EXTRACTED SLUG:', extractedSlug);
+      console.log(' EXPECTED FORMAT:', `${customerOrigin}/menu?bar=${extractedSlug}`);
+      console.log(' WILL REDIRECT TO:', `/start?bar=${extractedSlug}&scanner=true`);
+      
+      // Validate that extracted slug matches expected restaurant format
+      const expectedFormat = `${customerOrigin}/menu?bar=${extractedSlug}`;
+      const isValidFormat = cleanCode.includes(customerOrigin) || 
+                           cleanCode.includes('/menu?bar=') ||
+                           cleanCode.includes('?bar=');
+      
+      if (!isValidFormat && extractedSlug) {
+        console.log(' VALID RESTAURANT QR CODE FORMAT');
+      } else if (!extractedSlug) {
+        console.log(' INVALID QR CODE - Could not extract slug');
+      } else {
+        console.log(' QR CODE FORMAT MISMATCH - Using fallback parsing');
+      }
+      
     } catch (parseError) {
+      console.log(' PARSE ERROR:', parseError);
       // Fallback: treat as direct slug
       extractedSlug = cleanCode;
     }
@@ -213,8 +242,13 @@ function ConsentContent() {
 
   const initializeConsent = async () => {
     try {
-      // Check if we're coming from QR scanner
-      const isScannerMode = searchParams?.get('scanner') === 'true';
+      // Check if we're coming from QR scanner (multiple detection methods)
+      const urlScannerParam = searchParams?.get('scanner') === 'true';
+      const qrScanMode = sessionStorage.getItem('qr_scan_mode') === 'true';
+      const hasScannedSlug = !!sessionStorage.getItem('scanned_bar_slug');
+      
+      // Consider it scanner mode if any of these conditions are true
+      const isScannerMode = urlScannerParam || qrScanMode || hasScannedSlug;
       
       // Get bar slug from URL or sessionStorage
       let slug = searchParams?.get('bar') || searchParams?.get('slug');
