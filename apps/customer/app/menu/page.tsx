@@ -1660,13 +1660,20 @@ export default function MenuPage() {
                                     e.currentTarget.style.display = 'none';
                                     const parent = e.currentTarget.parentElement;
                                     if (parent) {
-                                      parent.innerHTML = `<span class="text-2xl text-gray-400 font-semibold">${getCategoryIcon(product.category || 'Uncategorized').name}</span>`;
+                                      const Icon = getCategoryIcon(product.category || 'Uncategorized');
+                                      parent.innerHTML = '';
+                                      const iconContainer = document.createElement('div');
+                                      parent.appendChild(iconContainer);
+                                      ReactDOM.createRoot(iconContainer).render(<Icon size={32} className="text-2xl text-gray-400 font-semibold" />);
                                     }
                                   }}
                                 />
                               ) : (
                                 <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
-                                  {getCategoryIcon(product.category || 'Uncategorized').name}
+                                  {(() => {
+                                    const Icon = getCategoryIcon(product.category || 'Uncategorized');
+                                    return <Icon size={32} className="text-gray-400" />;
+                                  })()}
                                 </div>
                               )}
                             </div>

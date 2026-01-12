@@ -1066,7 +1066,12 @@ export default function MenuManagementPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center p-8">
-          <div className="text-6xl mb-4">🍺</div>
+          <div className="text-6xl mb-4">
+            {(() => {
+              const Icon = getCategoryIcon('default');
+              return <Icon size={48} className="text-gray-300" />;
+            })()}
+          </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">No Bar Assigned</h2>
           <p className="text-gray-500 mb-4">
             You don't have access to any bars yet. Please contact an administrator.
@@ -1464,7 +1469,10 @@ export default function MenuManagementPage() {
                             </div>
                           ) : (
                             <div className="w-20 h-20 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
-                              <span className="text-3xl">{isCustom ? '✨' : '🍺'}</span>
+                              {(() => {
+                                const Icon = getCategoryIcon(item.category);
+                                return <Icon size={32} className="text-orange-500" />;
+                              })()}
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
@@ -1612,23 +1620,12 @@ export default function MenuManagementPage() {
                             />
                           </div>
                         ) : (
-                          <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
-                            <span className="text-2xl">🍺</span>
-                          </div>
-                        )}
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-1">
-                            <h3 className="font-semibold text-gray-800">{product.name}</h3>
-                            {alreadyInMenu && (
-                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                                In Menu
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 mb-1">{product.sku}</p>
-                          <p className="text-xs text-gray-600 mb-2">{product.description}</p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                          <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                            <img
+                              src={displayImage}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
                               {product.category}
                             </span>
                             {!alreadyInMenu && (
@@ -1828,7 +1825,10 @@ export default function MenuManagementPage() {
                           </div>
                         ) : (
                           <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex-shrink-0 flex items-center justify-center">
-                            <span className="text-2xl">✨</span>
+                            {(() => {
+                              const Icon = getCategoryIcon(cp.category);
+                              return <Icon size={32} className="text-purple-600" />;
+                            })()}
                           </div>
                         )}
                         <div className="flex-1">
