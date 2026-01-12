@@ -1818,15 +1818,18 @@ export default function MenuPage() {
       {/* Cart Section - COLLAPSIBLE (only shows when cart has items) */}
       {cartCount > 0 && (
         <div className="bg-gray-50 px-4">
-          <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
-            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="bg-white border-2 border-orange-400 overflow-hidden rounded-lg shadow-xl animate-pulse-slow">
+            {/* UPDATED HEADER: Orange-to-red gradient with white text */}
+            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-500 to-red-600 text-white">
               <div>
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your Cart</h2>
-                <p className="text-sm text-gray-600 mt-1">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
+                <h2 className="text-sm font-bold tracking-wide uppercase">⚡ Ready to Order</h2>
+                <p className="text-white font-medium mt-1">
+                  {cartCount} {cartCount === 1 ? 'item' : 'items'} • {tempFormatCurrency(cartTotal)}
+                </p>
               </div>
               <button
                 onClick={toggleCart}
-                className="text-blue-600 hover:text-blue-700 p-2 transform transition-transform duration-200 hover:scale-110"
+                className="text-white hover:text-orange-200 p-2 transform transition-transform duration-200 hover:scale-110"
               >
                 <ChevronDown 
                   size={20} 
@@ -1848,32 +1851,32 @@ export default function MenuPage() {
                 <div className="max-h-[350px] overflow-y-auto">
                   <div className="p-4 space-y-3">
                     {cart.map(item => (
-                      <div key={item.bar_product_id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                      <div key={item.bar_product_id} className="flex items-center justify-between bg-orange-50 rounded-lg p-3 border border-orange-100">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
                             <span className="text-lg">
                               {(() => {
                                 const Icon = getCategoryIcon(item.category);
-                                return <Icon size={20} className="text-blue-600" />;
+                                return <Icon size={20} className="text-white" />;
                               })()}
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-800 text-sm truncate">{item.name}</p>
-                            <p className="text-xs text-gray-600">{tempFormatCurrency(item.price)}</p>
+                            <p className="font-bold text-gray-800 text-sm truncate">{item.name}</p>
+                            <p className="text-xs font-medium text-orange-600">{tempFormatCurrency(item.price)} each</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <button 
                             onClick={() => updateCartQuantity(item.bar_product_id, -1)} 
-                            className="bg-gray-200 text-gray-700 p-1 rounded hover:bg-gray-300 transition-colors"
+                            className="bg-orange-200 text-orange-700 p-1 rounded hover:bg-orange-300 transition-colors"
                           >
                             <Minus size={14} />
                           </button>
-                          <span className="font-bold text-sm w-6 text-center">{item.quantity}</span>
+                          <span className="font-bold text-sm w-6 text-center bg-orange-500 text-white rounded px-1">{item.quantity}</span>
                           <button 
                             onClick={() => updateCartQuantity(item.bar_product_id, 1)} 
-                            className="bg-blue-500 text-white p-1 rounded hover:bg-blue-600 transition-colors"
+                            className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-1 rounded hover:from-orange-600 hover:to-red-600 transition-colors"
                           >
                             <Plus size={14} />
                           </button>
@@ -1883,11 +1886,16 @@ export default function MenuPage() {
                   </div>
                 </div>
                 
-                {/* Fixed Footer */}
-                <div className="border-t border-gray-200 p-4 bg-gray-50">
-                  <div className="flex justify-between mb-3">
-                    <span className="font-bold text-gray-800">Total</span>
-                    <span className="text-xl font-bold text-blue-600">{tempFormatCurrency(cartTotal)}</span>
+                {/* Fixed Footer - UPDATED with more prominent styling */}
+                <div className="border-t border-orange-200 p-4 bg-gradient-to-r from-orange-50 to-red-50">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <span className="font-bold text-gray-800 text-lg">Total</span>
+                      <p className="text-xs text-gray-600">Click confirm to place your order</p>
+                    </div>
+                    <span className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                      {tempFormatCurrency(cartTotal)}
+                    </span>
                   </div>
                   <div className="flex gap-2">
                     <button 
@@ -1900,24 +1908,24 @@ export default function MenuPage() {
                           message: 'Your cart has been emptied.'
                         });
                       }} 
-                      className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors text-sm"
+                      className="w-24 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:from-gray-300 hover:to-gray-400 transition-all duration-200 text-sm shadow"
                     >
                       Clear
                     </button>
                     <button 
                       onClick={confirmOrder} 
                       disabled={submittingOrder} 
-                      className="flex-2 bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 disabled:bg-gray-400 transition-colors text-sm flex items-center justify-center gap-1"
+                      className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-lg font-bold hover:from-orange-600 hover:to-red-600 disabled:from-gray-400 disabled:to-gray-500 transition-all duration-200 text-sm flex items-center justify-center gap-2 shadow-lg"
                     >
                       {submittingOrder ? (
                         <>
-                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                           Ordering...
                         </>
                       ) : (
                         <>
-                          <CheckCircle size={14} />
-                          Confirm Order
+                          <CheckCircle size={16} />
+                          CONFIRM ORDER
                         </>
                       )}
                     </button>
