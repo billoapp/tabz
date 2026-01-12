@@ -1524,8 +1524,8 @@ export default function MenuPage() {
                   Loading stats...
                 </div>
               )}
-              <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
-                🪙 {currentBalance || 0} tokens (Coming Soon)
+              <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg whitespace-nowrap">
+                🪙 0 tokens (Coming Soon)
               </div>
             </div>
           </div>
