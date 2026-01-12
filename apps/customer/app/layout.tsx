@@ -5,6 +5,7 @@ import DeviceInitializer from '@/components/DeviceInitializer';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Analytics } from '@vercel/analytics/next';
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 
 export const dynamic = 'force-dynamic';
 
