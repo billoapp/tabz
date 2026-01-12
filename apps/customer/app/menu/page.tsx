@@ -81,6 +81,7 @@ export default function MenuPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showCart, setShowCart] = useState(false);
+  const [cartCollapsed, setCartCollapsed] = useState(true);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -258,6 +259,20 @@ export default function MenuPage() {
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Load cart from sessionStorage on component mount
+  useEffect(() => {
+    const cartData = sessionStorage.getItem('cart');
+    if (cartData) {
+      try {
+        setCart(JSON.parse(cartData));
+        console.log('🛒 Cart loaded from sessionStorage:', JSON.parse(cartData));
+      } catch (error) {
+        console.error('Error parsing cart data:', error);
+        setCart([]);
+      }
+    }
   }, []);
 
   // Load user's token balance
@@ -605,19 +620,33 @@ export default function MenuPage() {
       // Collapsing interactive menu - just collapse it
       setInteractiveMenuCollapsed(true);
     } else {
-      // Opening interactive menu - close static menu
+      // Opening interactive menu - close static menu and cart
       setInteractiveMenuCollapsed(false);
-      setShowStaticMenu(false);
+      setShowStaticMenu(true);
+      setCartCollapsed(true);
     }
   };
 
   const toggleStaticMenu = () => {
     if (!showStaticMenu) {
-      // Opening static menu - close interactive menu
+      // Opening static menu - close interactive menu and cart
       setShowStaticMenu(true);
       setInteractiveMenuCollapsed(true);
+      setCartCollapsed(true);
     } else {
       // Closing static menu - just collapse it
+      setShowStaticMenu(false);
+    }
+  };
+
+  const toggleCart = () => {
+    if (!cartCollapsed) {
+      // Collapsing cart - just collapse it
+      setCartCollapsed(true);
+    } else {
+      // Opening cart - close other sections
+      setCartCollapsed(false);
+      setInteractiveMenuCollapsed(true);
       setShowStaticMenu(false);
     }
   };
@@ -1730,7 +1759,7 @@ export default function MenuPage() {
                   : 'max-h-[70vh] opacity-100'
               }`}
             >
-              <div className="relative z-40 bg-gray-900 bg-opacity-95 flex flex-col h-[70vh] min-h-[400px]">
+              <div className="relative z-10 bg-gray-900 bg-opacity-95 flex flex-col h-[70vh] min-h-[400px]">
                 {/* Content */}
                 <div className="flex-1 overflow-hidden">
                   {/* PDF viewer temporarily disabled - only show images */}
@@ -2218,83 +2247,150 @@ export default function MenuPage() {
           </div>
         </div>
       )}
-      {showCart && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-30 flex items-end">
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 w-full rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto border-t-4 border-blue-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Your Cart</h3>
-              <button onClick={() => setShowCart(false)} className="text-white hover:bg-blue-800 p-2 rounded-lg transition-colors"><X size={24} /></button>
+      {/* Cart Section - Only visible when cart has items */}
+      {cartCount > 0 && (
+        <div className="bg-gray-50 px-4">
+          <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
+            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your Cart</h2>
+                <p className="text-sm text-gray-600 mt-1">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
+              </div>
+              <button
+                onClick={toggleCart}
+                className="text-blue-600 hover:text-blue-700 p-2 transform transition-transform duration-200 hover:scale-110"
+              >
+                <ChevronDown 
+                  size={20} 
+                  className={`transform transition-transform duration-300 ease-in-out ${
+                    cartCollapsed ? 'rotate-0' : 'rotate-180'
+                  }`}
+                />
+              </button>
             </div>
-            <div className="space-y-3 mb-4">
-              {cart.map(item => (
-                <div key={item.bar_product_id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <span className="text-2xl">
-                        {(() => {
-                          const Icon = getCategoryIcon(item.category);
-                          return <Icon size={32} className="text-blue-600" />;
-                        })()}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-white">{item.name}</p>
-                      <p className="text-sm text-blue-200">{tempFormatCurrency(item.price)}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => updateCartQuantity(item.bar_product_id, -1)} className="bg-blue-800 text-white p-1 rounded hover:bg-blue-900 transition-colors"><Minus size={16} /></button>
-                    <span className="font-bold w-8 text-center text-white">{item.quantity}</span>
-                    <button onClick={() => updateCartQuantity(item.bar_product_id, 1)} className="bg-green-500 text-white p-1 rounded hover:bg-green-600 transition-colors"><Plus size={16} /></button>
+            
+            <div 
+              className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                cartCollapsed 
+                  ? 'max-h-0 opacity-0' 
+                  : 'max-h-[400px] opacity-100'
+              }`}
+            >
+              <div className="relative">
+                <div className="max-h-[350px] overflow-y-auto">
+                  <div className="p-4 space-y-3">
+                    {cart.map(item => (
+                      <div key={item.bar_product_id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-lg">
+                              {(() => {
+                                const Icon = getCategoryIcon(item.category);
+                                return <Icon size={20} className="text-blue-600" />;
+                              })()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-800 text-sm truncate">{item.name}</p>
+                            <p className="text-xs text-gray-600">{tempFormatCurrency(item.price)}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button 
+                            onClick={() => updateCartQuantity(item.bar_product_id, -1)} 
+                            className="bg-gray-200 text-gray-700 p-1 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span className="font-bold text-sm w-6 text-center">{item.quantity}</span>
+                          <button 
+                            onClick={() => updateCartQuantity(item.bar_product_id, 1)} 
+                            className="bg-blue-500 text-white p-1 rounded hover:bg-blue-600 transition-colors"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-            <div className="border-t border-blue-400 pt-4">
-              <div className="flex justify-between mb-4">
-                <span className="font-bold text-white">Total</span>
-                <span className="text-xl font-bold text-green-300">{tempFormatCurrency(cartTotal)}</span>
-              </div>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => {
-                    setCart([]);
-                    sessionStorage.removeItem('cart');
-                    showToast({
-                      type: 'info',
-                      title: 'Cart Cleared',
-                      message: 'Your cart has been emptied.'
-                    });
-                  }} 
-                  className="flex-1 bg-gray-500 text-white py-3 rounded-xl font-semibold hover:bg-gray-600 transition-colors"
-                >
-                  Cancel Order
-                </button>
-                <button onClick={confirmOrder} disabled={submittingOrder} className="flex-2 bg-green-500 text-white py-4 rounded-xl font-semibold hover:bg-green-600 disabled:bg-gray-400 transition-colors">
-                  {submittingOrder ? 'Submitting...' : 'Confirm Order'}
-                </button>
+                
+                {/* Fixed Footer */}
+                <div className="border-t border-gray-200 p-4 bg-gray-50">
+                  <div className="flex justify-between mb-3">
+                    <span className="font-bold text-gray-800">Total</span>
+                    <span className="text-xl font-bold text-blue-600">{tempFormatCurrency(cartTotal)}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => {
+                        setCart([]);
+                        sessionStorage.removeItem('cart');
+                        showToast({
+                          type: 'info',
+                          title: 'Cart Cleared',
+                          message: 'Your cart has been emptied.'
+                        });
+                      }} 
+                      className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors text-sm"
+                    >
+                      Clear
+                    </button>
+                    <button 
+                      onClick={confirmOrder} 
+                      disabled={submittingOrder} 
+                      className="flex-2 bg-blue-500 text-white py-2 rounded-lg font-medium hover:bg-blue-600 disabled:bg-gray-400 transition-colors text-sm flex items-center justify-center gap-1"
+                    >
+                      {submittingOrder ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                          Ordering...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={14} />
+                          Confirm Order
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
-      {cartCount > 0 && !acceptanceModal.show && (
-        <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full p-4 shadow-lg hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 z-[60] border-2 border-blue-300">
-          <ShoppingCart size={24} />
-          <span className="font-bold">{cartCount}</span>
-          <span className="ml-2 font-bold text-green-300">{tempFormatCurrency(cartTotal)}</span>
-        </button>
-      )}
+      
       {acceptanceModal.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]">
-          <div className="bg-white rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl transform animate-fadeIn">
-            <div className="text-center">
+        <div className="fixed inset-x-0 bottom-0 bg-black bg-opacity-50 flex items-end justify-center z-[9999]">
+          <div className="bg-white rounded-t-3xl w-full max-w-lg mx-auto shadow-2xl transform animate-slideUp max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex-shrink-0 p-6 text-center border-b">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle size={32} className="text-green-500" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Accepted! 🎉</h2>
-              <p className="text-gray-600 mb-4">{acceptanceModal.message}</p>
-              <div className="text-3xl font-bold text-orange-500 mb-6">{formatCurrency(parseFloat(acceptanceModal.orderTotal))}</div>
+              <p className="text-gray-600">{acceptanceModal.message}</p>
+            </div>
+            
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="text-center mb-6">
+                <div className="text-3xl font-bold text-orange-500">{formatCurrency(parseFloat(acceptanceModal.orderTotal))}</div>
+              </div>
+              
+              {/* Order Items - Scrollable if needed */}
+              <div className="space-y-3 mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Order Details</h3>
+                {/* You can map through the actual order items here */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-600">Order items will appear here when available</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Footer - Fixed at bottom */}
+            <div className="flex-shrink-0 p-6 border-t">
               <button 
                 onClick={() => setAcceptanceModal({ show: false, orderTotal: '', message: '' })}
                 className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition-colors"
