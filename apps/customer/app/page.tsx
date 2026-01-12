@@ -102,6 +102,7 @@ function LandingContent() {
           message: `Bar "${barSlug}" not found. Please scan a valid QR code.`
         });
         setCheckingTab(false);
+        setIsInitializing(false);
         return;
       }
 
@@ -113,6 +114,7 @@ function LandingContent() {
           message: `${bar.name} is currently unavailable.`
         });
         setCheckingTab(false);
+        setIsInitializing(false);
         return;
       }
 
@@ -148,7 +150,7 @@ function LandingContent() {
         return;
       }
 
-      console.log('ℹ️ No existing tab found');
+      console.log('ℹ️ No existing tab found, redirecting to consent');
       const validation = await validateDeviceIntegrity(bar.id, supabase as any);
       
       if (!validation.valid) {
@@ -161,19 +163,18 @@ function LandingContent() {
             : 'There seems to be an issue with your tab. Please contact staff.'
         });
         setCheckingTab(false);
+        setIsInitializing(false);
         return;
       }
       
-      console.log('✅ Device validated - showing consent page');
-      showToast({
-        type: 'info',
-        title: 'Ready to Start',
-        message: `No existing tab found at ${bar.name}. Let's create one!`
-      });
+      console.log('✅ Device validated - redirecting to consent page');
+      
+      // Store bar slug for consent page
+      sessionStorage.setItem('scanned_bar_slug', barSlug);
       
       setTimeout(() => {
         router.push(`/start?bar=${barSlug}`);
-      }, 800);
+      }, 500);
 
     } catch (error) {
       console.error('❌ Error checking existing tab:', error);
@@ -182,16 +183,13 @@ function LandingContent() {
         title: 'Connection Error',
         message: 'Failed to check for existing tabs. Please try again.'
       });
-      setTimeout(() => {
-        router.push(`/start?bar=${barSlug}`);
-      }, 1000);
-    } finally {
       setCheckingTab(false);
+      setIsInitializing(false);
     }
   };
 
   const handleManualSubmit = async () => {
-    const slug = manualCode.trim();
+    const slug = manualCode.trim().toLowerCase();
     
     if (!slug) {
       showToast({
@@ -202,27 +200,24 @@ function LandingContent() {
       return;
     }
 
-    console.log('📝 Manual code entered:', slug);
-    sessionStorage.setItem('scanned_bar_slug', slug);
-    
-    router.push(`/start?bar=${slug}`);
+    console.log('🔍 Manual code entered:', slug);
+    await checkExistingTabBySlug(slug);
   };
 
   const handleStart = async () => {
     const slug = 
       searchParams.get('bar') || 
       searchParams.get('slug') || 
-      sessionStorage.getItem('scanned_bar_slug') || 
-      manualCode.trim();
+      manualCode.trim().toLowerCase();
     
     console.log('🚀 Start clicked, bar slug:', slug);
     
-    if (!slug) {
+    if (slug) {
+      console.log('✅ Code provided, checking tab');
+      await checkExistingTabBySlug(slug);
+    } else {
       console.log('📷 No code provided, opening scanner');
       handleScanNewCode();
-    } else {
-      console.log('✅ Code provided, going to consent page');
-      router.push(`/start?bar=${slug}`);
     }
   };
 
@@ -242,23 +237,19 @@ function LandingContent() {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
     if (isMobile) {
-      // Try to access camera for QR scanning
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: { facingMode: 'environment' } 
         });
         
-        // Stop the stream immediately - we just needed to check permission
         stream.getTracks().forEach(track => track.stop());
         
-        // Show success message and redirect
         showToast({
           type: 'success',
           title: 'Camera Access Granted',
           message: 'Redirecting to QR scanner...'
         });
         
-        // Redirect to consent page with scanner intent
         setTimeout(() => {
           router.push('/start?scanner=true');
         }, 1000);
@@ -266,27 +257,23 @@ function LandingContent() {
       } catch (error) {
         console.log('Camera access denied or not available:', error);
         
-        // Show fallback options
         showToast({
           type: 'warning',
           title: 'Camera Access Required',
           message: 'Please enable camera access or use manual code entry'
         });
         
-        // Still redirect to consent page but without scanner
         setTimeout(() => {
           router.push('/start');
         }, 2000);
       }
     } else {
-      // Desktop environment - show instructions
       showToast({
         type: 'info',
         title: 'Desktop Detected',
         message: 'Please use your mobile device to scan QR codes or enter a bar code manually'
       });
       
-      // Redirect to consent page for manual entry
       setTimeout(() => {
         router.push('/start');
       }, 2000);
