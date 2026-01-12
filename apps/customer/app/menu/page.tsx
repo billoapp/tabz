@@ -314,81 +314,103 @@ export default function MenuPage() {
   }, [tab?.id]);
 
   // NEW: Function to calculate average response time for this bar
+  // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
+  // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
   const calculateAverageResponseTime = async (barId: string) => {
+    console.log('🔍 [CUSTOMER] Starting response time calculation for bar:', barId);
     setResponseTimeLoading(true);
     try {
-      // Calculate from orders (customer -> staff confirmation)
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('tab_orders')
-        .select('created_at, confirmed_at, status, initiated_by')
-        .eq('bar_id', barId)
-        .eq('initiated_by', 'customer')
-        .eq('status', 'confirmed')
-        .not('confirmed_at', 'is', null)
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
-        .limit(50);
-
-      // Calculate from messages (customer -> staff acknowledgment)
-      const { data: messagesData, error: messagesError } = await supabase
-        .from('tab_telegram_messages')
-        .select('created_at, staff_acknowledged_at, status, initiated_by')
-        .eq('bar_id', barId)
-        .eq('initiated_by', 'customer')
-        .eq('status', 'acknowledged')
-        .not('staff_acknowledged_at', 'is', null)
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
-        .limit(50);
-
-      if (ordersError) console.error('Error fetching orders for response time:', ordersError);
-      if (messagesError) console.error('Error fetching messages for response time:', messagesError);
-
-      const responseTimes: number[] = [];
-
-      // Process order response times
-      if (ordersData && ordersData.length > 0) {
-        (ordersData as OrderResponseData[]).forEach(order => {
-          const created = new Date(order.created_at).getTime();
-          const confirmed = new Date(order.confirmed_at).getTime();
-          const responseTime = Math.floor((confirmed - created) / 1000 / 60); // Convert to minutes
-          if (responseTime > 0 && responseTime < 120) { // Filter outliers (0-2 hours)
-            responseTimes.push(responseTime);
-          }
-        });
-      }
-
-      // Process message response times
-      if (messagesData && messagesData.length > 0) {
-        (messagesData as MessageResponseData[]).forEach(message => {
-          const created = new Date(message.created_at).getTime();
-          const acknowledged = new Date(message.staff_acknowledged_at).getTime();
-          const responseTime = Math.floor((acknowledged - created) / 1000 / 60); // Convert to minutes
-          if (responseTime > 0 && responseTime < 120) { // Filter outliers (0-2 hours)
-            responseTimes.push(responseTime);
-          }
-        });
-      }
-
-      if (responseTimes.length > 0) {
-        const average = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length;
-        setAverageResponseTime(Math.round(average));
-        console.log('📊 Average response time calculated:', {
-          average: Math.round(average),
-          totalSamples: responseTimes.length,
-          fromOrders: ordersData?.length || 0,
-          fromMessages: messagesData?.length || 0
-        });
-      } else {
+      // Get all tabs for this bar with their orders and messages (SAME AS STAFF APP)
+      const { data: tabsData, error: tabsError } = await supabase
+        .from('tabs')
+        .select(`
+          id,
+          orders:tab_orders(id, status, created_at, confirmed_at, initiated_by),
+          messages:tab_telegram_messages(id, status, created_at, staff_acknowledged_at, initiated_by)
+        `)
+        .eq('bar_id', barId);
+      
+      if (tabsError || !tabsData) {
+        console.error('❌ [CUSTOMER] Error fetching tabs:', tabsError);
         setAverageResponseTime(null);
-        console.log('📊 No response time data available');
+        setResponseTimeLoading(false);
+        return;
       }
+      
+      console.log('📋 [CUSTOMER] Loaded tabs with data:', tabsData.length);
+      
+      // Get confirmed orders (order placed → confirmed) - only customer-initiated orders
+      const confirmedOrders = (tabsData as any[]).flatMap((tab: any) => 
+        (tab.orders || []).filter((o: any) => 
+          o.status === 'confirmed' && 
+          o.confirmed_at && 
+          o.created_at &&
+          o.initiated_by === 'customer'
+        )
+      );
+      
+      console.log('📦 [CUSTOMER] Found confirmed customer orders:', confirmedOrders.length);
+      
+      // Calculate order response times (in minutes)
+      const orderResponseTimes = confirmedOrders.map((order: any) => {
+        const created = new Date(order.created_at).getTime();
+        const confirmed = new Date(order.confirmed_at).getTime();
+        const timeInMinutes = (confirmed - created) / (1000 * 60);
+        console.log('⏱️ [CUSTOMER] Order response time:', timeInMinutes.toFixed(1), 'minutes');
+        return timeInMinutes;
+      });
+      
+      // Get acknowledged customer messages (message sent → staff acknowledged)
+      const acknowledgedMessages = (tabsData as any[]).flatMap((tab: any) => 
+        (tab.messages || []).filter((m: any) => 
+          m.status === 'acknowledged' && 
+          m.staff_acknowledged_at && 
+          m.created_at &&
+          m.initiated_by === 'customer'
+        )
+      );
+      
+      console.log('💬 [CUSTOMER] Found acknowledged customer messages:', acknowledgedMessages.length);
+      
+      // Calculate message response times (in minutes)
+      const messageResponseTimes = acknowledgedMessages.map((message: any) => {
+        const created = new Date(message.created_at).getTime();
+        const acknowledged = new Date(message.staff_acknowledged_at).getTime();
+        const timeInMinutes = (acknowledged - created) / (1000 * 60);
+        console.log('⏱️ [CUSTOMER] Message response time:', timeInMinutes.toFixed(1), 'minutes');
+        return timeInMinutes;
+      });
+      
+      // Combine all response times
+      const allResponseTimes = [...orderResponseTimes, ...messageResponseTimes];
+      
+      console.log('📊 [CUSTOMER] Total response times:', allResponseTimes.length);
+      
+      if (allResponseTimes.length === 0) {
+        console.log('❌ [CUSTOMER] No response time data available');
+        setAverageResponseTime(null);
+        setResponseTimeLoading(false);
+        return;
+      }
+      
+      const avgMinutes = allResponseTimes.reduce((sum, time) => sum + time, 0) / allResponseTimes.length;
+      const roundedAvg = Math.round(avgMinutes);
+      setAverageResponseTime(roundedAvg);
+      
+      console.log('✅ [CUSTOMER] Average response time calculated:', {
+        average: roundedAvg + ' minutes',
+        totalSamples: allResponseTimes.length,
+        fromOrders: orderResponseTimes.length,
+        fromMessages: messageResponseTimes.length
+      });
     } catch (error) {
-      console.error('Error calculating average response time:', error);
+      console.error('[CUSTOMER] Error calculating average response time:', error);
       setAverageResponseTime(null);
     } finally {
       setResponseTimeLoading(false);
     }
   };
-
+  
   // Load average response time when tab is loaded
   useEffect(() => {
     if (tab?.bar_id) {
