@@ -1149,6 +1149,13 @@ export default function MenuPage() {
       }];
     setCart(newCart);
     sessionStorage.setItem('cart', JSON.stringify(newCart));
+    
+    // Show toast notification for cart addition
+    showToast({
+      type: 'success',
+      title: 'Added to Cart! 🛒',
+      message: `${product.name} has been added to your cart`
+    });
   };
 
   const updateCartQuantity = (barProductId: string, delta: number) => {
@@ -1191,7 +1198,6 @@ export default function MenuPage() {
       sessionStorage.setItem('oldestPendingCustomerOrderTime', orderSubmissionTime);
       sessionStorage.removeItem('cart');
       setCart([]);
-      setShowCart(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error('Error creating order:', error);
