@@ -300,7 +300,7 @@ export default function TabsPage() {
                 <Users size={16} className="text-orange-100" />
                 <span className="text-sm text-orange-100">Avg Response Time</span>
               </div>
-              <p className="text-2xl font-bold text-white">{calculatePendingWaitTime(tabs)}</p>
+              <p className="text-2xl font-bold text-white">{calculateAverageResponseTime(tabs)}</p>
             </div>
             <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">

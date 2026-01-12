@@ -781,66 +781,59 @@ export default function TabDetailPage() {
     }
   };
 
+  // FIXED: Single acknowledgment function for customer messages
   const acknowledgeTelegramMessage = async (messageId: string) => {
     try {
-      console.log('👍 Acknowledging telegram message:', messageId);
+      console.log('✅ Acknowledging customer message:', messageId);
       
-      const { data, error } = await (supabase as any)
+      // First, get the current message to check its status
+      const { data: currentMessage, error: fetchError } = await supabase
         .from('tab_telegram_messages')
-        .update({
-          status: 'acknowledged',
-          staff_acknowledged_at: new Date().toISOString(),
-          customer_notified: true,
-          customer_notified_at: new Date().toISOString()
-        })
+        .select('status, initiated_by')
         .eq('id', messageId)
-        .eq('status', 'pending')
-        .select()
         .single();
       
-      if (error) {
-        console.error('❌ Failed to acknowledge message:', error);
+      if (fetchError) {
+        console.error('❌ Failed to fetch message:', fetchError);
         showToast({
           type: 'error',
           title: 'Failed to Acknowledge',
-          message: 'Please try again'
+          message: 'Could not fetch message details'
         });
-      } else {
-        console.log('✅ Message acknowledged:', data);
-        showToast({
-          type: 'success',
-          title: 'Message Acknowledged',
-          message: 'Message has been acknowledged'
-        });
-        
-        // Refresh messages
-        await loadTelegramMessages();
+        return;
       }
       
-    } catch (error: any) {
-      console.error('❌ Error acknowledging message:', error);
-      showToast({
-        type: 'error',
-        title: 'Failed to Acknowledge',
-        message: 'Please try again'
-      });
-    }
-  };
-
-  const completeTelegramMessage = async (messageId: string) => {
-    try {
-      console.log('✅ Acknowledging telegram message:', messageId);
+      // Only acknowledge customer-initiated messages that are pending
+      if (currentMessage.initiated_by !== 'customer') {
+        console.log('⚠️ Skipping - message not initiated by customer');
+        showToast({
+          type: 'warning',
+          title: 'Cannot Acknowledge',
+          message: 'Only customer messages can be acknowledged'
+        });
+        return;
+      }
       
-      const { data, error } = await (supabase as any)
+      if (currentMessage.status !== 'pending') {
+        console.log('⚠️ Skipping - message already acknowledged:', currentMessage.status);
+        showToast({
+          type: 'warning',
+          title: 'Already Acknowledged',
+          message: 'This message has already been acknowledged'
+        });
+        return;
+      }
+      
+      // Update the message status to acknowledged
+      const { data, error } = await supabase
         .from('tab_telegram_messages')
         .update({
           status: 'acknowledged',
           staff_acknowledged_at: new Date().toISOString(),
-          customer_notified: true,
-          customer_notified_at: new Date().toISOString()
+          updated_at: new Date().toISOString()
         })
         .eq('id', messageId)
-        .in('status', ['pending'])
+        .eq('initiated_by', 'customer') // Double-check it's a customer message
         .select()
         .single();
       
@@ -852,11 +845,11 @@ export default function TabDetailPage() {
           message: 'Please try again'
         });
       } else {
-        console.log('✅ Message acknowledged:', data);
+        console.log('✅ Message acknowledged successfully:', data);
         showToast({
           type: 'success',
           title: 'Message Acknowledged',
-          message: 'Request has been marked as acknowledged'
+          message: 'Customer message has been acknowledged'
         });
         
         // Refresh messages
@@ -1109,20 +1102,20 @@ export default function TabDetailPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => acknowledgeTelegramMessage(msg.id)}
-                            className="p-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-                            disabled={msg.status !== 'pending'}
-                          >
-                            Ack
-                          </button>
-                          <button
-                            onClick={() => completeTelegramMessage(msg.id)}
-                            className="p-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-                            disabled={msg.status === 'acknowledged'}
-                          >
-                            Acknowledge
-                          </button>
+                          {/* Only show acknowledge button for pending customer messages */}
+                          {msg.status === 'pending' && msg.initiated_by === 'customer' && (
+                            <button
+                              onClick={() => acknowledgeTelegramMessage(msg.id)}
+                              className="px-3 py-1 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                            >
+                              Acknowledge
+                            </button>
+                          )}
+                          {msg.status === 'acknowledged' && (
+                            <span className="text-xs text-green-600 font-medium">
+                              ✓ Acknowledged
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

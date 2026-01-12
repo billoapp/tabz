@@ -64,6 +64,21 @@ interface Tab {
   };
 }
 
+// Define proper types for the response time queries
+interface OrderResponseData {
+  created_at: string;
+  confirmed_at: string;
+  status: string;
+  initiated_by: string;
+}
+
+interface MessageResponseData {
+  created_at: string;
+  staff_acknowledged_at: string;
+  status: string;
+  initiated_by: string;
+}
+
 export default function MenuPage() {
   const router = useRouter();
   const { buzz } = useVibrate(); 
@@ -152,6 +167,10 @@ export default function MenuPage() {
   const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(true);
   const [cartCollapsed, setCartCollapsed] = useState(true);
   const [paymentCollapsed, setPaymentCollapsed] = useState(true);
+
+  // NEW: Average response time state
+  const [averageResponseTime, setAverageResponseTime] = useState<number | null>(null);
+  const [responseTimeLoading, setResponseTimeLoading] = useState(false);
 
   const loadAttempted = useRef(false);
 
@@ -293,6 +312,89 @@ export default function MenuPage() {
 
     loadTokenBalance();
   }, [tab?.id]);
+
+  // NEW: Function to calculate average response time for this bar
+  const calculateAverageResponseTime = async (barId: string) => {
+    setResponseTimeLoading(true);
+    try {
+      // Calculate from orders (customer -> staff confirmation)
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('tab_orders')
+        .select('created_at, confirmed_at, status, initiated_by')
+        .eq('bar_id', barId)
+        .eq('initiated_by', 'customer')
+        .eq('status', 'confirmed')
+        .not('confirmed_at', 'is', null)
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
+        .limit(50);
+
+      // Calculate from messages (customer -> staff acknowledgment)
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('tab_telegram_messages')
+        .select('created_at, staff_acknowledged_at, status, initiated_by')
+        .eq('bar_id', barId)
+        .eq('initiated_by', 'customer')
+        .eq('status', 'acknowledged')
+        .not('staff_acknowledged_at', 'is', null)
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
+        .limit(50);
+
+      if (ordersError) console.error('Error fetching orders for response time:', ordersError);
+      if (messagesError) console.error('Error fetching messages for response time:', messagesError);
+
+      const responseTimes: number[] = [];
+
+      // Process order response times
+      if (ordersData && ordersData.length > 0) {
+        (ordersData as OrderResponseData[]).forEach(order => {
+          const created = new Date(order.created_at).getTime();
+          const confirmed = new Date(order.confirmed_at).getTime();
+          const responseTime = Math.floor((confirmed - created) / 1000 / 60); // Convert to minutes
+          if (responseTime > 0 && responseTime < 120) { // Filter outliers (0-2 hours)
+            responseTimes.push(responseTime);
+          }
+        });
+      }
+
+      // Process message response times
+      if (messagesData && messagesData.length > 0) {
+        (messagesData as MessageResponseData[]).forEach(message => {
+          const created = new Date(message.created_at).getTime();
+          const acknowledged = new Date(message.staff_acknowledged_at).getTime();
+          const responseTime = Math.floor((acknowledged - created) / 1000 / 60); // Convert to minutes
+          if (responseTime > 0 && responseTime < 120) { // Filter outliers (0-2 hours)
+            responseTimes.push(responseTime);
+          }
+        });
+      }
+
+      if (responseTimes.length > 0) {
+        const average = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length;
+        setAverageResponseTime(Math.round(average));
+        console.log('📊 Average response time calculated:', {
+          average: Math.round(average),
+          totalSamples: responseTimes.length,
+          fromOrders: ordersData?.length || 0,
+          fromMessages: messagesData?.length || 0
+        });
+      } else {
+        setAverageResponseTime(null);
+        console.log('📊 No response time data available');
+      }
+    } catch (error) {
+      console.error('Error calculating average response time:', error);
+      setAverageResponseTime(null);
+    } finally {
+      setResponseTimeLoading(false);
+    }
+  };
+
+  // Load average response time when tab is loaded
+  useEffect(() => {
+    if (tab?.bar_id) {
+      calculateAverageResponseTime(tab.bar_id);
+    }
+  }, [tab?.bar_id]);
 
   // Set up real-time subscriptions
   useEffect(() => {
@@ -1409,6 +1511,19 @@ export default function MenuPage() {
             <h1 className="text-lg font-bold">{displayName}</h1>
             <p className="text-sm text-white">{barName}</p>
             <div className="flex items-center gap-2 mt-2">
+              {/* NEW: Average Response Time Badge */}
+              {averageResponseTime !== null && !responseTimeLoading && (
+                <div className="bg-green-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg flex items-center gap-1">
+                  <Clock size={12} />
+                  ~{averageResponseTime}m avg response
+                </div>
+              )}
+              {responseTimeLoading && (
+                <div className="bg-gray-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg flex items-center gap-1">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                  Loading stats...
+                </div>
+              )}
               <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
                 🪙 {currentBalance || 0} tokens (Coming Soon)
               </div>
@@ -1420,23 +1535,66 @@ export default function MenuPage() {
             <button onClick={() => paymentRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Pay</button>
           </div>
         </div>
-        
-        {/* Pending Order Timer */}
-        {pendingOrderTime && (
-          <div className="mt-2 pt-2 border-t border-orange-400 border-opacity-30">
-            <div className="flex items-center justify-center gap-2">
-              <Clock size={16} className="text-orange-200" />
-              <span className="text-sm font-medium">Order pending for: {formatTime(pendingOrderTime.elapsed)}</span>
+      </div>
+
+      {/* Pending Order Timer - MOVED OUTSIDE HEADER */}
+      {pendingOrderTime && (
+        <div className="bg-gradient-to-r from-orange-600 to-red-700 text-white p-3 border-b border-orange-500">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock size={20} className="text-orange-200" />
+              <div>
+                <p className="text-sm font-medium">Order pending</p>
+                <p className="text-xs text-orange-100">Waiting for staff confirmation</p>
+              </div>
             </div>
-            <div className="w-full bg-orange-900 bg-opacity-30 rounded-full h-1.5 mt-1">
-              <div 
-                className="bg-orange-300 h-1.5 rounded-full transition-all duration-1000" 
-                style={{ width: `${Math.min(pendingOrderTime.elapsed * 0.5, 100)}%` }}
-              ></div>
+            <div className="text-right">
+              <p className="text-lg font-bold">{formatTime(pendingOrderTime.elapsed)}</p>
+              <p className="text-xs text-orange-100">elapsed</p>
             </div>
           </div>
-        )}
-      </div>
+          
+          {/* Circular Timer */}
+          <div className="flex items-center justify-center mt-3">
+            <div className="relative w-20 h-20">
+              <svg className="w-20 h-20 transform -rotate-90">
+                {/* Background circle */}
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="36"
+                  stroke="rgba(255,255,255,0.2)"
+                  strokeWidth="4"
+                  fill="transparent"
+                />
+                {/* Progress circle */}
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="36"
+                  stroke="#fdba74"
+                  strokeWidth="4"
+                  fill="transparent"
+                  strokeLinecap="round"
+                  strokeDasharray={226.08} // 2 * π * 36
+                  strokeDashoffset={226.08 * (1 - Math.min(pendingOrderTime.elapsed * 0.5 / 100, 1))}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-lg font-bold">{formatTime(pendingOrderTime.elapsed)}</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Linear progress bar (optional backup) */}
+          <div className="w-full bg-orange-900 bg-opacity-30 rounded-full h-2 mt-3">
+            <div 
+              className="bg-orange-300 h-2 rounded-full transition-all duration-1000" 
+              style={{ width: `${Math.min(pendingOrderTime.elapsed * 0.5, 100)}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
 
       {/* Pending Staff Orders Alert */}
       {pendingStaffOrders > 0 && (
