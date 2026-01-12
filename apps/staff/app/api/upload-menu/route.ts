@@ -28,24 +28,24 @@ export async function POST(request: NextRequest) {
 
     // Get environment variables
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+    const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
     console.log('🔧 Environment check:');
     console.log('- NEXT_PUBLIC_SUPABASE_URL exists:', !!SUPABASE_URL);
-    console.log('- SUPABASE_SECRET_KEY exists:', !!SUPABASE_SECRET_KEY);
+    console.log('- NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY exists:', !!SUPABASE_PUBLISHABLE_KEY);
 
-    if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       console.error('❌ Missing environment variables');
       const missingVars = [];
       if (!SUPABASE_URL) missingVars.push('NEXT_PUBLIC_SUPABASE_URL');
-      if (!SUPABASE_SECRET_KEY) missingVars.push('SUPABASE_SECRET_KEY');
+      if (!SUPABASE_PUBLISHABLE_KEY) missingVars.push('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
       
       return NextResponse.json({ 
         error: 'Server configuration error: Missing environment variables',
         details: `Missing required environment variables: ${missingVars.join(', ')}`,
         missingVariables: missingVars,
         hasSupabaseUrl: !!SUPABASE_URL,
-        hasSupabaseKey: !!SUPABASE_SECRET_KEY
+        hasSupabaseKey: !!SUPABASE_PUBLISHABLE_KEY
       }, { status: 500 });
     }
 
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     // Initialize Supabase
     console.log('🔗 Creating Supabase client...');
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     console.log('✅ Supabase client created');
 
     // Test storage bucket accessibility
