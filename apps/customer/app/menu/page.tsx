@@ -1506,38 +1506,51 @@ export default function MenuPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top-0 z-20 shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="grid grid-cols-3 gap-2">
+          {/* Row 1: Tab no. | empty | restaurant name */}
+          <div className="text-left">
             <h1 className="text-lg font-bold">{displayName}</h1>
-            <p className="text-sm text-white">{barName}</p>
-            <div className="flex items-center gap-2 mt-2">
-              {/* NEW: Average Response Time Badge */}
-              {averageResponseTime !== null && !responseTimeLoading && (
-                <div className="bg-green-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg flex items-center gap-1">
-                  <Clock size={12} />
-                  ~{averageResponseTime}m avg response
-                </div>
-              )}
-              {responseTimeLoading && (
-                <div className="bg-gray-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg flex items-center gap-1">
-                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                  Loading stats...
-                </div>
-              )}
-              <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg whitespace-nowrap">
-                🪙 0 tokens (Coming Soon)
-              </div>
-            </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Menu</button>
+          <div className="text-center"></div>
+          <div className="text-right">
+            <p className="text-sm text-white">{barName}</p>
+          </div>
+          
+          {/* Row 2: orders | pay | avg time */}
+          <div className="text-left">
             <button onClick={() => ordersRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Orders</button>
+          </div>
+          <div className="text-center">
             <button onClick={() => paymentRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Pay</button>
           </div>
+          <div className="text-right">
+            {/* Average Response Time Badge */}
+            {averageResponseTime !== null && !responseTimeLoading && (
+              <div className="bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium shadow-lg flex items-center gap-1">
+                <Clock size={10} />
+                ~{averageResponseTime}m
+              </div>
+            )}
+            {responseTimeLoading && (
+              <div className="bg-gray-600 text-white px-2 py-1 rounded-full text-xs font-medium shadow-lg flex items-center gap-1">
+                <div className="animate-spin rounded-full h-2 w-2 border-b-2 border-white"></div>
+                Loading...
+              </div>
+            )}
+          </div>
+          
+          {/* Row 3: empty | tokens | empty */}
+          <div className="text-left"></div>
+          <div className="text-center">
+            <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg whitespace-nowrap">
+              🪙 0 tokens (Coming Soon)
+            </div>
+          </div>
+          <div className="text-right"></div>
         </div>
       </div>
 
-      {/* Pending Order Timer - MOVED OUTSIDE HEADER */}
+      {/* Pending Order Timer */}
       {pendingOrderTime && (
         <div className="bg-gradient-to-r from-orange-600 to-red-700 text-white p-3 border-b border-orange-500">
           <div className="flex items-center justify-between">
