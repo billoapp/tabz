@@ -80,14 +80,10 @@ export default function MenuPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [showCart, setShowCart] = useState(false);
-  const [cartCollapsed, setCartCollapsed] = useState(true);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [menuExpanded, setMenuExpanded] = useState(true);
-  const [paymentCollapsed, setPaymentCollapsed] = useState(true);
   const [scrollY, setScrollY] = useState(0);
   const [currentTime, setCurrentTime] = useState(Date.now()); // Add this state for real-time updates
   const [processedOrders, setProcessedOrders] = useState<Set<string>>(new Set()); // Track processed orders for notifications
@@ -144,7 +140,6 @@ export default function MenuPage() {
   const [staticMenuType, setStaticMenuType] = useState<'pdf' | 'image' | 'slideshow' | null>(null);
   const [showStaticMenu, setShowStaticMenu] = useState(false); // Start collapsed by default
   const [imageScale, setImageScale] = useState(1);
-  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(true);
 
   // Slideshow state for static slideshows
   const [slideshowImages, setSlideshowImages] = useState<string[]>([]);
@@ -152,6 +147,11 @@ export default function MenuPage() {
   const [slideshowSettings, setSlideshowSettings] = useState<Record<string, any> | null>(null);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
+
+  // THREE COLLAPSIBLE SECTIONS - all start closed
+  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(true);
+  const [cartCollapsed, setCartCollapsed] = useState(true);
+  const [paymentCollapsed, setPaymentCollapsed] = useState(true);
 
   const loadAttempted = useRef(false);
 
@@ -597,10 +597,6 @@ export default function MenuPage() {
     };
   }, [tab?.id, router, processedOrders]); // Add processedOrders to dependencies
 
-  const toggleMenu = () => {
-    setMenuExpanded(!menuExpanded);
-  };
-
   // Image zoom handlers
   const handleImageZoomIn = () => {
     setImageScale(prev => Math.min(prev + 0.25, 3));
@@ -614,39 +610,55 @@ export default function MenuPage() {
     setImageScale(1);
   };
 
-  // Menu toggle functions - can both be closed, but never open at same time
+  // Toggle functions for THREE EXCLUSIVE collapsible sections
   const toggleInteractiveMenu = () => {
     if (!interactiveMenuCollapsed) {
-      // Collapsing interactive menu - just collapse it
+      // If already open, just close it
       setInteractiveMenuCollapsed(true);
     } else {
-      // Opening interactive menu - close static menu and cart
+      // Open interactive menu, close others
       setInteractiveMenuCollapsed(false);
-      setShowStaticMenu(true);
       setCartCollapsed(true);
-    }
-  };
-
-  const toggleStaticMenu = () => {
-    if (!showStaticMenu) {
-      // Opening static menu - close interactive menu and cart
-      setShowStaticMenu(true);
-      setInteractiveMenuCollapsed(true);
-      setCartCollapsed(true);
-    } else {
-      // Closing static menu - just collapse it
+      setPaymentCollapsed(true);
       setShowStaticMenu(false);
     }
   };
 
   const toggleCart = () => {
     if (!cartCollapsed) {
-      // Collapsing cart - just collapse it
+      // If already open, just close it
       setCartCollapsed(true);
     } else {
-      // Opening cart - close other sections
+      // Open cart, close others
       setCartCollapsed(false);
       setInteractiveMenuCollapsed(true);
+      setPaymentCollapsed(true);
+      setShowStaticMenu(false);
+    }
+  };
+
+  const togglePayment = () => {
+    if (!paymentCollapsed) {
+      // If already open, just close it
+      setPaymentCollapsed(true);
+    } else {
+      // Open payment, close others
+      setPaymentCollapsed(false);
+      setInteractiveMenuCollapsed(true);
+      setCartCollapsed(true);
+      setShowStaticMenu(false);
+    }
+  };
+
+  const toggleStaticMenu = () => {
+    if (!showStaticMenu) {
+      // Opening static menu - close all collapsible sections
+      setShowStaticMenu(true);
+      setInteractiveMenuCollapsed(true);
+      setCartCollapsed(true);
+      setPaymentCollapsed(true);
+    } else {
+      // Closing static menu - just collapse it
       setShowStaticMenu(false);
     }
   };
@@ -974,9 +986,6 @@ export default function MenuPage() {
     getPendingOrderTime();
   };
 
-  // REMOVED: Auto-play slideshow useEffect entirely
-  // Slideshow is now manual-only, controlled by user clicks
-
   const handleCloseTab = async () => {
     try {
       if (!tab) {
@@ -1211,40 +1220,6 @@ export default function MenuPage() {
     // DISABLED: Show coming soon message instead of processing payment
     alert('Digital payments coming soon! Please pay directly at the bar using cash, M-Pesa, Airtel Money, or credit/debit cards.');
     return;
-    
-    // Original payment logic (commented out)
-    /*
-    if (activePaymentMethod === 'cash') {
-      alert('Cash payment confirmed. Please wait for staff to confirm.');
-      return;
-    }
-    if (activePaymentMethod === 'mpesa' && (!phoneNumber || !paymentAmount)) {
-      alert('Please enter phone number and amount');
-      return;
-    }
-    if (activePaymentMethod === 'cards' && !paymentAmount) {
-      alert('Please enter amount');
-      return;
-    }
-    try {
-      const { error } = await (supabase as any)
-        .from('tab_payments')
-        .insert({
-          tab_id: tab!.id,
-          amount: parseFloat(paymentAmount),
-          method: activePaymentMethod,
-          status: 'success',
-          reference: `PAY${Date.now()}`
-        });
-      if (error) throw error;
-      alert(`Payment successful! KSh ${paymentAmount}`);
-      setPaymentAmount('');
-      setPhoneNumber('');
-    } catch (error) {
-      console.error('Payment error:', error);
-      alert('Payment failed');
-    }
-    */
   };
 
   const sendTelegramMessage = async () => {
@@ -1421,6 +1396,9 @@ export default function MenuPage() {
   const lastOrder = orders.filter(order => order.status !== 'cancelled')[0]; // Most recent non-cancelled order
   const lastOrderTotal = lastOrder ? parseFloat(lastOrder.total).toFixed(0) : '0';
   const lastOrderTime = lastOrder ? timeAgo(lastOrder.created_at) : '';
+  
+  // Get pending order timer
+  const pendingOrderTime = getPendingOrderTime();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1442,6 +1420,22 @@ export default function MenuPage() {
             <button onClick={() => paymentRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Pay</button>
           </div>
         </div>
+        
+        {/* Pending Order Timer */}
+        {pendingOrderTime && (
+          <div className="mt-2 pt-2 border-t border-orange-400 border-opacity-30">
+            <div className="flex items-center justify-center gap-2">
+              <Clock size={16} className="text-orange-200" />
+              <span className="text-sm font-medium">Order pending for: {formatTime(pendingOrderTime.elapsed)}</span>
+            </div>
+            <div className="w-full bg-orange-900 bg-opacity-30 rounded-full h-1.5 mt-1">
+              <div 
+                className="bg-orange-300 h-1.5 rounded-full transition-all duration-1000" 
+                style={{ width: `${Math.min(pendingOrderTime.elapsed * 0.5, 100)}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Pending Staff Orders Alert */}
@@ -1538,7 +1532,7 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Interactive Menu Section */}
+      {/* Interactive Menu Section - COLLAPSIBLE */}
       <div className="bg-gray-50 px-4">
         <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
           <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
@@ -1821,6 +1815,120 @@ export default function MenuPage() {
         </div>
       )}
 
+      {/* Cart Section - COLLAPSIBLE (only shows when cart has items) */}
+      {cartCount > 0 && (
+        <div className="bg-gray-50 px-4">
+          <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
+            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your Cart</h2>
+                <p className="text-sm text-gray-600 mt-1">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
+              </div>
+              <button
+                onClick={toggleCart}
+                className="text-blue-600 hover:text-blue-700 p-2 transform transition-transform duration-200 hover:scale-110"
+              >
+                <ChevronDown 
+                  size={20} 
+                  className={`transform transition-transform duration-300 ease-in-out ${
+                    cartCollapsed ? 'rotate-0' : 'rotate-180'
+                  }`}
+                />
+              </button>
+            </div>
+            
+            <div 
+              className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                cartCollapsed 
+                  ? 'max-h-0 opacity-0' 
+                  : 'max-h-[400px] opacity-100'
+              }`}
+            >
+              <div className="relative">
+                <div className="max-h-[350px] overflow-y-auto">
+                  <div className="p-4 space-y-3">
+                    {cart.map(item => (
+                      <div key={item.bar_product_id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-lg">
+                              {(() => {
+                                const Icon = getCategoryIcon(item.category);
+                                return <Icon size={20} className="text-blue-600" />;
+                              })()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-800 text-sm truncate">{item.name}</p>
+                            <p className="text-xs text-gray-600">{tempFormatCurrency(item.price)}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button 
+                            onClick={() => updateCartQuantity(item.bar_product_id, -1)} 
+                            className="bg-gray-200 text-gray-700 p-1 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span className="font-bold text-sm w-6 text-center">{item.quantity}</span>
+                          <button 
+                            onClick={() => updateCartQuantity(item.bar_product_id, 1)} 
+                            className="bg-blue-500 text-white p-1 rounded hover:bg-blue-600 transition-colors"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Fixed Footer */}
+                <div className="border-t border-gray-200 p-4 bg-gray-50">
+                  <div className="flex justify-between mb-3">
+                    <span className="font-bold text-gray-800">Total</span>
+                    <span className="text-xl font-bold text-blue-600">{tempFormatCurrency(cartTotal)}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => {
+                        setCart([]);
+                        sessionStorage.removeItem('cart');
+                        showToast({
+                          type: 'info',
+                          title: 'Cart Cleared',
+                          message: 'Your cart has been emptied.'
+                        });
+                      }} 
+                      className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors text-sm"
+                    >
+                      Clear
+                    </button>
+                    <button 
+                      onClick={confirmOrder} 
+                      disabled={submittingOrder} 
+                      className="flex-2 bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 disabled:bg-gray-400 transition-colors text-sm flex items-center justify-center gap-1"
+                    >
+                      {submittingOrder ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                          Ordering...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={14} />
+                          Confirm Order
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div ref={ordersRef} className="p-4">
         {/* Section Header - NEW */}
         <div className="mb-3">
@@ -1913,7 +2021,7 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Payment Section */}
+      {/* Payment Section - COLLAPSIBLE */}
       {balance > 0 && (
         <div ref={paymentRef} className="p-4">
           {/* Section Header - NEW */}
@@ -1922,98 +2030,136 @@ export default function MenuPage() {
             <p className="text-sm text-gray-600 mt-1">Pay your outstanding balance</p>
           </div>
           
-          <div 
-            className="flex items-center justify-between mb-3 cursor-pointer"
-            onClick={() => setPaymentCollapsed(!paymentCollapsed)}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-orange-600">{tempFormatCurrency(balance)}</span>
-              {paymentCollapsed ? (
-                <ChevronDown size={16} className="text-gray-400" />
-              ) : (
-                <ChevronUp size={16} className="text-gray-400" />
-              )}
-            </div>
-          </div>
-          
-          {!paymentCollapsed && (
-            <div className="bg-white rounded-lg border border-gray-100 p-4">
-              <div className="flex border-b border-gray-200 mb-4">
-                {paymentSettings.mpesa_enabled && (
-                  <button
-                    onClick={() => setActivePaymentMethod('mpesa')}
-                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Phone size={16} />
-                      M-Pesa
-                    </div>
-                  </button>
-                )}
-                {paymentSettings.card_enabled && (
-                  <button
-                    onClick={() => setActivePaymentMethod('cards')}
-                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <CreditCardIcon size={16} />
-                      Cards
-                    </div>
-                  </button>
-                )}
-                {paymentSettings.cash_enabled && (
-                  <button
-                    onClick={() => setActivePaymentMethod('cash')}
-                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <DollarSign size={16} />
-                      Cash
-                    </div>
-                  </button>
-                )}
+          <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
+            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50">
+              <div>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</h2>
+                <p className="text-sm text-gray-600 mt-1">Outstanding balance: {tempFormatCurrency(balance)}</p>
               </div>
-              {activePaymentMethod === 'cards' && (
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-400 rounded flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">VISA</span>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-900">•••• 4242</p>
-                      <p className="text-xs text-gray-400">Expires 12/26</p>
-                    </div>
-                  </div>
-                  <button className="text-xs text-orange-500 font-medium">Change</button>
-                </div>
-              )}
-              <div className="border-t border-gray-100 pt-4">
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-                  <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
-                  <p className="text-3xl font-bold text-orange-600">{tempFormatCurrency(balance)}</p>
-                </div>
-                <div className="space-y-4">
-                  {activePaymentMethod === 'mpesa' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">M-Pesa Number</label>
-                        <input
-                          type="tel"
-                          value={phoneNumber}
-                          onChange={(e) => setPhoneNumber(e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                          placeholder="0712345678"
-                        />
+              <button
+                onClick={togglePayment}
+                className="text-green-600 hover:text-green-700 p-2 transform transition-transform duration-200 hover:scale-110"
+              >
+                <ChevronDown 
+                  size={20} 
+                  className={`transform transition-transform duration-300 ease-in-out ${
+                    paymentCollapsed ? 'rotate-0' : 'rotate-180'
+                  }`}
+                />
+              </button>
+            </div>
+            
+            <div 
+              className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                paymentCollapsed 
+                  ? 'max-h-0 opacity-0' 
+                  : 'max-h-[800px] opacity-100'
+              }`}
+            >
+              <div className="bg-white p-4">
+                <div className="flex border-b border-gray-200 mb-4">
+                  {paymentSettings.mpesa_enabled && (
+                    <button
+                      onClick={() => setActivePaymentMethod('mpesa')}
+                      className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
+                          ? 'text-orange-500 border-b-2 border-orange-500'
+                          : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Phone size={16} />
+                        M-Pesa
                       </div>
+                    </button>
+                  )}
+                  {paymentSettings.card_enabled && (
+                    <button
+                      onClick={() => setActivePaymentMethod('cards')}
+                      className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
+                          ? 'text-orange-500 border-b-2 border-orange-500'
+                          : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <CreditCardIcon size={16} />
+                        Cards
+                      </div>
+                    </button>
+                  )}
+                  {paymentSettings.cash_enabled && (
+                    <button
+                      onClick={() => setActivePaymentMethod('cash')}
+                      className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
+                          ? 'text-orange-500 border-b-2 border-orange-500'
+                          : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <DollarSign size={16} />
+                        Cash
+                      </div>
+                    </button>
+                  )}
+                </div>
+                {activePaymentMethod === 'cards' && (
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-400 rounded flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">VISA</span>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-900">•••• 4242</p>
+                        <p className="text-xs text-gray-400">Expires 12/26</p>
+                      </div>
+                    </div>
+                    <button className="text-xs text-orange-500 font-medium">Change</button>
+                  </div>
+                )}
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+                    <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
+                    <p className="text-3xl font-bold text-orange-600">{tempFormatCurrency(balance)}</p>
+                  </div>
+                  <div className="space-y-4">
+                    {activePaymentMethod === 'mpesa' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">M-Pesa Number</label>
+                          <input
+                            type="tel"
+                            value={phoneNumber}
+                            onChange={(e) => setPhoneNumber(e.target.value)}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                            placeholder="0712345678"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
+                          <input
+                            type="number"
+                            value={paymentAmount}
+                            onChange={(e) => setPaymentAmount(e.target.value)}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                            placeholder="0"
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => setPaymentAmount((balance / 2).toFixed(0))}
+                              className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
+                            >
+                              Half
+                            </button>
+                            <button
+                              onClick={() => setPaymentAmount(balance.toFixed(0))}
+                              className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
+                            >
+                              Full
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    {activePaymentMethod === 'cards' && (
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
                         <input
@@ -2038,65 +2184,39 @@ export default function MenuPage() {
                           </button>
                         </div>
                       </div>
-                    </>
-                  )}
-                  {activePaymentMethod === 'cards' && (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
-                      <input
-                        type="number"
-                        value={paymentAmount}
-                        onChange={(e) => setPaymentAmount(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                        placeholder="0"
-                      />
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          onClick={() => setPaymentAmount((balance / 2).toFixed(0))}
-                          className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
-                        >
-                          Half
-                        </button>
-                        <button
-                          onClick={() => setPaymentAmount(balance.toFixed(0))}
-                          className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
-                        >
-                          Full
-                        </button>
+                    )}
+                    {activePaymentMethod === 'cash' && (
+                      <div className="text-center py-4">
+                        <div className="bg-gray-100 rounded-xl p-6 mb-4">
+                          <DollarSign size={48} className="mx-auto text-gray-400 mb-3" />
+                          <p className="text-gray-600">Please request cash payment from staff</p>
+                          <p className="text-sm text-gray-500 mt-2">Your payment will be confirmed by the restaurant system</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {activePaymentMethod === 'cash' && (
-                    <div className="text-center py-4">
-                      <div className="bg-gray-100 rounded-xl p-6 mb-4">
-                        <DollarSign size={48} className="mx-auto text-gray-400 mb-3" />
-                        <p className="text-gray-600">Please request cash payment from staff</p>
-                        <p className="text-sm text-gray-500 mt-2">Your payment will be confirmed by the restaurant system</p>
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    onClick={processPayment}
-                    disabled={true}
-                    className="w-full bg-gray-300 text-gray-500 py-3 rounded-lg text-sm font-medium cursor-not-allowed"
-                  >
-                    Digital Payments Coming Soon
-                  </button>
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    Please pay at the bar using
-                    {(() => {
-                      const methods = [];
-                      if (paymentSettings.cash_enabled) methods.push('cash');
-                      if (paymentSettings.mpesa_enabled) methods.push('M-Pesa');
-                      if (paymentSettings.card_enabled) methods.push('cards');
-                      if (paymentSettings.mpesa_enabled && (paymentSettings.card_enabled || paymentSettings.cash_enabled)) methods.push('Airtel Money');
-                      return methods.join(', ');
-                    })()}
-                  </p>
+                    )}
+                    <button
+                      onClick={processPayment}
+                      disabled={true}
+                      className="w-full bg-gray-300 text-gray-500 py-3 rounded-lg text-sm font-medium cursor-not-allowed"
+                    >
+                      Digital Payments Coming Soon
+                    </button>
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                      Please pay at the bar using
+                      {(() => {
+                        const methods = [];
+                        if (paymentSettings.cash_enabled) methods.push('cash');
+                        if (paymentSettings.mpesa_enabled) methods.push('M-Pesa');
+                        if (paymentSettings.card_enabled) methods.push('cards');
+                        if (paymentSettings.mpesa_enabled && (paymentSettings.card_enabled || paymentSettings.cash_enabled)) methods.push('Airtel Money');
+                        return methods.join(', ');
+                      })()}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
       )}
       
@@ -2126,146 +2246,6 @@ export default function MenuPage() {
           <p className="text-xs text-gray-500 text-center mt-4">
             💡 Tip: Close your tab when you're done to avoid confusion on your next visit
           </p>
-        </div>
-      )}
-      {showCloseConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
-            <h3 className="text-xl font-bold text-gray-800 mb-3">Close Your Tab?</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to close your tab? You'll need to start a new one if you want to order again later.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowCloseConfirm(false)}
-                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowCloseConfirm(false);
-                  handleCloseTab();
-                }}
-                className="flex-1 bg-green-500 text-white py-3 rounded-xl font-semibold hover:bg-green-600"
-              >
-                Yes, Close Tab
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Cart Section - Only visible when cart has items */}
-      {cartCount > 0 && (
-        <div className="bg-gray-50 px-4">
-          <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
-            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div>
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your Cart</h2>
-                <p className="text-sm text-gray-600 mt-1">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
-              </div>
-              <button
-                onClick={toggleCart}
-                className="text-blue-600 hover:text-blue-700 p-2 transform transition-transform duration-200 hover:scale-110"
-              >
-                <ChevronDown 
-                  size={20} 
-                  className={`transform transition-transform duration-300 ease-in-out ${
-                    cartCollapsed ? 'rotate-0' : 'rotate-180'
-                  }`}
-                />
-              </button>
-            </div>
-            
-            <div 
-              className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                cartCollapsed 
-                  ? 'max-h-0 opacity-0' 
-                  : 'max-h-[400px] opacity-100'
-              }`}
-            >
-              <div className="relative">
-                <div className="max-h-[350px] overflow-y-auto">
-                  <div className="p-4 space-y-3">
-                    {cart.map(item => (
-                      <div key={item.bar_product_id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <span className="text-lg">
-                              {(() => {
-                                const Icon = getCategoryIcon(item.category);
-                                return <Icon size={20} className="text-blue-600" />;
-                              })()}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-800 text-sm truncate">{item.name}</p>
-                            <p className="text-xs text-gray-600">{tempFormatCurrency(item.price)}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <button 
-                            onClick={() => updateCartQuantity(item.bar_product_id, -1)} 
-                            className="bg-gray-200 text-gray-700 p-1 rounded hover:bg-gray-300 transition-colors"
-                          >
-                            <Minus size={14} />
-                          </button>
-                          <span className="font-bold text-sm w-6 text-center">{item.quantity}</span>
-                          <button 
-                            onClick={() => updateCartQuantity(item.bar_product_id, 1)} 
-                            className="bg-blue-500 text-white p-1 rounded hover:bg-blue-600 transition-colors"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* Fixed Footer */}
-                <div className="border-t border-gray-200 p-4 bg-gray-50">
-                  <div className="flex justify-between mb-3">
-                    <span className="font-bold text-gray-800">Total</span>
-                    <span className="text-xl font-bold text-blue-600">{tempFormatCurrency(cartTotal)}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => {
-                        setCart([]);
-                        sessionStorage.removeItem('cart');
-                        showToast({
-                          type: 'info',
-                          title: 'Cart Cleared',
-                          message: 'Your cart has been emptied.'
-                        });
-                      }} 
-                      className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors text-sm"
-                    >
-                      Clear
-                    </button>
-                    <button 
-                      onClick={confirmOrder} 
-                      disabled={submittingOrder} 
-                      className="flex-2 bg-blue-500 text-white py-2 rounded-lg font-medium hover:bg-blue-600 disabled:bg-gray-400 transition-colors text-sm flex items-center justify-center gap-1"
-                    >
-                      {submittingOrder ? (
-                        <>
-                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                          Ordering...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle size={14} />
-                          Confirm Order
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       )}
       
@@ -2541,6 +2521,35 @@ export default function MenuPage() {
           Close Tab
         </button>
       </div>
+      
+      {/* Close Tab Confirmation Modal */}
+      {showCloseConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 className="text-xl font-bold text-gray-800 mb-3">Close Your Tab?</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to close your tab? You'll need to start a new one if you want to order again later.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCloseConfirm(false)}
+                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowCloseConfirm(false);
+                  handleCloseTab();
+                }}
+                className="flex-1 bg-green-500 text-white py-3 rounded-xl font-semibold hover:bg-green-600"
+              >
+                Close Tab
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Message Panel Slide-in */}
       <MessagePanel

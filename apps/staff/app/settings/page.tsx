@@ -506,136 +506,127 @@ export default function SettingsPage() {
       const printContent = `
         <!DOCTYPE html>
         <html>
-        <head>
-          <title>${barInfo.name} - QR Code</title>
-          <style>
-            @page {
-              size: A4;
-              margin: 2cm;
-            }
-            body {
-              font-family: Arial, sans-serif;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              min-height: 100vh;
-              margin: 0;
-              padding: 20px;
-            }
-            .qr-container {
-              background: white;
-              border: 3px solid #f97316;
-              border-radius: 20px;
-              padding: 40px;
-              box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-              text-align: center;
-              max-width: 600px;
-            }
-            h1 {
-              color: #f97316;
-              font-size: 32px;
-              margin: 0 0 10px 0;
-            }
-            .subtitle {
-              color: #666;
-              font-size: 18px;
-              margin-bottom: 30px;
-            }
-            .qr-code {
-              background: white;
-              padding: 20px;
-              border-radius: 10px;
-              display: inline-block;
-              margin-bottom: 30px;
-            }
-            .qr-code img {
-              display: block;
-              width: 400px;
-              height: 400px;
-            }
-            .instructions {
-              background: #fff7ed;
-              border: 2px solid #fed7aa;
-              border-radius: 10px;
-              padding: 20px;
-              margin-top: 20px;
-              text-align: left;
-            }
-            .instructions h2 {
-              color: #f97316;
-              font-size: 20px;
-              margin: 0 0 15px 0;
-            }
-            .instructions ol {
-              margin: 0;
-              padding-left: 20px;
-            }
-            .instructions li {
-              margin-bottom: 10px;
-              font-size: 16px;
-              color: #333;
-            }
-            .url-box {
-              background: #f3f4f6;
-              border: 2px solid #d1d5db;
-              border-radius: 10px;
-              padding: 15px;
-              margin-top: 20px;
-            }
-            .url-box p {
-              margin: 0 0 5px 0;
-              font-size: 14px;
-              color: #666;
-              font-weight: bold;
-            }
-            .url-box code {
-              font-size: 16px;
-              color: #f97316;
-              word-break: break-all;
-            }
-            .footer {
-              margin-top: 30px;
-              color: #999;
-              font-size: 14px;
-            }
-            @media print {
-              body {
-                padding: 0;
+          <head>
+            <title>${barInfo.name} - QR Code</title>
+            <style>
+              @page {
+                size: A4;
+                margin: 2cm;
               }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="qr-container">
-            <h1>${barInfo.name}</h1>
-            <p class="subtitle">Scan to View Menu & Order</p>
-            
-            <div class="qr-code">
-              <img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrData)}&bgcolor=ffffff&color=f97316&qzone=2&format=png" alt="QR Code" />
-            </div>
+              body {
+                font-family: Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+                padding: 20px;
+              }
+              .qr-container {
+                background: white;
+                border: 3px solid #f97316;
+                border-radius: 20px;
+                padding: 40px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+                text-align: center;
+                max-width: 600px;
+              }
+              h1 {
+                color: #f97316;
+                font-size: 32px;
+                margin: 0 0 10px 0;
+              }
+              .subtitle {
+                color: #666;
+                font-size: 18px;
+                margin-bottom: 30px;
+              }
+              .qr-code {
+                background: white;
+                padding: 20px;
+                border-radius: 10px;
+                display: inline-block;
+                margin-bottom: 30px;
+              }
+              .qr-code img {
+                display: block;
+                width: 400px;
+                height: 400px;
+              }
+              .instructions {
+                background: #fff7ed;
+                border: 2px solid #fed7aa;
+                border-radius: 10px;
+                padding: 20px;
+                margin-top: 20px;
+                text-align: left;
+              }
+              .instructions h2 {
+                color: #f97316;
+                font-size: 20px;
+                margin: 0 0 15px 0;
+              }
+              .instructions ol {
+                margin: 0;
+                padding-left: 20px;
+              }
+              .instructions li {
+                margin-bottom: 10px;
+                font-size: 16px;
+                color: #333;
+              }
+              .url-box {
+                background: #f3f4f6;
+                border: 2px solid #d1d5db;
+                border-radius: 10px;
+                padding: 15px;
+                margin-top: 20px;
+              }
+              .url-box p {
+                margin: 0 0 5px 0;
+                font-size: 14px;
+                color: #666;
+                font-weight: bold;
+              }
+              .url-box code {
+                font-size: 16px;
+                color: #f97316;
+                word-break: break-all;
+              }
+              .footer {
+                margin-top: 30px;
+                color: #999;
+                font-size: 14px;
+              }
+              @media print {
+                body {
+                  padding: 0;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="qr-container">
+              <h1>${barInfo.name}</h1>
+              <p class="subtitle">Scan to View Menu & Order</p>
+              
+              <div class="qr-code">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}&bgcolor=ffffff&color=f97316&qzone=2&format=png" alt="QR Code" />
+              </div>
 
-            <div class="instructions">
-              <h2>📱 How to Order:</h2>
-              <ol>
-                <li>Open your phone camera</li>
-                <li>Point at the QR code above</li>
-                <li>Tap the notification to open menu</li>
-                <li>Browse, add items, and submit your order</li>
-              </ol>
+              <div class="instructions">
+                <h2>📱 How to Connect:</h2>
+                <ol>
+                  <li>Scan QR code with phone camera</li>
+                  <li>No scanner? Type URL: <code>${qrUrl}</code></li>
+                  <li>Install our app for easier access</li>
+                </ol>
+              </div>
             </div>
-
-            <div class="url-box">
-              <p>No QR Scanner? Type this URL:</p>
-              <code>${qrData}</code>
-            </div>
-
-            <p class="footer">Powered by Tabeza Digital Ordering</p>
-          </div>
-        </body>
+          </body>
         </html>
       `;
-
       const printWindow = window.open('', '_blank');
       if (printWindow) {
         printWindow.document.write(printContent);
