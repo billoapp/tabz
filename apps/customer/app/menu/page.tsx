@@ -2278,7 +2278,7 @@ export default function MenuPage() {
           </div>
         </div>
       )}
-      {cartCount > 0 && (
+      {cartCount > 0 && !acceptanceModal.show && (
         <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full p-4 shadow-lg hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 z-[60] border-2 border-blue-300">
           <ShoppingCart size={24} />
           <span className="font-bold">{cartCount}</span>
