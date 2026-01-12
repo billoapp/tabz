@@ -150,31 +150,22 @@ function LandingContent() {
         return;
       }
 
-      console.log('ℹ️ No existing tab found, redirecting to consent');
-      const validation = await validateDeviceIntegrity(bar.id, supabase as any);
-      
-      if (!validation.valid) {
-        console.log('❌ Device validation failed:', validation.reason);
-        showToast({
-          type: validation.reason === 'LOW_INTEGRITY_SCORE' ? 'warning' : 'error',
-          title: validation.reason === 'LOW_INTEGRITY_SCORE' ? 'Device Check' : 'Tab Issue',
-          message: validation.reason === 'LOW_INTEGRITY_SCORE' 
-            ? 'Please refresh the page and try again'
-            : 'There seems to be an issue with your tab. Please contact staff.'
-        });
-        setCheckingTab(false);
-        setIsInitializing(false);
-        return;
-      }
-      
-      console.log('✅ Device validated - redirecting to consent page');
+      console.log('ℹ️ No existing tab found');
+      console.log('📱 Phone QR scan detected - redirecting DIRECTLY to consent page');
       
       // Store bar slug for consent page
       sessionStorage.setItem('scanned_bar_slug', barSlug);
       
+      // DIRECT redirect to consent page - skip landing page
+      showToast({
+        type: 'info',
+        title: 'Welcome!',
+        message: `Loading ${bar.name}...`
+      });
+      
       setTimeout(() => {
-        router.push(`/start?bar=${barSlug}`);
-      }, 500);
+        router.replace(`/start?bar=${barSlug}`);
+      }, 300);
 
     } catch (error) {
       console.error('❌ Error checking existing tab:', error);
