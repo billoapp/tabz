@@ -154,33 +154,17 @@ export default function MenuPage() {
 
   const loadAttempted = useRef(false);
 
-  // Helper function to get display image with category fallback
-  const getDisplayImage = (product: any, categoryName?: string) => {
+  // Helper function to get display image - product image only, fallback to icon
+  const getDisplayImage = (product: any) => {
     if (!product || typeof product !== 'object') return null;
     
-    // First check if product has its own image
+    // Only check if product has its own image
     if (product.image_url) {
       console.log('📸 Customer using product image:', product.image_url);
       return product.image_url;
     }
     
-    // Fall back to category image
-    const productCategory = categoryName || product.category;
-    console.log('🔍 Customer looking for category image for:', productCategory);
-    console.log('📊 Customer available categories:', categories.map(c => c.name));
-    
-    const category = categories.find(cat =>
-      cat.name.toLowerCase() === productCategory?.toLowerCase() ||
-      cat.name.toLowerCase().includes(productCategory?.toLowerCase()) ||
-      productCategory?.toLowerCase().includes(cat.name.toLowerCase())
-    );
-    
-    if (category?.image_url) {
-      console.log('✅ Customer using category image:', category.image_url);
-      return category.image_url;
-    }
-    
-    console.log('❌ Customer no category image found for:', productCategory);
+    console.log('❌ Customer no product image found, will use category icon for:', product.category);
     return null;
   };
 
@@ -796,7 +780,7 @@ export default function MenuPage() {
         try {
           const { data: categoriesData, error: categoriesError } = await supabase
             .from('categories')
-            .select('*')
+            .select('name')
             .order('name');
           if (categoriesError) {
             console.error('Error loading categories:', categoriesError);
@@ -1651,7 +1635,7 @@ export default function MenuPage() {
                     {filteredProducts.map((barProduct, index) => {
                       const product = barProduct.product;
                       if (!product) return null;
-                      const displayImage = product ? getDisplayImage(product, product.category) : null;
+                      const displayImage = product ? getDisplayImage(product) : null;
                       return (
                         <div
                           key={barProduct.id}

@@ -102,7 +102,6 @@ interface Supplier {
 
 interface Category {
   name: string;
-  image_url?: string;
 }
 
 interface BarProduct {
@@ -239,35 +238,19 @@ export default function MenuManagementPage() {
   const [bulkEditMode, setBulkEditMode] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
 
-  // Helper function to get display image
-  const getDisplayImage = (product: Product | undefined, categoryName?: string) => {
+  // Helper function to get display image - product image only, fallback to icon
+  const getDisplayImage = (product: Product | undefined) => {
     if (!product) {
       return null;
     }
     
-    // First check if product has its own image
+    // Only check if product has its own image
     if (product.image_url) {
       console.log('📸 Using product image:', product.image_url);
       return product.image_url;
     }
     
-    // Fall back to category image
-    const productCategory = categoryName || product.category;
-    console.log('🔍 Looking for category image for:', productCategory);
-    console.log('📊 Available categories:', categories.map(c => c.name));
-    
-    const category = categories.find((cat) => 
-      cat.name.toLowerCase() === productCategory?.toLowerCase() ||
-      cat.name.toLowerCase().includes(productCategory?.toLowerCase()) ||
-      productCategory?.toLowerCase().includes(cat.name.toLowerCase())
-    );
-    
-    if (category?.image_url) {
-      console.log('✅ Using category image:', category.image_url);
-      return category.image_url;
-    }
-    
-    console.log('❌ No category image found for:', productCategory);
+    console.log('❌ No product image found, will use category icon for:', product.category);
     return null;
   };
 
@@ -409,7 +392,7 @@ export default function MenuManagementPage() {
       setCatalogLoading(true);
       const [suppliersRes, categoriesRes, productsRes] = await Promise.all([
         supabase.from('suppliers').select('*').eq('active', true).order('name'),
-        supabase.from('categories').select('*').order('name'),
+        supabase.from('categories').select('name').order('name'),
         supabase.from('products').select('*, supplier:suppliers(id, name, logo_url)').eq('active', true).order('name'),
       ]);
 
