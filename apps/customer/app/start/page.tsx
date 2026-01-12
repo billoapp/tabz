@@ -177,12 +177,14 @@ function ConsentContent() {
     // Normalize slug (lowercase, trim)
     const normalizedSlug = extractedSlug.toLowerCase().trim();
     
+    // Store the scanned slug and mark as QR scan
     setScannedCode(normalizedSlug);
     setBarSlug(normalizedSlug);
-    setIsScannerMode(false);
+    sessionStorage.setItem('scanned_bar_slug', normalizedSlug);
+    sessionStorage.setItem('qr_scan_mode', 'true');
     
-    // Load bar info for the extracted slug
-    loadBarInfo(normalizedSlug);
+    // Redirect to consent page with QR scan context (like landing page does)
+    router.replace(`/start?bar=${normalizedSlug}&scanner=true`);
   };
 
   useEffect(() => {
