@@ -142,9 +142,9 @@ export default function MenuPage() {
   const [menuType, setMenuType] = useState<'interactive' | 'static'>('interactive');
   const [staticMenuUrl, setStaticMenuUrl] = useState<string | null>(null);
   const [staticMenuType, setStaticMenuType] = useState<'pdf' | 'image' | 'slideshow' | null>(null);
-  const [showStaticMenu, setShowStaticMenu] = useState(true); // Start expanded by default
+  const [showStaticMenu, setShowStaticMenu] = useState(false); // Start collapsed by default
   const [imageScale, setImageScale] = useState(1);
-  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
+  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(true);
 
   // Slideshow state for static slideshows
   const [slideshowImages, setSlideshowImages] = useState<string[]>([]);
@@ -1443,104 +1443,34 @@ export default function MenuPage() {
         <div className="bg-yellow-400 border-b-2 border-yellow-500 p-3 animate-pulse">
           <div className="flex items-center gap-2">
             <UserCog size={20} className="text-yellow-900" />
-            <p className="text-sm font-bold text-yellow-900">
-              {pendingStaffOrders} order{pendingStaffOrders > 1 ? 's' : ''} need your approval! Scroll to Orders ↓
-            </p>
+            <span className="text-yellow-900 font-medium">{pendingStaffOrders} staff order{pendingStaffOrders > 1 ? 's' : ''} pending</span>
           </div>
         </div>
       )}
 
-      {/* Timer Modal */}
-      {(() => {
-        const pendingTime = getPendingOrderTime();
-        if (!pendingTime) return null;
-        const elapsedSeconds = pendingTime.elapsed;
-        const maxTimeSeconds = 900;
-        const elapsedPercentage = Math.min((elapsedSeconds / maxTimeSeconds) * 100, 100);
-        const getStrokeColor = (percentage: number) => {
-          if (percentage <= 33) return "url(#gradient-green)";
-          else if (percentage <= 66) return "url(#gradient-orange)";
-          else return "url(#gradient-red)";
-        };
-        const circumference = 2 * Math.PI * 45;
-        const segmentLength = (elapsedPercentage / 100) * circumference;
-        const strokeDasharray = `${segmentLength} ${circumference}`;
-        const startOffset = circumference * 0.25;
-        const strokeDashoffset = startOffset;
-        const strokeColor = getStrokeColor(elapsedPercentage);
-        return (
-          <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 flex flex-col items-center justify-center animate-fadeIn">
-            <div className="relative" style={{ width: '45vw', height: '45vw', maxWidth: '280px', maxHeight: '280px' }}>
-              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-orange-400 to-red-500 opacity-20 animate-pulse-slow"></div>
-              <svg className="absolute inset-0 w-full h-full">
-                <circle cx="50%" cy="50%" r="45%" fill="none" stroke="#e5e7eb" strokeWidth="8" />
-                <circle
-                  cx="50%"
-                  cy="50%"
-                  r="45%"
-                  fill="none"
-                  stroke={strokeColor}
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={strokeDasharray}
-                  strokeDashoffset={strokeDashoffset}
-                  className="transition-all duration-1000 ease-linear"
-                />
-                <defs>
-                  <linearGradient id="gradient-green" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#10B981" />
-                    <stop offset="100%" stopColor="#059669" />
-                  </linearGradient>
-                  <linearGradient id="gradient-orange" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#FB923C" />
-                    <stop offset="100%" stopColor="#EA580C" />
-                  </linearGradient>
-                  <linearGradient id="gradient-red" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#EF4444" />
-                    <stop offset="100%" stopColor="#DC2626" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <Clock size={32} className="text-orange-500 mb-2 animate-pulse" />
-                <div className="text-5xl font-bold text-gray-800 animate-pulse-number">
-                  {formatTime(elapsedSeconds)}
-                </div>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 mt-6 text-center max-w-xs">
-              We'll notify you when your order is confirmed!
-            </p>
-          </div>
-        );
-      })()}
-
-      {/* Token Notifications */}
-      <TokenNotifications />
-      
-      {/* Telegram Message Section - UPDATED */}
+      {/* Message Section */}
       <div className="p-4">
         {/* Section Header */}
         <div className="mb-3">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">MESSAGES</h2>
-          <p className="text-sm text-gray-600 mt-1">Chat with staff about orders</p>
+          <p className="text-sm text-gray-600 mt-1">Communicate with staff</p>
         </div>
-
-        <div className="bg-white border border-gray-100 rounded-lg">
+        
+        <div className="bg-white border border-gray-100 overflow-hidden rounded-lg">
           <div className="p-4">
             {/* Message Stats */}
-            {telegramMessages.length > 0 && (
-              <div className="flex gap-3 text-xs mb-3">
-                <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
                   <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'pending').length} Pending</span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
                   <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'acknowledged').length} Acknowledged</span>
                 </div>
               </div>
-            )}
+            </div>
             
             {/* Recent Messages Preview */}
             {telegramMessages.slice(0, 2).map((msg) => (
@@ -2164,34 +2094,6 @@ export default function MenuPage() {
         </div>
       )}
       
-      {/* Close Tab Section - Simple text button */}
-      <div className="bg-white p-4 border-t">
-        <button
-          onClick={() => {
-            if (balance > 0) {
-              // Show red toast immediately for outstanding balance
-              showToast({
-                type: 'error',
-                title: 'Cannot Close Tab',
-                message: 'You have outstanding balance. Please pay at the bar before closing your tab.'
-              });
-              return;
-            }
-            // Show confirmation for green tabs (no balance)
-            setShowCloseConfirm(true);
-          }}
-          className={`w-full py-3 rounded-xl font-medium transition ${
-            orders.filter(order => order.status === 'confirmed').length === 0 
-              ? 'text-green-600 hover:bg-green-50' 
-              : balance > 0 
-                ? 'text-red-600 hover:bg-red-50'
-                : 'text-green-600 hover:bg-green-50'
-          }`}
-        >
-          Close Tab
-        </button>
-      </div>
-      
       {balance === 0 && orders.filter(order => order.status === 'confirmed').length > 0 && (
         <div className="bg-white p-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">All Paid! 🎉</h2>
@@ -2605,6 +2507,34 @@ export default function MenuPage() {
           </div>
         </div>
       )}
+      
+      {/* Close Tab Section - Always Last */}
+      <div className="bg-white p-4 border-t">
+        <button
+          onClick={() => {
+            if (balance > 0) {
+              // Show red toast immediately for outstanding balance
+              showToast({
+                type: 'error',
+                title: 'Cannot Close Tab',
+                message: 'You have outstanding balance. Please pay at the bar before closing your tab.'
+              });
+              return;
+            }
+            // Show confirmation for green tabs (no balance)
+            setShowCloseConfirm(true);
+          }}
+          className={`w-full py-3 rounded-xl font-medium transition ${
+            orders.filter(order => order.status === 'confirmed').length === 0 
+              ? 'text-green-600 hover:bg-green-50' 
+              : balance > 0 
+                ? 'text-red-600 hover:bg-red-50'
+                : 'text-green-600 hover:bg-green-50'
+          }`}
+        >
+          Close Tab
+        </button>
+      </div>
       
       {/* Message Panel Slide-in */}
       <MessagePanel
