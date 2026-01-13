@@ -150,7 +150,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <ToastProvider>
           <BarProvider>
-            <PWAUpdateManager />
+            {/*<PWAUpdateManager />*/}
             {children}
           </BarProvider>
         </ToastProvider>

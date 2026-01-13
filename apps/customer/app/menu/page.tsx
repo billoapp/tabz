@@ -135,6 +135,11 @@ export default function MenuPage() {
   const [loadingPaymentSettings, setLoadingPaymentSettings] = useState(true);
   const { showToast } = useToast();
   
+  // Debug: Monitor toast hook
+  useEffect(() => {
+    console.log('🔔 Toast hook loaded:', { showToast: typeof showToast });
+  }, [showToast]);
+  
   // Token service instance
   const tokensService = new TokensService(supabase);
   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
@@ -490,6 +495,60 @@ export default function MenuPage() {
                 show: true,
                 orderTotal: payload.new.total,
                 message: 'Your order has been accepted and is being prepared'
+              });
+              
+              // ADD TOAST NOTIFICATION HERE
+              showToast({
+                type: 'success',
+                title: 'Order Accepted! 🎉',
+                message: `Your order #${payload.new.order_number || '?'} has been accepted and is being prepared`,
+                duration: 5000
+              });
+              
+              // IMPORTANT: Also send a Telegram message back to customer
+              try {
+                const result = await (supabase.rpc as any)('create_telegram_message', {
+                  p_tab_id: tab.id,
+                  p_message: `✅ Order #${payload.new.order_number || '?'} has been accepted and is being prepared!`,
+                  p_initiated_by: 'staff',
+                  p_metadata: {
+                    type: 'order_confirmation',
+                    order_id: payload.new.id,
+                    order_total: payload.new.total,
+                    platform: 'staff-web'
+                  }
+                });
+                
+                if (result.error) {
+                  console.error('Error sending acceptance message:', result.error);
+                }
+              } catch (error) {
+                console.error('Error sending acceptance message:', error);
+              }
+            }
+            
+            // Check if staff cancelled an order
+            const isStaffCancellation = (
+              payload.new?.status === 'cancelled' && 
+              payload.old?.status === 'pending' && 
+              payload.new?.cancelled_by === 'staff'
+            );
+
+            if (isStaffCancellation && !processedOrders.has(payload.new.id)) {
+              console.log(' CUSTOMER APP: Staff cancelled order - showing notification');
+              
+              // Mark as processed to avoid duplicates
+              setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+              
+              // Trigger vibration and sound
+              buzz([200]);
+              
+              // Show cancellation toast
+              showToast({
+                type: 'error',
+                title: 'Order Cancelled',
+                message: `Order #${payload.new.order_number || '?'} was cancelled by staff: ${payload.new.rejection_reason || 'No reason provided'}`,
+                duration: 5000
               });
             }
             
@@ -1518,6 +1577,24 @@ export default function MenuPage() {
               <div className={`rounded-full p-1.5 ${isOnline ? 'bg-green-500' : 'bg-white bg-opacity-80'}`}>
                 <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-white' : 'bg-red-500 animate-pulse'}`}></div>
               </div>
+              
+              {/* Debug Test Toast Button - Only in development */}
+              {process.env.NODE_ENV === 'development' && (
+                <button
+                  onClick={() => {
+                    showToast({
+                      type: 'success',
+                      title: 'Test Toast',
+                      message: 'This is a test toast notification',
+                      duration: 3000
+                    });
+                  }}
+                  className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium hover:bg-blue-600"
+                  title="Test Toast Notification"
+                >
+                  Test
+                </button>
+              )}
               
               {/* REMOVED: Connection Status Indicator */}
             </div>
