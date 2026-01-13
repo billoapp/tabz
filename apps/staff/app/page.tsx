@@ -6,6 +6,7 @@ import { Users, DollarSign, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw,
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
 import { checkAndUpdateOverdueTabs } from '@/lib/businessHours';
+import LargeAnimatedClock from '@/components/LargeAnimatedClock';
 
 // Format functions for thousand separators
 const formatCurrency = (amount: number | string, decimals = 0): string => {
@@ -113,6 +114,10 @@ export default function TabsPage() {
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  
+  // Clock display state
+  const [showClock, setShowClock] = useState(false);
+  const [clockType, setClockType] = useState<'order' | 'message'>('order');
 
   useEffect(() => {
     if (bar) {
@@ -132,7 +137,39 @@ export default function TabsPage() {
           },
           (payload: any) => {
             console.log(' Global telegram update:', payload.eventType);
+            
+            // Show animated clock for new customer messages
+            if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
+              setClockType('message');
+              setShowClock(true);
+            }
+            
             loadTabs(); // Refresh tabs when messages change
+          }
+        )
+        .subscribe();
+      
+      // Add subscription for order updates
+      const orderSubscription = supabase
+        .channel(`global-order-updates-${bar.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tab_orders',
+            filter: `bar_id=eq.${bar.id}` // Filter by this bar
+          },
+          (payload: any) => {
+            console.log(' Global order update:', payload.eventType);
+            
+            // Show animated clock for new customer orders
+            if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
+              setClockType('order');
+              setShowClock(true);
+            }
+            
+            loadTabs(); // Refresh tabs when orders change
           }
         )
         .subscribe();
@@ -140,6 +177,7 @@ export default function TabsPage() {
       return () => {
         clearInterval(interval);
         telegramSubscription.unsubscribe();
+        orderSubscription.unsubscribe();
       };
     }
   }, [bar]);
@@ -523,6 +561,13 @@ export default function TabsPage() {
           }
         `}</style>
       </div>
+      
+      {/* Large Animated Clock Overlay */}
+      <LargeAnimatedClock
+        isVisible={showClock}
+        onClose={() => setShowClock(false)}
+        type={clockType}
+      />
     </div>
   );
 }
