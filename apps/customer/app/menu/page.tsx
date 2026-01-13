@@ -1843,6 +1843,117 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* Cart Section - Only show when cart has items */}
+      {cart.length > 0 && (
+        <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 border-t border-orange-200">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-orange-600 uppercase tracking-wide">YOUR CART</h2>
+            <button
+              onClick={toggleCart}
+              className="text-orange-600 hover:text-orange-700 transition-colors"
+            >
+              {cartCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            </button>
+          </div>
+
+          {!cartCollapsed && (
+            <div className="bg-white rounded-xl shadow-sm border border-orange-200 overflow-hidden">
+              {/* Cart Header */}
+              <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <ShoppingCart size={20} />
+                    <div>
+                      <h3 className="font-bold text-lg">Cart Items</h3>
+                      <p className="text-sm text-orange-100">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setCart([])}
+                    className="p-2 bg-orange-700 bg-opacity-50 rounded-lg hover:bg-orange-800 transition-colors"
+                    title="Clear cart"
+                  >
+                    <X size={18} className="text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Cart Items */}
+              <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
+                {cart.map(item => (
+                  <div key={item.bar_product_id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-orange-900">{item.name}</span>
+                        <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
+                          {item.category}
+                        </span>
+                      </div>
+                      <p className="text-sm text-orange-600">{tempFormatCurrency(item.price)} each</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-lg">
+                        <button
+                          onClick={() => updateCartQuantity(item.bar_product_id, -1)}
+                          className="p-2 hover:bg-orange-200 transition-colors"
+                        >
+                          <Minus size={16} className="text-orange-700" />
+                        </button>
+                        <span className="font-bold w-8 text-center text-orange-900">{item.quantity}</span>
+                        <button
+                          onClick={() => updateCartQuantity(item.bar_product_id, 1)}
+                          className="p-2 hover:bg-orange-200 transition-colors"
+                        >
+                          <Plus size={16} className="text-orange-700" />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newCart = cart.filter(cartItem => cartItem.bar_product_id !== item.bar_product_id);
+                          setCart(newCart);
+                          sessionStorage.setItem('cart', JSON.stringify(newCart));
+                        }}
+                        className="p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                        title="Remove from cart"
+                      >
+                        <X size={18} className="text-white" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Cart Footer */}
+              <div className="border-t border-orange-200 p-4 bg-orange-50">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm text-orange-600">Total</p>
+                    <p className="text-2xl font-bold text-orange-900">{tempFormatCurrency(cartTotal)}</p>
+                  </div>
+                  <button
+                    onClick={confirmOrder}
+                    disabled={submittingOrder || cart.length === 0}
+                    className="bg-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {submittingOrder ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={18} />
+                        Send Order
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Menu Viewer - RENAMED from "Static Menu" */}
       {(staticMenuUrl || staticMenuType === 'slideshow') && (
         <div className="p-4">
