@@ -337,8 +337,7 @@ export default function TabsPage() {
           {
             event: '*',
             schema: 'public',
-            table: 'tab_telegram_messages',
-            filter: `bar_id=eq.${bar.id}`
+            table: 'tab_telegram_messages'
           },
           (payload: any) => {
             console.log('🔔 Global telegram update:', payload.eventType, payload.new);
@@ -359,27 +358,32 @@ export default function TabsPage() {
               }
             }
             
+            // When staff acknowledges a message, this could trigger customer notification
+            if (payload.eventType === 'UPDATE' && payload.new?.staff_acknowledged_at && !payload.old?.staff_acknowledged_at) {
+              console.log('📋 Message acknowledged by staff - customer should be notified');
+              // Here you would send notification to customer that message was received
+            }
+            
             loadTabs();
           }
         )
         .subscribe();
       
-      // Add subscription for order updates
-      const orderSubscription = supabase
-        .channel(`global-order-updates-${bar.id}`)
+      // Add subscription for customer orders (staff alerts)
+      const customerOrderSubscription = supabase
+        .channel(`customer-order-updates-${bar.id}`)
         .on(
           'postgres_changes',
           {
-            event: '*',
+            event: 'INSERT',
             schema: 'public',
-            table: 'tab_orders',
-            filter: `bar_id=eq.${bar.id}`
+            table: 'tab_orders'
           },
           (payload: any) => {
-            console.log('🛒 Global order update:', payload.eventType, payload.new);
+            console.log('🛒 Customer order insert:', payload.eventType, payload.new);
             
             // Show high-visibility alert for new customer orders
-            if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
+            if (payload.new?.initiated_by === 'customer') {
               console.log('🚨 Triggering ORDER alert');
               if (mounted.current) {
                 setAlertType('order');
@@ -398,11 +402,37 @@ export default function TabsPage() {
           }
         )
         .subscribe();
+
+      // Add subscription for staff order actions (customer notifications)
+      const staffOrderSubscription = supabase
+        .channel(`staff-order-updates-${bar.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'tab_orders'
+          },
+          (payload: any) => {
+            console.log('🛒 Staff order insert:', payload.eventType, payload.new);
+            
+            // When staff creates/accepts an order, notify customer
+            if (payload.new?.initiated_by === 'staff') {
+              console.log('🚨 Staff created/accepted order - notify customer');
+              // Here you would send notification to customer
+              // This could be via Telegram, push notification, etc.
+            }
+            
+            loadTabs();
+          }
+        )
+        .subscribe();
     
       return () => {
         clearInterval(interval);
         telegramSubscription.unsubscribe();
-        orderSubscription.unsubscribe();
+        customerOrderSubscription.unsubscribe();
+        staffOrderSubscription.unsubscribe();
       };
     }
   }, [bar]);
