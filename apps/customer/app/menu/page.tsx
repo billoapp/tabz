@@ -456,12 +456,13 @@ export default function MenuPage() {
         .on(
           'postgres_changes',
           {
-            event: '*',
+            event: 'UPDATE',
             schema: 'public',
-            table: 'tab_orders'
+            table: 'tab_orders',
+            filter: `tab_id=eq.${tab.id}`
           },
           async (payload: any) => {
-            console.log('🛒 CUSTOMER APP: Order update received:', {
+            console.log('🛒 CUSTOMER APP: Order UPDATE received:', {
               eventType: payload.eventType,
               new: payload.new,
               old: payload.old
@@ -512,38 +513,18 @@ export default function MenuPage() {
         .on(
           'postgres_changes',
           {
-            event: '*',
+            event: 'UPDATE',
             schema: 'public',
-            table: 'tab_telegram_messages'
+            table: 'tab_telegram_messages',
+            filter: `tab_id=eq.${tab.id}`
           },
           async (payload: any) => {
-            console.log('📩 CUSTOMER APP: Message update received:', {
+            console.log('📩 CUSTOMER APP: Message UPDATE received:', {
               eventType: payload.eventType,
               new: payload.new,
               old: payload.old,
               initiated_by: payload.new?.initiated_by
             });
-            
-            // Show notification for new staff responses
-            if (payload.new?.initiated_by === 'staff' && 
-                payload.eventType === 'INSERT') {
-              
-              console.log('💬 CUSTOMER APP: Staff responded - showing notification');
-              
-              buzz([200]);
-              playAcceptanceSound();
-              
-              setNewMessageAlert({
-                type: 'acknowledged',
-                message: 'Staff responded to your message',
-                timestamp: new Date().toISOString(),
-                messageContent: payload.new.message
-              });
-              
-              setTimeout(() => {
-                setNewMessageAlert(null);
-              }, 5000);
-            }
             
             // Show notification for staff acknowledgments
             if (payload.new?.status === 'acknowledged' && 
@@ -582,6 +563,48 @@ export default function MenuPage() {
                 msg.status === 'pending'
               ).length;
               setUnreadMessagesCount(unreadCount);
+            }
+          }
+        )
+        .subscribe();
+
+      // Also listen for new staff responses (INSERT)
+      const staffResponseSubscription = supabase
+        .channel(`staff-responses-${tab.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'tab_telegram_messages',
+            filter: `tab_id=eq.${tab.id}&initiated_by=eq.staff`
+          },
+          async (payload: any) => {
+            console.log('💬 CUSTOMER APP: Staff responded - showing notification');
+            
+            buzz([200]);
+            playAcceptanceSound();
+            
+            setNewMessageAlert({
+              type: 'acknowledged',
+              message: 'Staff responded to your message',
+              timestamp: new Date().toISOString(),
+              messageContent: payload.new.message
+            });
+            
+            setTimeout(() => {
+              setNewMessageAlert(null);
+            }, 5000);
+            
+            // Refresh messages data
+            const { data: messages, error } = await supabase
+              .from('tab_telegram_messages')
+              .select('*')
+              .eq('tab_id', tab.id)
+              .order('created_at', { ascending: false });
+            
+            if (!error && messages) {
+              setTelegramMessages(messages);
             }
           }
         )
@@ -655,6 +678,7 @@ export default function MenuPage() {
         console.log('📡 CUSTOMER APP: Cleaning up subscriptions');
         orderSubscription.unsubscribe();
         messageSubscription.unsubscribe();
+        staffResponseSubscription.unsubscribe();
         paymentSubscription.unsubscribe();
       };
     }
@@ -727,7 +751,7 @@ export default function MenuPage() {
   };
 
   const getPendingOrderTime = () => {
-    const pendingCustomerOrders = orders.filter(o => o.status === 'pending' && o.initiated_by === 'customer');
+    const pendingCustomerOrders = orders.filter(o => o.status === 'confirmed' && o.initiated_by === 'customer');
     if (pendingCustomerOrders.length === 0) {
       sessionStorage.removeItem('oldestPendingCustomerOrderTime');
       return null;
@@ -1410,6 +1434,7 @@ export default function MenuPage() {
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  // FIXED: Only show CONFIRMED orders in customer history (pending orders are not real orders)
   const tabTotal = orders.filter(order => order.status === 'confirmed').reduce((sum, order) => sum + parseFloat(order.total), 0);
   const paidTotal = payments.filter(payment => payment.status === 'success').reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
   const balance = tabTotal - paidTotal;
@@ -1633,6 +1658,15 @@ export default function MenuPage() {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
+                    {/* Add sender label */}
+                    <div className="flex items-center gap-2 mb-1">
+                      {msg.initiated_by === 'customer' ? (
+                        <span className="text-xs font-medium text-orange-700">You</span>
+                      ) : (
+                        <span className="text-xs font-medium text-blue-700">{barName || 'Restaurant'} Staff</span>
+                      )}
+                    </div>
+                    
                     <p className="text-sm text-gray-800">{msg.message}</p>
                     <p className={`text-xs mt-1 ${
                       msg.initiated_by === 'customer' ? 'text-orange-700' : 'text-blue-700'
@@ -1647,15 +1681,13 @@ export default function MenuPage() {
                       </span>
                     </p>
                   </div>
-                  {msg.status === 'pending' && (
-                    <Clock size={16} className="text-yellow-500 flex-shrink-0" />
-                  )}
-                  {msg.status === 'acknowledged' && (
-                    <CheckCircle size={16} className="text-blue-500 flex-shrink-0" />
-                  )}
-                  {msg.status === 'completed' && (
-                    <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
-                  )}
+                  <div className="ml-2">
+                    {msg.initiated_by === 'customer' ? (
+                      <User size={16} className="text-orange-600" />
+                    ) : (
+                      <UserCog size={16} className="text-blue-600" />
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -1969,72 +2001,76 @@ export default function MenuPage() {
           </div>
         )}
         <div className="bg-white rounded-lg border border-gray-100 p-4 space-y-0">
-          {orders.length === 0 ? (
+          {/* FIXED: Only show CONFIRMED orders in customer history, not pending orders */}
+          {orders.filter(order => order.status === 'confirmed').length === 0 ? (
             <div className="text-center py-8 text-gray-500"><p>No orders yet</p></div>
           ) : (
-            orders.filter(order => order.status !== 'cancelled').map((order, index) => {
-              const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-              const initiatedBy = order.initiated_by || 'customer';
-              const isStaffOrder = initiatedBy === 'staff';
-              const needsApproval = order.status === 'pending' && isStaffOrder;
-              
-              // ✅ FIXED: Use database order_number directly
-              const orderNumber = order.order_number || '?';
-              
-              return (
-                <div key={order.id}>
-                  <div className="py-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-sm font-medium text-gray-900">Order #{orderNumber}</span>
-                        <span className="text-xs text-gray-400">{timeAgo(order.created_at)}</span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-900">{tempFormatCurrency(order.total)}</p>
-                    </div>
-                    <div className="space-y-1">
-                      {items.map((item: any, i: number) => (
-                        <div key={i} className="flex justify-between">
-                          <p className="text-xs text-gray-600">{item.quantity}x {item.name}</p>
-                          <p className="text-xs text-gray-500">{tempFormatCurrency(item.total)}</p>
+            <div className="space-y-0">
+              {/* FIXED: Only show CONFIRMED orders in customer history */}
+              {orders.filter(order => order.status === 'confirmed').map((order, index) => {
+                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                const initiatedBy = order.initiated_by || 'customer';
+                const isStaffOrder = initiatedBy === 'staff';
+                const needsApproval = order.status === 'pending' && isStaffOrder;
+                
+                // ✅ FIXED: Use database order_number directly
+                const orderNumber = order.order_number || '?';
+                
+                return (
+                  <div key={order.id}>
+                    <div className="py-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-sm font-medium text-gray-900">Order #{orderNumber}</span>
+                          <span className="text-xs text-gray-400">{timeAgo(order.created_at)}</span>
                         </div>
-                      ))}
-                    </div>
-                    {needsApproval && (
-                      <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mt-3">
-                        <div className="flex items-start gap-2 mb-3">
-                          <UserCog size={20} className="text-yellow-700 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-semibold text-yellow-900 mb-1">Staff Member Added This Order</p>
-                            <p className="text-xs text-yellow-800">Please review and approve or reject</p>
+                        <p className="text-sm font-medium text-gray-900">{tempFormatCurrency(order.total)}</p>
+                      </div>
+                      <div className="space-y-1">
+                        {items.map((item: any, i: number) => (
+                          <div key={i} className="flex justify-between">
+                            <p className="text-xs text-gray-600">{item.quantity}x {item.name}</p>
+                            <p className="text-xs text-gray-500">{tempFormatCurrency(item.total)}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {needsApproval && (
+                        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mt-3">
+                          <div className="flex items-start gap-2 mb-3">
+                            <UserCog size={20} className="text-yellow-700 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-semibold text-yellow-900 mb-1">Staff Member Added This Order</p>
+                              <p className="text-xs text-yellow-800">Please review and approve or reject</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleApproveOrder(order.id)} disabled={approvingOrder === order.id} className="flex-1 bg-green-500 text-white py-3 rounded-lg text-sm font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2">
+                              <ThumbsUp size={16} />
+                              {approvingOrder === order.id ? 'Approving...' : 'Approve'}
+                            </button>
+                            <button onClick={() => handleRejectOrder(order.id)} disabled={approvingOrder === order.id} className="flex-1 bg-red-500 text-white py-3 rounded-lg text-sm font-semibold hover:bg-red-600 disabled:bg-gray-300 flex items-center justify-center gap-2">
+                              <X size={16} />
+                              {approvingOrder === order.id ? 'Rejecting...' : 'Reject'}
+                            </button>
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleApproveOrder(order.id)} disabled={approvingOrder === order.id} className="flex-1 bg-green-500 text-white py-3 rounded-lg text-sm font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2">
-                            <ThumbsUp size={16} />
-                            {approvingOrder === order.id ? 'Approving...' : 'Approve'}
-                          </button>
-                          <button onClick={() => handleRejectOrder(order.id)} disabled={approvingOrder === order.id} className="flex-1 bg-red-500 text-white py-3 rounded-lg text-sm font-semibold hover:bg-red-600 disabled:bg-gray-300 flex items-center justify-center gap-2">
-                            <X size={16} />
-                            {approvingOrder === order.id ? 'Rejecting...' : 'Reject'}
-                          </button>
+                      )}
+                      {order.status === 'pending' && !isStaffOrder && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mt-3">
+                          <p className="text-xs text-yellow-700 flex items-center gap-1">
+                            <Clock size={12} />
+                            Waiting for staff confirmation...
+                          </p>
                         </div>
-                      </div>
-                    )}
-                    {order.status === 'pending' && !isStaffOrder && (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mt-3">
-                        <p className="text-xs text-yellow-700 flex items-center gap-1">
-                          <Clock size={12} />
-                          Waiting for staff confirmation...
-                        </p>
-                      </div>
+                      )}
+                    </div>
+                    {index < orders.filter(order => order.status === 'confirmed').length - 1 && (
+                      <div className="border-b border-gray-100"></div>
                     )}
                   </div>
-                  {index < orders.length - 1 && (
-                    <div className="border-b border-gray-100"></div>
-                  )}
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
