@@ -2,3 +2,5 @@
 export * from './types';
 export * from './tokens-service';
 export * from './utils';
+export * from './hooks/useRealtimeSubscription';
+export * from './components/ConnectionStatus';
