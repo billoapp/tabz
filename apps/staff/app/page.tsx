@@ -1,16 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, DollarSign, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw, LogOut, AlertTriangle, MessageCircle } from 'lucide-react';
+import { Users, DollarSign, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw, LogOut, AlertTriangle, MessageCircle, BellRing } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
 import { checkAndUpdateOverdueTabs } from '@/lib/businessHours';
-import LargeAnimatedClock from '@/components/LargeAnimatedClock';
-import TestClock from '@/components/TestClock';
-import EmojiClock from '@/components/EmojiClock';
-import SimpleOverlay from '@/components/SimpleOverlay';
-import { PiBellSimpleRingingBold } from "react-icons/pi";
 
 // Format functions for thousand separators
 const formatCurrency = (amount: number | string, decimals = 0): string => {
@@ -24,41 +19,36 @@ const formatCurrency = (amount: number | string, decimals = 0): string => {
 
 // Calculate average response time for both confirmed orders and acknowledged messages
 const calculateAverageResponseTime = (tabs: any[], currentTime?: number): string => {
-  // Get confirmed orders (order placed → confirmed) - only customer-initiated orders
   const confirmedOrders = tabs.flatMap(tab => 
     (tab.orders || []).filter((o: any) => 
       o.status === 'confirmed' && 
       o.confirmed_at && 
       o.created_at &&
-      o.initiated_by === 'customer' // Only count customer-initiated orders
+      o.initiated_by === 'customer'
     )
   );
   
-  // Calculate order response times (in minutes)
   const orderResponseTimes = confirmedOrders.map(order => {
     const created = new Date(order.created_at).getTime();
     const confirmed = new Date(order.confirmed_at).getTime();
-    return (confirmed - created) / (1000 * 60); // in minutes
+    return (confirmed - created) / (1000 * 60);
   });
   
-  // Get acknowledged customer messages (message sent → staff acknowledged)
   const acknowledgedMessages = tabs.flatMap(tab => 
     (tab.messages || []).filter((m: any) => 
       m.status === 'acknowledged' && 
       m.staff_acknowledged_at && 
       m.created_at &&
-      m.initiated_by === 'customer' // Only count customer-initiated messages
+      m.initiated_by === 'customer'
     )
   );
   
-  // Calculate message response times (in minutes)
   const messageResponseTimes = acknowledgedMessages.map(message => {
     const created = new Date(message.created_at).getTime();
     const acknowledged = new Date(message.staff_acknowledged_at).getTime();
-    return (acknowledged - created) / (1000 * 60); // in minutes
+    return (acknowledged - created) / (1000 * 60);
   });
   
-  // Combine all response times
   const allResponseTimes = [...orderResponseTimes, ...messageResponseTimes];
   
   if (allResponseTimes.length === 0) return '0m';
@@ -108,8 +98,8 @@ const calculatePendingWaitTime = (tabs: any[], currentTime?: number): string => 
   }
 };
 
-// Alert Overlay Component
-const AlertOverlay = ({ 
+// HIGH-VISIBILITY ALERT OVERLAY
+const HighVisibilityAlert = ({ 
   isVisible, 
   type = 'order' 
 }: { 
@@ -119,88 +109,145 @@ const AlertOverlay = ({
   if (!isVisible) return null;
   
   return (
-    <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
-      style={{
-        animation: 'fadeIn 0.2s ease-out',
-        backgroundColor: 'rgba(0, 0, 0, 0.85)'
-      }}
-    >
+    <>
+      {/* Overlay with black/red flashing background */}
       <div 
-        className="text-center"
+        className="fixed inset-0 z-[9998]"
         style={{
-          animation: 'scaleIn 0.3s ease-out'
+          animation: 'flash 0.5s infinite alternate',
+          backgroundColor: 'rgba(0, 0, 0, 0.9)'
         }}
+      />
+      
+      {/* Main Alert Content */}
+      <div 
+        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center p-4"
       >
-        <div className="relative">
-          <div className="relative">
-            {/* Outer glow */}
-            <div className="absolute inset-0 blur-3xl bg-orange-500 opacity-40 rounded-full animate-ping"></div>
-            
-            {/* Main bell icon */}
-            <PiBellSimpleRingingBold 
-              className="relative text-orange-400"
-              style={{
-                fontSize: '120px',
-                animation: 'ring 0.8s ease-in-out infinite',
-                filter: 'drop-shadow(0 0 30px rgba(249, 115, 22, 0.8))'
-              }}
-            />
-            
-            {/* Inner glow */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-20 h-20 bg-orange-300 rounded-full opacity-30 blur-xl"></div>
+        {/* Flashing border */}
+        <div 
+          className="absolute inset-0 border-[20px] border-red-600 animate-pulse"
+          style={{
+            animation: 'borderPulse 1s infinite',
+            boxShadow: '0 0 100px rgba(255, 0, 0, 0.8) inset'
+          }}
+        />
+        
+        {/* Main alert container */}
+        <div 
+          className="relative bg-gradient-to-br from-red-600 via-orange-500 to-yellow-500 rounded-3xl p-8 max-w-2xl w-full text-center shadow-2xl"
+          style={{
+            animation: 'pulseGlow 2s infinite',
+            boxShadow: '0 0 150px rgba(255, 100, 0, 0.9)'
+          }}
+        >
+          {/* Large icon */}
+          <div className="mb-6">
+            <div className="relative inline-block">
+              {/* Outer glow */}
+              <div className="absolute inset-0 bg-yellow-400 blur-3xl opacity-70 rounded-full animate-ping"></div>
+              
+              {/* Icon container */}
+              <div className="relative bg-white rounded-full p-6">
+                <BellRing 
+                  size={120} 
+                  className="text-red-600 animate-bounce"
+                  style={{
+                    filter: 'drop-shadow(0 0 20px rgba(255, 255, 0, 0.9))'
+                  }}
+                />
+              </div>
+              
+              {/* Rotating rings */}
+              <div className="absolute -inset-4 border-4 border-yellow-400 rounded-full animate-spin"></div>
+              <div className="absolute -inset-8 border-4 border-orange-400 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '3s' }}></div>
             </div>
           </div>
           
           {/* Title */}
-          <div className="mt-8">
-            <h2 className="text-4xl font-bold text-white mb-2 animate-pulse">
-              {type === 'order' ? 'NEW ORDER!' : 'NEW MESSAGE!'}
-            </h2>
-            <p className="text-xl text-orange-200">
-              {type === 'order' ? 'Customer placed an order' : 'Customer sent a message'}
+          <h1 className="text-5xl md:text-6xl font-black text-white mb-4 animate-pulse">
+            {type === 'order' ? '🚨 NEW ORDER! 🚨' : '📢 NEW MESSAGE! 📢'}
+          </h1>
+          
+          {/* Subtitle */}
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+            {type === 'order' ? 'Customer placed an order' : 'Customer sent a message'}
+          </h2>
+          
+          {/* Action text */}
+          <p className="text-xl text-white mb-8">
+            Check the pending section immediately!
+          </p>
+          
+          {/* Countdown timer */}
+          <div className="bg-black bg-opacity-50 rounded-2xl p-4 mb-6 inline-block">
+            <p className="text-3xl font-mono font-bold text-yellow-400">
+              Auto-hides in: <span className="countdown">3</span>s
             </p>
           </div>
           
-          {/* Progress bar */}
-          <div className="mt-8 w-64 h-2 bg-gray-700 rounded-full overflow-hidden mx-auto">
-            <div 
-              className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"
-              style={{
-                animation: 'progress 3s linear forwards'
-              }}
-            ></div>
+          {/* Instructions */}
+          <div className="bg-white bg-opacity-20 rounded-xl p-4">
+            <p className="text-lg text-white font-semibold">
+              Click anywhere or press ESC to dismiss
+            </p>
           </div>
+        </div>
+        
+        {/* Corner indicators */}
+        <div className="absolute top-4 left-4 w-16 h-16 bg-red-600 rounded-full animate-pulse flex items-center justify-center">
+          <AlertCircle size={32} className="text-white" />
+        </div>
+        <div className="absolute top-4 right-4 w-16 h-16 bg-red-600 rounded-full animate-pulse flex items-center justify-center">
+          <AlertCircle size={32} className="text-white" />
+        </div>
+        <div className="absolute bottom-4 left-4 w-16 h-16 bg-red-600 rounded-full animate-pulse flex items-center justify-center">
+          <AlertCircle size={32} className="text-white" />
+        </div>
+        <div className="absolute bottom-4 right-4 w-16 h-16 bg-red-600 rounded-full animate-pulse flex items-center justify-center">
+          <AlertCircle size={32} className="text-white" />
         </div>
       </div>
       
-      {/* Add these styles */}
+      {/* Global styles for animations */}
       <style jsx global>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+        @keyframes flash {
+          0%, 100% { background-color: rgba(0, 0, 0, 0.9); }
+          50% { background-color: rgba(139, 0, 0, 0.9); }
         }
         
-        @keyframes scaleIn {
-          0% { transform: scale(0.5); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
+        @keyframes borderPulse {
+          0%, 100% { 
+            border-color: #dc2626;
+            box-shadow: 0 0 100px rgba(255, 0, 0, 0.8) inset;
+          }
+          50% { 
+            border-color: #fbbf24;
+            box-shadow: 0 0 150px rgba(255, 165, 0, 0.9) inset;
+          }
         }
         
-        @keyframes ring {
-          0% { transform: rotate(-15deg); }
-          25% { transform: rotate(15deg); }
-          50% { transform: rotate(-10deg); }
-          75% { transform: rotate(10deg); }
-          100% { transform: rotate(0deg); }
+        @keyframes pulseGlow {
+          0%, 100% { 
+            box-shadow: 0 0 150px rgba(255, 100, 0, 0.9);
+          }
+          50% { 
+            box-shadow: 0 0 200px rgba(255, 200, 0, 1);
+          }
         }
         
-        @keyframes progress {
-          0% { width: 0%; }
-          100% { width: 100%; }
+        .countdown {
+          display: inline-block;
+          animation: countdown 1s steps(1) infinite;
+        }
+        
+        @keyframes countdown {
+          0% { content: "3"; }
+          33% { content: "2"; }
+          66% { content: "1"; }
+          100% { content: "0"; }
         }
       `}</style>
-    </div>
+    </>
   );
 };
 
@@ -215,44 +262,114 @@ export default function TabsPage() {
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
-  // Clock display state
-  const [showClock, setShowClock] = useState(false);
-  const [clockType, setClockType] = useState<'order' | 'message'>('order');
+  // Alert state
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertType, setAlertType] = useState<'order' | 'message'>('order');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Sound function
+  // Initialize audio for alert sound
+  useEffect(() => {
+    // Create alarm sound using Web Audio API for maximum volume
+    const createAlarmSound = () => {
+      try {
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        
+        // Create multiple oscillators for a harsh, attention-grabbing sound
+        const osc1 = audioContext.createOscillator();
+        const osc2 = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        // Connect oscillators
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Emergency siren-like frequencies
+        osc1.frequency.setValueAtTime(800, audioContext.currentTime);
+        osc1.frequency.exponentialRampToValueAtTime(1200, audioContext.currentTime + 0.3);
+        osc1.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.6);
+        
+        osc2.frequency.setValueAtTime(600, audioContext.currentTime);
+        osc2.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.3);
+        osc2.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.6);
+        
+        // Maximum volume envelope
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.8, audioContext.currentTime + 0.1); // Loud!
+        
+        return { osc1, osc2, gainNode, audioContext };
+      } catch (error) {
+        console.log('Web Audio API not available:', error);
+        return null;
+      }
+    };
+
+    // Play the alarm sound
+    const playAlarm = () => {
+      const sound = createAlarmSound();
+      if (sound) {
+        sound.osc1.start();
+        sound.osc2.start();
+        
+        // Stop after 2 seconds
+        setTimeout(() => {
+          sound.osc1.stop();
+          sound.osc2.stop();
+          sound.audioContext.close();
+        }, 2000);
+      } else {
+        // Fallback: Use multiple audio elements for maximum chance of playing
+        try {
+          const audio1 = new Audio('https://assets.mixkit.co/active_storage/sfx/259/259-preview.mp3'); // Alarm sound
+          const audio2 = new Audio('https://assets.mixkit.co/active_storage/sfx/250/250-preview.mp3'); // Bell sound
+          
+          audio1.volume = 1;
+          audio2.volume = 1;
+          
+          audio1.play().catch(e => console.log('Audio 1 failed:', e));
+          setTimeout(() => audio2.play().catch(e => console.log('Audio 2 failed:', e)), 300);
+        } catch (error) {
+          console.log('All audio methods failed:', error);
+        }
+      }
+    };
+
+    // Store the function for later use
+    (window as any).playAlarmSound = playAlarm;
+  }, []);
+
+  // Play alarm sound
   const playAlertSound = () => {
-    try {
-      // Create audio context for web audio API
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      // Bell-like sound
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-      oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.5);
-      
-      // Volume envelope
-      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.1);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1);
-      
-      oscillator.start();
-      oscillator.stop(audioContext.currentTime + 1);
-    } catch (error) {
-      console.log('Could not play sound:', error);
-      // Fallback to simple beep
-      const beep = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ');
-      beep.play().catch(() => console.log('Audio playback failed'));
+    if (typeof (window as any).playAlarmSound === 'function') {
+      (window as any).playAlarmSound();
     }
   };
 
-  // Debug: Log state changes
+  // Handle ESC key to dismiss alert
   useEffect(() => {
-    console.log('🕐 Clock state changed:', { showClock, clockType });
-  }, [showClock, clockType]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showAlert) {
+        setShowAlert(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showAlert]);
+
+  // Handle click to dismiss alert
+  useEffect(() => {
+    const handleClick = () => {
+      if (showAlert) {
+        setShowAlert(false);
+      }
+    };
+    
+    if (showAlert) {
+      window.addEventListener('click', handleClick);
+      return () => window.removeEventListener('click', handleClick);
+    }
+  }, [showAlert]);
 
   // Load tabs function
   const loadTabs = async () => {
@@ -289,8 +406,8 @@ export default function TabsPage() {
               .from('tab_telegram_messages')
               .select('id, status, created_at, staff_acknowledged_at, initiated_by, tab_id')
               .eq('tab_id', tab.id)
-              .eq('status', 'pending')  // ONLY PENDING
-              .eq('initiated_by', 'customer')  // ONLY FROM CUSTOMER
+              .eq('status', 'pending')
+              .eq('initiated_by', 'customer')
           ]);
 
           return {
@@ -325,25 +442,25 @@ export default function TabsPage() {
             event: '*',
             schema: 'public',
             table: 'tab_telegram_messages',
-            filter: `bar_id=eq.${bar.id}` // Filter by this bar
+            filter: `bar_id=eq.${bar.id}`
           },
           (payload: any) => {
             console.log('🔔 Global telegram update:', payload.eventType, payload.new);
             
-            // Show animated clock for new customer messages
+            // Show high-visibility alert for new customer messages
             if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
-              console.log('🕐 Triggering message clock');
-              playAlertSound(); // Play sound
-              setClockType('message');
-              setShowClock(true);
+              console.log('🚨 Triggering MESSAGE alert');
+              playAlertSound();
+              setAlertType('message');
+              setShowAlert(true);
               
-              // Auto-hide after 3 seconds
+              // Auto-hide after 5 seconds (longer for visibility)
               setTimeout(() => {
-                setShowClock(false);
-              }, 3000);
+                setShowAlert(false);
+              }, 5000);
             }
             
-            loadTabs(); // Refresh tabs when messages change
+            loadTabs();
           }
         )
         .subscribe();
@@ -357,25 +474,25 @@ export default function TabsPage() {
             event: '*',
             schema: 'public',
             table: 'tab_orders',
-            filter: `bar_id=eq.${bar.id}` // Filter by this bar
+            filter: `bar_id=eq.${bar.id}`
           },
           (payload: any) => {
             console.log('🛒 Global order update:', payload.eventType, payload.new);
             
-            // Show animated clock for new customer orders
+            // Show high-visibility alert for new customer orders
             if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
-              console.log('🕐 Triggering order clock');
-              playAlertSound(); // Play sound
-              setClockType('order');
-              setShowClock(true);
+              console.log('🚨 Triggering ORDER alert');
+              playAlertSound();
+              setAlertType('order');
+              setShowAlert(true);
               
-              // Auto-hide after 3 seconds
+              // Auto-hide after 5 seconds
               setTimeout(() => {
-                setShowClock(false);
-              }, 3000);
+                setShowAlert(false);
+              }, 5000);
             }
             
-            loadTabs(); // Refresh tabs when orders change
+            loadTabs();
           }
         )
         .subscribe();
@@ -388,11 +505,11 @@ export default function TabsPage() {
     }
   }, [bar]);
 
-  // NEW: Listen for message acknowledgment events from detail pages
+  // Listen for message acknowledgment events
   useEffect(() => {
     const handleMessageAcknowledged = (event: CustomEvent) => {
       console.log('📨 Message acknowledged event received for tab:', event.detail.tabId);
-      loadTabs(); // Refresh dashboard when messages are acknowledged
+      loadTabs();
     };
 
     window.addEventListener('messageAcknowledged' as any, handleMessageAcknowledged);
@@ -512,20 +629,19 @@ export default function TabsPage() {
               </button>
               <button 
                 onClick={() => {
-                  console.log('🧪 Test button clicked!');
-                  playAlertSound(); // Play sound
-                  setClockType('order');
-                  setShowClock(true);
+                  console.log('🚨 Test button clicked!');
+                  playAlertSound();
+                  setAlertType('order');
+                  setShowAlert(true);
                   
-                  // Auto-hide after 3 seconds
                   setTimeout(() => {
-                    setShowClock(false);
-                  }, 3000);
+                    setShowAlert(false);
+                  }, 5000);
                 }}
                 className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
-                title="Test Clock"
+                title="Test Alert"
               >
-                <AlertCircle size={24} />
+                <BellRing size={24} />
               </button>
               <button 
                 onClick={() => setShowMenu(!showMenu)}
@@ -729,10 +845,10 @@ export default function TabsPage() {
         `}</style>
       </div>
       
-      {/* Alert Overlay */}
-      <AlertOverlay 
-        isVisible={showClock} 
-        type={clockType} 
+      {/* HIGH VISIBILITY ALERT OVERLAY */}
+      <HighVisibilityAlert 
+        isVisible={showAlert} 
+        type={alertType} 
       />
     </div>
   );
