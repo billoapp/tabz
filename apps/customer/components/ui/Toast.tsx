@@ -35,14 +35,22 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const id = Math.random().toString(36).substr(2, 9);
     const newToast = { ...toast, id, duration: toast.duration || 5000 };
     
-    setToasts(prev => [...prev, newToast]);
+    console.log('🔔 ToastProvider: showToast called with:', newToast);
+    console.log('🔔 ToastProvider: Current toasts before adding:', toasts.length);
+    
+    setToasts(prev => {
+      const updated = [...prev, newToast];
+      console.log('🔔 ToastProvider: Toasts after adding:', updated.length);
+      return updated;
+    });
     
     if (newToast.duration && newToast.duration > 0) {
       setTimeout(() => {
+        console.log('🔔 ToastProvider: Removing toast after timeout:', id);
         removeToast(id);
       }, newToast.duration);
     }
-  }, []);
+  }, [toasts]);
 
   const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
@@ -60,10 +68,17 @@ const ToastContainer: React.FC<{ toasts: Toast[]; onRemove: (id: string) => void
   toasts, 
   onRemove 
 }) => {
-  if (toasts.length === 0) return null;
+  console.log('🔔 ToastContainer: Rendering with toasts:', toasts.length);
+  
+  if (toasts.length === 0) {
+    console.log('🔔 ToastContainer: No toasts to display');
+    return null;
+  }
+
+  console.log('🔔 ToastContainer: Displaying toasts:', toasts.map(t => ({ id: t.id, title: t.title })));
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2">
+    <div className="fixed top-4 right-4 z-[9999] space-y-2">
       {toasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}

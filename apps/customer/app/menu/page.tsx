@@ -138,6 +138,16 @@ export default function MenuPage() {
   // Debug: Monitor toast hook
   useEffect(() => {
     console.log('🔔 Toast hook loaded:', { showToast: typeof showToast });
+    // Test toast immediately when hook loads
+    if (showToast) {
+      console.log('🔔 Testing toast immediately...');
+      showToast({
+        type: 'success',
+        title: 'Test Toast on Load',
+        message: 'This should appear when the page loads',
+        duration: 3000
+      });
+    }
   }, [showToast]);
   
   // Token service instance
@@ -498,12 +508,26 @@ export default function MenuPage() {
               });
               
               // ADD TOAST NOTIFICATION HERE
-              showToast({
-                type: 'success',
-                title: 'Order Accepted! 🎉',
-                message: `Your order #${payload.new.order_number || '?'} has been accepted and is being prepared`,
-                duration: 5000
+              console.log('🔔 About to call showToast for order acceptance...');
+              console.log('🔔 showToast function available:', typeof showToast);
+              console.log('🔔 Order details:', {
+                orderNumber: payload.new.order_number,
+                status: payload.new.status,
+                initiatedBy: payload.new.initiated_by
               });
+              
+              if (showToast) {
+                console.log('🔔 Calling showToast now...');
+                showToast({
+                  type: 'success',
+                  title: 'Order Accepted! 🎉',
+                  message: `Your order #${payload.new.order_number || '?'} has been accepted and is being prepared`,
+                  duration: 5000
+                });
+                console.log('🔔 showToast called successfully');
+              } else {
+                console.error('🔔 showToast is not available!');
+              }
               
               // IMPORTANT: Also send a Telegram message back to customer
               try {
