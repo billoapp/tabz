@@ -136,10 +136,11 @@ export default function TabsPage() {
             filter: `bar_id=eq.${bar.id}` // Filter by this bar
           },
           (payload: any) => {
-            console.log(' Global telegram update:', payload.eventType);
+            console.log('🔔 Global telegram update:', payload.eventType, payload.new);
             
             // Show animated clock for new customer messages
             if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
+              console.log('🕐 Triggering message clock');
               setClockType('message');
               setShowClock(true);
             }
@@ -161,10 +162,11 @@ export default function TabsPage() {
             filter: `bar_id=eq.${bar.id}` // Filter by this bar
           },
           (payload: any) => {
-            console.log(' Global order update:', payload.eventType);
+            console.log('🛒 Global order update:', payload.eventType, payload.new);
             
             // Show animated clock for new customer orders
             if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
+              console.log('🕐 Triggering order clock');
               setClockType('order');
               setShowClock(true);
             }
@@ -359,6 +361,17 @@ export default function TabsPage() {
                 className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
               >
                 <RefreshCw size={24} />
+              </button>
+              <button 
+                onClick={() => {
+                  console.log('🕐 Manual test - triggering order clock');
+                  setClockType('order');
+                  setShowClock(true);
+                }}
+                className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+                title="Test Clock"
+              >
+                <AlertCircle size={24} />
               </button>
               <button 
                 onClick={() => setShowMenu(!showMenu)}
