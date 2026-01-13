@@ -105,7 +105,7 @@ export default function PWAUpdateManager() {
             Tabeza Update Available
           </h4>
           <p className="text-sm text-blue-100 mt-1">
-            A new version is ready to install.
+            A new Tabeza version is ready to install.
           </p>
         </div>
         <button 
