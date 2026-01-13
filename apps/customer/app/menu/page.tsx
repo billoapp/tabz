@@ -324,7 +324,6 @@ export default function MenuPage() {
     loadTokenBalance();
   }, [tab?.id]);
 
-  // NEW: Function to calculate average response time for this bar
   // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
   // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
   const calculateAverageResponseTime = async (barId: string) => {
@@ -450,10 +449,14 @@ export default function MenuPage() {
     };
   }, []);
 
+  // ...
+
   // Set up real-time subscriptions using staff app pattern (simple and working)
   useEffect(() => {
     if (tab?.id) {
       console.log('📡 CUSTOMER APP: Setting up real-time subscriptions for tab:', tab.id);
+      console.log('🔍 Tab object:', tab);
+      console.log('🔍 Tab ID:', tab.id);
       
       // Add subscription for order updates (staff actions)
       const orderSubscription = supabase
@@ -473,6 +476,20 @@ export default function MenuPage() {
               old: payload.old
             });
             
+            console.log('📊 Order subscription is working - received event!');
+            
+            // DEBUG: Log all of acceptance condition values
+            console.log('🔍 Acceptance condition check:', {
+              newStatus: payload.new?.status,
+              oldStatus: payload.old?.status,
+              initiatedBy: payload.new?.initiated_by,
+              condition1: payload.new?.status === 'confirmed',
+              condition2: payload.old?.status === 'pending',
+              condition3: payload.new?.initiated_by === 'customer',
+              orderId: payload.new?.id,
+              processedOrders: Array.from(processedOrders)
+            });
+            
             // Check if staff accepted an order
             const isStaffAcceptance = (
               payload.new?.status === 'confirmed' && 
@@ -480,8 +497,15 @@ export default function MenuPage() {
               payload.new?.initiated_by === 'customer'
             );
             
-            if (isStaffAcceptance && !processedOrders.has(payload.new.id)) {
-              console.log('🎉 CUSTOMER APP: Staff accepted order - showing notification');
+            // NEW: Also handle orders created directly as confirmed (no pending state)
+            const isDirectConfirmation = (
+              payload.eventType === 'INSERT' &&
+              payload.new?.status === 'confirmed' && 
+              payload.new?.initiated_by === 'customer'
+            );
+            
+            if ((isStaffAcceptance || isDirectConfirmation) && !processedOrders.has(payload.new.id)) {
+              console.log('🎉 CUSTOMER APP: Order confirmed - showing notification');
               
               // Mark as processed to avoid duplicates
               setProcessedOrders(prev => new Set([...prev, payload.new.id]));
@@ -575,6 +599,65 @@ export default function MenuPage() {
             
             if (!error && ordersData) {
               setOrders(ordersData);
+            }
+          }
+        )
+        .subscribe();
+
+      // Add subscription for new orders created directly as confirmed
+      const newOrderSubscription = supabase
+        .channel(`customer-new-orders-${tab.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'tab_orders',
+            filter: `tab_id=eq.${tab.id}&initiated_by=eq.customer`
+          },
+          async (payload: any) => {
+            console.log('🆕 CUSTOMER APP: New order INSERT received:', {
+              eventType: payload.eventType,
+              new: payload.new
+            });
+            
+            // Check if order was created directly as confirmed
+            const isDirectConfirmation = (
+              payload.new?.status === 'confirmed' && 
+              payload.new?.initiated_by === 'customer'
+            );
+            
+            if (isDirectConfirmation && !processedOrders.has(payload.new.id)) {
+              console.log('🎉 CUSTOMER APP: Order created directly as confirmed - showing notification');
+              
+              // Mark as processed to avoid duplicates
+              setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+              
+              // Trigger vibration and sound
+              buzz([200, 100, 200]);
+              playAcceptanceSound();
+              
+              // Show acceptance modal
+              setAcceptanceModal({
+                show: true,
+                orderTotal: payload.new.total,
+                message: 'Your order has been accepted and is being prepared'
+              });
+              
+              // ADD TOAST NOTIFICATION HERE
+              console.log('🔔 About to call showToast for direct confirmation...');
+              if (showToast) {
+                console.log('🔔 Calling showToast now...');
+                showToast({
+                  type: 'success',
+                  title: 'Order Confirmed! 🎉',
+                  message: `Your order #${payload.new.order_number || '?'} has been confirmed and is being prepared`,
+                  duration: 5000
+                });
+                console.log('🔔 showToast called successfully');
+              } else {
+                console.error('🔔 showToast is not available!');
+              }
             }
           }
         )
@@ -752,6 +835,7 @@ export default function MenuPage() {
         orderSubscription.unsubscribe();
         messageSubscription.unsubscribe();
         staffResponseSubscription.unsubscribe();
+        newOrderSubscription.unsubscribe();
         paymentSubscription.unsubscribe();
       };
     }
