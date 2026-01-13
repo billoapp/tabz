@@ -173,6 +173,9 @@ export default function MenuPage() {
   const [averageResponseTime, setAverageResponseTime] = useState<number | null>(null);
   const [responseTimeLoading, setResponseTimeLoading] = useState(false);
 
+  // NEW: Online/Offline status
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
   const [showConnectionStatus, setShowConnectionStatus] = useState(false);
 
   const loadAttempted = useRef(false);
@@ -420,6 +423,27 @@ export default function MenuPage() {
       calculateAverageResponseTime(tab.bar_id);
     }
   }, [tab?.bar_id]);
+
+  // Handle online/offline events
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('🌐 Customer app: Online');
+      setIsOnline(true);
+    };
+    
+    const handleOffline = () => {
+      console.log('📵 Customer app: Offline');
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Set up real-time subscriptions with improved error handling and debouncing
   const realtimeConfigs = [
@@ -1528,6 +1552,21 @@ export default function MenuPage() {
                 Loading...
               </div>
             )}
+            
+            {/* Online/Offline Status */}
+            <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
+              {isOnline ? (
+                <>
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span>Online</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                  <span>Offline</span>
+                </>
+              )}
+            </div>
             
             {/* Connection Status Indicator */}
             {showConnectionStatus && (
