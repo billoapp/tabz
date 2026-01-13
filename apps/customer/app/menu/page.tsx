@@ -1553,25 +1553,12 @@ export default function MenuPage() {
                 </div>
               )}
               
-              {/* Online/Offline Status */}
-              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-2 py-1.5 rounded-full flex items-center justify-center">
-                {isOnline ? (
-                  <div className="w-2 h-2 bg-green-400 rounded-full shadow-lg shadow-green-400/50"></div>
-                ) : (
-                  <div className="w-2 h-2 bg-red-400 rounded-full shadow-lg shadow-red-400/50 animate-pulse"></div>
-                )}
+              {/* Online/Offline Status - MODIFIED */}
+              <div className={`rounded-full p-1.5 ${isOnline ? 'bg-green-500' : 'bg-white bg-opacity-80'}`}>
+                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-white' : 'bg-red-500 animate-pulse'}`}></div>
               </div>
               
-              {/* Connection Status Indicator */}
-              {showConnectionStatus && (
-                <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                  <ConnectionStatusIndicator 
-                    status={connectionStatus} 
-                    retryCount={retryCount}
-                    className="text-xs"
-                  />
-                </div>
-              )}
+              {/* REMOVED: Connection Status Indicator */}
             </div>
           </div>
         </div>
@@ -1781,13 +1768,14 @@ export default function MenuPage() {
           </div>
           
           <div 
+            ref={menuRef}
             className={`overflow-hidden transition-all duration-500 ease-in-out ${
               interactiveMenuCollapsed 
                 ? 'max-h-0 opacity-0' 
                 : 'max-h-[1000px] opacity-100'
             }`}
           >
-            <div ref={menuRef} className="relative overflow-hidden">
+            <div className="relative overflow-hidden">
               <div className="p-4 border-b">
                 <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
                   {categoryOptions.map((category) => (
@@ -1879,34 +1867,61 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* Floating Cart Button */}
+      {cart.length > 0 && (
+        <button
+          onClick={toggleCart}
+          className="fixed bottom-6 right-6 z-50 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:from-blue-700 hover:to-indigo-800 hover:scale-110 active:scale-95 transition-all duration-200 animate-bounce-once"
+          style={{ 
+            animation: 'bounceOnce 0.5s ease-out',
+            boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5), 0 10px 10px -5px rgba(79, 70, 229, 0.2)'
+          }}
+        >
+          <div className="relative">
+            <ShoppingCart size={24} />
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-md">
+              {cartCount}
+            </span>
+          </div>
+        </button>
+      )}
+
       {/* Cart Section - Only show when cart has items */}
       {cart.length > 0 && (
-        <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 border-t border-orange-200">
+        <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-t border-blue-200">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xs font-semibold text-orange-600 uppercase tracking-wide">YOUR CART</h2>
+            <h2 className="text-xs font-semibold text-blue-700 uppercase tracking-wide">YOUR CART</h2>
             <button
               onClick={toggleCart}
-              className="text-orange-600 hover:text-orange-700 transition-colors"
+              className="text-blue-600 hover:text-blue-800 transition-colors"
             >
               {cartCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
             </button>
           </div>
 
           {!cartCollapsed && (
-            <div className="bg-white rounded-xl shadow-sm border border-orange-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-lg border-2 border-blue-300 overflow-hidden">
               {/* Cart Header */}
-              <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <ShoppingCart size={20} />
+                    <ShoppingCart size={20} className="text-blue-200" />
                     <div>
                       <h3 className="font-bold text-lg">Cart Items</h3>
-                      <p className="text-sm text-orange-100">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
+                      <p className="text-sm text-blue-200">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
                     </div>
                   </div>
                   <button
-                    onClick={() => setCart([])}
-                    className="p-2 bg-orange-700 bg-opacity-50 rounded-lg hover:bg-orange-800 transition-colors"
+                    onClick={() => {
+                      setCart([]);
+                      sessionStorage.removeItem('cart');
+                      showToast({
+                        type: 'info',
+                        title: 'Cart Cleared',
+                        message: 'All items have been removed from your cart'
+                      });
+                    }}
+                    className="p-2 bg-blue-800 bg-opacity-60 rounded-lg hover:bg-blue-900 transition-colors"
                     title="Clear cart"
                   >
                     <X size={18} className="text-white" />
@@ -1917,30 +1932,30 @@ export default function MenuPage() {
               {/* Cart Items */}
               <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
                 {cart.map(item => (
-                  <div key={item.bar_product_id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
+                  <div key={item.bar_product_id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200 hover:border-blue-300 transition-colors">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-orange-900">{item.name}</span>
-                        <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
+                        <span className="font-medium text-blue-900">{item.name}</span>
+                        <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-300">
                           {item.category}
                         </span>
                       </div>
-                      <p className="text-sm text-orange-600">{tempFormatCurrency(item.price)} each</p>
+                      <p className="text-sm text-blue-600">{tempFormatCurrency(item.price)} each</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-lg">
+                      <div className="flex items-center gap-2 bg-white border-2 border-blue-300 rounded-lg">
                         <button
                           onClick={() => updateCartQuantity(item.bar_product_id, -1)}
-                          className="p-2 hover:bg-orange-200 transition-colors"
+                          className="p-2 hover:bg-blue-100 transition-colors text-blue-700"
                         >
-                          <Minus size={16} className="text-orange-700" />
+                          <Minus size={16} />
                         </button>
-                        <span className="font-bold w-8 text-center text-orange-900">{item.quantity}</span>
+                        <span className="font-bold w-8 text-center text-blue-900">{item.quantity}</span>
                         <button
                           onClick={() => updateCartQuantity(item.bar_product_id, 1)}
-                          className="p-2 hover:bg-orange-200 transition-colors"
+                          className="p-2 hover:bg-blue-100 transition-colors text-blue-700"
                         >
-                          <Plus size={16} className="text-orange-700" />
+                          <Plus size={16} />
                         </button>
                       </div>
                       <button
@@ -1948,8 +1963,13 @@ export default function MenuPage() {
                           const newCart = cart.filter(cartItem => cartItem.bar_product_id !== item.bar_product_id);
                           setCart(newCart);
                           sessionStorage.setItem('cart', JSON.stringify(newCart));
+                          showToast({
+                            type: 'info',
+                            title: 'Item Removed',
+                            message: `${item.name} has been removed from your cart`
+                          });
                         }}
-                        className="p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                        className="p-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
                         title="Remove from cart"
                       >
                         <X size={18} className="text-white" />
@@ -1960,16 +1980,16 @@ export default function MenuPage() {
               </div>
 
               {/* Cart Footer */}
-              <div className="border-t border-orange-200 p-4 bg-orange-50">
+              <div className="border-t-2 border-blue-200 p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <p className="text-sm text-orange-600">Total</p>
-                    <p className="text-2xl font-bold text-orange-900">{tempFormatCurrency(cartTotal)}</p>
+                    <p className="text-sm text-blue-700 font-semibold">Total Amount</p>
+                    <p className="text-2xl font-bold text-blue-900">{tempFormatCurrency(cartTotal)}</p>
                   </div>
                   <button
                     onClick={confirmOrder}
                     disabled={submittingOrder || cart.length === 0}
-                    className="bg-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
                   >
                     {submittingOrder ? (
                       <>
@@ -1983,6 +2003,11 @@ export default function MenuPage() {
                       </>
                     )}
                   </button>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-blue-600 font-medium">
+                    💡 Add more items or send this order to the staff
+                  </p>
                 </div>
               </div>
             </div>
