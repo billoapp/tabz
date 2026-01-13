@@ -98,7 +98,7 @@ const calculatePendingWaitTime = (tabs: any[], currentTime?: number): string => 
   }
 };
 
-// HIGH-VISIBILITY ALERT OVERLAY
+// HIGH-VISIBILITY ALERT OVERLAY - UPDATED WITH FIXES
 const HighVisibilityAlert = ({ 
   isVisible, 
   type = 'order' 
@@ -106,10 +106,51 @@ const HighVisibilityAlert = ({
   isVisible: boolean; 
   type: 'order' | 'message' 
 }) => {
+  const [count, setCount] = useState(3);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  useEffect(() => {
+    if (isVisible && audioRef.current) {
+      // Try to play audio with user interaction fallback
+      const playAudio = async () => {
+        try {
+          audioRef.current!.volume = 0.7;
+          await audioRef.current!.play();
+        } catch (error) {
+          console.log('Audio play failed, user interaction required');
+        }
+      };
+      playAudio();
+    }
+  }, [isVisible]);
+  
+  useEffect(() => {
+    if (!isVisible) return;
+    
+    const timer = setInterval(() => {
+      setCount(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [isVisible]);
+  
   if (!isVisible) return null;
   
   return (
     <>
+      {/* Alarm sound element */}
+      <audio 
+        ref={audioRef}
+        src="https://assets.mixkit.co/active_storage/sfx/259/259-preview.mp3"
+        preload="auto"
+      />
+      
       {/* Overlay with black/red flashing background */}
       <div 
         className="fixed inset-0 z-[9998]"
@@ -181,7 +222,7 @@ const HighVisibilityAlert = ({
           {/* Countdown timer */}
           <div className="bg-black bg-opacity-50 rounded-2xl p-4 mb-6 inline-block">
             <p className="text-3xl font-mono font-bold text-yellow-400">
-              Auto-hides in: <span className="countdown">3</span>s
+              Auto-hides in: <span className="countdown">{count}</span>s
             </p>
           </div>
           
@@ -207,49 +248,37 @@ const HighVisibilityAlert = ({
           <AlertCircle size={32} className="text-white" />
         </div>
       </div>
-      
-      {/* Global styles for animations */}
-      <style jsx global>{`
-        @keyframes flash {
-          0%, 100% { background-color: rgba(0, 0, 0, 0.9); }
-          50% { background-color: rgba(139, 0, 0, 0.9); }
-        }
-        
-        @keyframes borderPulse {
-          0%, 100% { 
-            border-color: #dc2626;
-            box-shadow: 0 0 100px rgba(255, 0, 0, 0.8) inset;
-          }
-          50% { 
-            border-color: #fbbf24;
-            box-shadow: 0 0 150px rgba(255, 165, 0, 0.9) inset;
-          }
-        }
-        
-        @keyframes pulseGlow {
-          0%, 100% { 
-            box-shadow: 0 0 150px rgba(255, 100, 0, 0.9);
-          }
-          50% { 
-            box-shadow: 0 0 200px rgba(255, 200, 0, 1);
-          }
-        }
-        
-        .countdown {
-          display: inline-block;
-          animation: countdown 1s steps(1) infinite;
-        }
-        
-        @keyframes countdown {
-          0% { content: "3"; }
-          33% { content: "2"; }
-          66% { content: "1"; }
-          100% { content: "0"; }
-        }
-      `}</style>
     </>
   );
 };
+
+// Add CSS animations to globals.css or inline
+const alertStyles = `
+@keyframes flash {
+  0%, 100% { background-color: rgba(0, 0, 0, 0.9); }
+  50% { background-color: rgba(139, 0, 0, 0.9); }
+}
+
+@keyframes borderPulse {
+  0%, 100% { 
+    border-color: #dc2626;
+    box-shadow: 0 0 100px rgba(255, 0, 0, 0.8) inset;
+  }
+  50% { 
+    border-color: #fbbf24;
+    box-shadow: 0 0 150px rgba(255, 165, 0, 0.9) inset;
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { 
+    box-shadow: 0 0 150px rgba(255, 100, 0, 0.9);
+  }
+  50% { 
+    box-shadow: 0 0 200px rgba(255, 200, 0, 1);
+  }
+}
+`;
 
 export default function TabsPage() {
   const router = useRouter();
@@ -262,88 +291,20 @@ export default function TabsPage() {
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
-  // Alert state
+  // Alert state - SIMPLIFIED FOR TESTING
   const [showAlert, setShowAlert] = useState(false);
   const [alertType, setAlertType] = useState<'order' | 'message'>('order');
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize audio for alert sound
+  // Add styles to document head
   useEffect(() => {
-    // Create alarm sound using Web Audio API for maximum volume
-    const createAlarmSound = () => {
-      try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        
-        // Create multiple oscillators for a harsh, attention-grabbing sound
-        const osc1 = audioContext.createOscillator();
-        const osc2 = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        // Connect oscillators
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        // Emergency siren-like frequencies
-        osc1.frequency.setValueAtTime(800, audioContext.currentTime);
-        osc1.frequency.exponentialRampToValueAtTime(1200, audioContext.currentTime + 0.3);
-        osc1.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.6);
-        
-        osc2.frequency.setValueAtTime(600, audioContext.currentTime);
-        osc2.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.3);
-        osc2.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.6);
-        
-        // Maximum volume envelope
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.8, audioContext.currentTime + 0.1); // Loud!
-        
-        return { osc1, osc2, gainNode, audioContext };
-      } catch (error) {
-        console.log('Web Audio API not available:', error);
-        return null;
-      }
+    const styleElement = document.createElement('style');
+    styleElement.innerHTML = alertStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
     };
-
-    // Play the alarm sound
-    const playAlarm = () => {
-      const sound = createAlarmSound();
-      if (sound) {
-        sound.osc1.start();
-        sound.osc2.start();
-        
-        // Stop after 2 seconds
-        setTimeout(() => {
-          sound.osc1.stop();
-          sound.osc2.stop();
-          sound.audioContext.close();
-        }, 2000);
-      } else {
-        // Fallback: Use multiple audio elements for maximum chance of playing
-        try {
-          const audio1 = new Audio('https://assets.mixkit.co/active_storage/sfx/259/259-preview.mp3'); // Alarm sound
-          const audio2 = new Audio('https://assets.mixkit.co/active_storage/sfx/250/250-preview.mp3'); // Bell sound
-          
-          audio1.volume = 1;
-          audio2.volume = 1;
-          
-          audio1.play().catch(e => console.log('Audio 1 failed:', e));
-          setTimeout(() => audio2.play().catch(e => console.log('Audio 2 failed:', e)), 300);
-        } catch (error) {
-          console.log('All audio methods failed:', error);
-        }
-      }
-    };
-
-    // Store the function for later use
-    (window as any).playAlarmSound = playAlarm;
   }, []);
-
-  // Play alarm sound
-  const playAlertSound = () => {
-    if (typeof (window as any).playAlarmSound === 'function') {
-      (window as any).playAlarmSound();
-    }
-  };
 
   // Handle ESC key to dismiss alert
   useEffect(() => {
@@ -450,11 +411,10 @@ export default function TabsPage() {
             // Show high-visibility alert for new customer messages
             if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
               console.log('🚨 Triggering MESSAGE alert');
-              playAlertSound();
               setAlertType('message');
               setShowAlert(true);
               
-              // Auto-hide after 5 seconds (longer for visibility)
+              // Auto-hide after 5 seconds
               setTimeout(() => {
                 setShowAlert(false);
               }, 5000);
@@ -482,7 +442,6 @@ export default function TabsPage() {
             // Show high-visibility alert for new customer orders
             if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
               console.log('🚨 Triggering ORDER alert');
-              playAlertSound();
               setAlertType('order');
               setShowAlert(true);
               
@@ -630,7 +589,6 @@ export default function TabsPage() {
               <button 
                 onClick={() => {
                   console.log('🚨 Test button clicked!');
-                  playAlertSound();
                   setAlertType('order');
                   setShowAlert(true);
                   
@@ -833,16 +791,6 @@ export default function TabsPage() {
             </div>
           )}
         </div>
-
-        <style jsx global>{`
-          .hide-scrollbar::-webkit-scrollbar {
-            display: none;
-          }
-          .hide-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-          }
-        `}</style>
       </div>
       
       {/* HIGH VISIBILITY ALERT OVERLAY */}
