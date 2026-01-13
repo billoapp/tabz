@@ -1843,6 +1843,139 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* ============================================================================= */}
+            {/* CART SECTION - INSERT THIS AFTER INTERACTIVE MENU SECTION */}
+            {/* This goes RIGHT AFTER the Interactive Menu closing </div></div> tags */}
+            {/* and BEFORE the "Menu Viewer" (Promos) section */}
+            {/* ============================================================================= */}
+
+            {/* Cart Section - COLLAPSIBLE - Shows when items are added */}
+            {cart.length > 0 && (
+              <div id="cart-section" className="p-4">
+                {/* Section Header */}
+                <div className="mb-3">
+                  <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">YOUR CART</h2>
+                </div>
+                
+                <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
+                  {/* Cart Header */}
+                  <div className="p-4 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
+                        {cartCount}
+                      </div>
+                      <div>
+                        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cart</h2>
+                        <p className="text-sm font-bold text-gray-700">{tempFormatCurrency(cartTotal)}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={toggleCart}
+                      className="text-blue-600 hover:text-blue-700 p-2 transform transition-transform duration-200 hover:scale-110"
+                    >
+                      <ChevronDown 
+                        size={20} 
+                        className={`transform transition-transform duration-300 ease-in-out ${
+                          cartCollapsed ? 'rotate-0' : 'rotate-180'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  
+                  {/* Cart Items */}
+                  <div 
+                    className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                      cartCollapsed 
+                        ? 'max-h-0 opacity-0' 
+                        : 'max-h-[600px] opacity-100'
+                    }`}
+                  >
+                    <div className="p-4 space-y-3">
+                      {cart.map((item) => (
+                        <div key={item.bar_product_id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          {/* Product Image or Icon */}
+                          <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
+                            {item.image_url ? (
+                              <img 
+                                src={item.image_url} 
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
+                                {(() => {
+                                  const Icon = getCategoryIcon(item.category || 'Uncategorized');
+                                  return <Icon size={24} className="text-gray-400" />;
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Product Details */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-medium text-gray-900 truncate">{item.name}</h3>
+                            <p className="text-xs text-gray-500">{tempFormatCurrency(item.price)} each</p>
+                            <p className="text-sm font-semibold text-orange-600 mt-1">
+                              {tempFormatCurrency(item.price * item.quantity)}
+                            </p>
+                          </div>
+                          
+                          {/* Quantity Controls */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => updateCartQuantity(item.bar_product_id, -1)}
+                              className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition-colors"
+                            >
+                              <Minus size={16} />
+                            </button>
+                            <span className="w-8 text-center font-semibold text-gray-900">{item.quantity}</span>
+                            <button
+                              onClick={() => updateCartQuantity(item.bar_product_id, 1)}
+                              className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center hover:bg-green-200 transition-colors"
+                            >
+                              <Plus size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Cart Summary */}
+                      <div className="border-t border-gray-200 pt-3 mt-3">
+                        <div className="flex justify-between items-center mb-4">
+                          <span className="text-sm font-semibold text-gray-700">Total ({cartCount} items)</span>
+                          <span className="text-xl font-bold text-orange-600">{tempFormatCurrency(cartTotal)}</span>
+                        </div>
+                        
+                        {/* Confirm Order Button */}
+                        <button
+                          onClick={confirmOrder}
+                          disabled={submittingOrder || cart.length === 0}
+                          className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-lg font-semibold hover:from-orange-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+                        >
+                          {submittingOrder ? (
+                            <>
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                              Submitting...
+                            </>
+                          ) : (
+                            <>
+                              <ShoppingCart size={20} />
+                              Confirm Order
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ============================================================================= */}
+            {/* END OF CART SECTION */}
+            {/* ============================================================================= */}
+
+
       {/* Menu Viewer - RENAMED from "Static Menu" */}
       {(staticMenuUrl || staticMenuType === 'slideshow') && (
         <div className="p-4">
