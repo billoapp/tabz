@@ -134,6 +134,9 @@ export default function TabDetailPage() {
   const [closingTab, setClosingTab] = useState(false);
   const [closeTabReason, setCloseTabReason] = useState<'close' | 'overdue'>('close');
 
+  // Optimistic updates state
+  const [optimisticOrders, setOptimisticOrders] = useState<Map<string, any>>(new Map());
+
   // Load cart from localStorage on mount
   useEffect(() => {
     const storedCart = localStorage.getItem(`tab_cart_${tabId}`);
