@@ -1548,7 +1548,7 @@ export default function MenuPage() {
             )}
             {responseTimeLoading && (
               <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                <Clock size={14} />
                 Loading...
               </div>
             )}
@@ -1556,15 +1556,9 @@ export default function MenuPage() {
             {/* Online/Offline Status */}
             <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
               {isOnline ? (
-                <>
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span>Online</span>
-                </>
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
               ) : (
-                <>
-                  <div className="w-2 h-2 bg-red-400 rounded-full"></div>
-                  <span>Offline</span>
-                </>
+                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
               )}
             </div>
             
