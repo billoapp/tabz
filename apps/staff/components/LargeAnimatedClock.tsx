@@ -14,6 +14,8 @@ const LargeAnimatedClock: React.FC<LargeAnimatedClockProps> = ({
   onClose,
   type
 }) => {
+  console.log('🕐 LargeAnimatedClock rendered:', { isVisible, type });
+  
   const [scale, setScale] = useState(0);
   const [rotation, setRotation] = useState(0);
   const [mounted, setMounted] = useState(false);

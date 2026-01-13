@@ -7,6 +7,9 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
 import { checkAndUpdateOverdueTabs } from '@/lib/businessHours';
 import LargeAnimatedClock from '@/components/LargeAnimatedClock';
+import TestClock from '@/components/TestClock';
+import EmojiClock from '@/components/EmojiClock';
+import SimpleOverlay from '@/components/SimpleOverlay';
 
 // Format functions for thousand separators
 const formatCurrency = (amount: number | string, decimals = 0): string => {
@@ -118,6 +121,11 @@ export default function TabsPage() {
   // Clock display state
   const [showClock, setShowClock] = useState(false);
   const [clockType, setClockType] = useState<'order' | 'message'>('order');
+
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log('🕐 Clock state changed:', { showClock, clockType });
+  }, [showClock, clockType]);
 
   useEffect(() => {
     if (bar) {
@@ -364,9 +372,11 @@ export default function TabsPage() {
               </button>
               <button 
                 onClick={() => {
-                  console.log('🕐 Manual test - triggering order clock');
+                  console.log('🧪 Test button clicked!');
+                  console.log('🧪 Before state change:', { showClock, clockType });
                   setClockType('order');
                   setShowClock(true);
+                  console.log('🧪 After state change:', { showClock: true, clockType: 'order' });
                 }}
                 className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
                 title="Test Clock"
@@ -576,10 +586,9 @@ export default function TabsPage() {
       </div>
       
       {/* Large Animated Clock Overlay */}
-      <LargeAnimatedClock
+      <SimpleOverlay
         isVisible={showClock}
         onClose={() => setShowClock(false)}
-        type={clockType}
       />
     </div>
   );
