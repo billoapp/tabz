@@ -133,21 +133,11 @@ export default function MenuPage() {
     cash_enabled: true
   });
   const [loadingPaymentSettings, setLoadingPaymentSettings] = useState(true);
-  const { showToast } = useToast();
+  const { showToast, clearAllToasts } = useToast();
   
   // Debug: Monitor toast hook
   useEffect(() => {
     console.log('🔔 Toast hook loaded:', { showToast: typeof showToast });
-    // Test toast immediately when hook loads
-    if (showToast) {
-      console.log('🔔 Testing toast immediately...');
-      showToast({
-        type: 'success',
-        title: 'Test Toast on Load',
-        message: 'This should appear when the page loads',
-        duration: 3000
-      });
-    }
   }, [showToast]);
   
   // Token service instance
@@ -1604,20 +1594,32 @@ export default function MenuPage() {
               
               {/* Debug Test Toast Button - Only in development */}
               {process.env.NODE_ENV === 'development' && (
-                <button
-                  onClick={() => {
-                    showToast({
-                      type: 'success',
-                      title: 'Test Toast',
-                      message: 'This is a test toast notification',
-                      duration: 3000
-                    });
-                  }}
-                  className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium hover:bg-blue-600"
-                  title="Test Toast Notification"
-                >
-                  Test
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => {
+                      showToast({
+                        type: 'success',
+                        title: 'Test Toast',
+                        message: 'This is a test toast notification',
+                        duration: 3000
+                      });
+                    }}
+                    className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium hover:bg-blue-600"
+                    title="Test Toast Notification"
+                  >
+                    Test
+                  </button>
+                  <button
+                    onClick={() => {
+                      clearAllToasts();
+                      console.log('🔔 All toasts cleared!');
+                    }}
+                    className="bg-red-500 text-white px-2 py-1 rounded text-xs font-medium hover:bg-red-600"
+                    title="Clear All Toasts"
+                  >
+                    Clear
+                  </button>
+                </div>
               )}
               
               {/* REMOVED: Connection Status Indicator */}
