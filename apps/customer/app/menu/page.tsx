@@ -1868,313 +1868,149 @@ export default function MenuPage() {
       </div>
 
       {/* Floating Cart Button */}
-      {cart.length > 0 && (
-        <button
-          onClick={toggleCart}
-          className="fixed bottom-6 right-6 z-50 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:from-blue-700 hover:to-indigo-800 hover:scale-110 active:scale-95 transition-all duration-200 animate-bounce-once"
-          style={{ 
-            animation: 'bounceOnce 0.5s ease-out',
-            boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5), 0 10px 10px -5px rgba(79, 70, 229, 0.2)'
-          }}
-        >
-          <div className="relative">
-            <ShoppingCart size={24} />
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-md">
-              {cartCount}
-            </span>
-          </div>
-        </button>
-      )}
+    {cart.length > 0 && (
+      <button
+        onClick={toggleCart}
+        className="fixed bottom-6 right-6 z-50 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:from-blue-700 hover:to-indigo-800 hover:scale-110 active:scale-95 transition-all duration-200 animate-bounce-once"
+        style={{ 
+          animation: 'bounceOnce 0.5s ease-out',
+          boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5), 0 10px 10px -5px rgba(79, 70, 229, 0.2)'
+        }}
+      >
+        <div className="relative">
+          <ShoppingCart size={24} />
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-md">
+            {cartCount}
+          </span>
+        </div>
+      </button>
+    )}
 
-      {/* Cart Section - Only show when cart has items */}
-      {cart.length > 0 && (
-        <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-t border-blue-200">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xs font-semibold text-blue-700 uppercase tracking-wide">YOUR CART</h2>
-            <button
-              onClick={toggleCart}
-              className="text-blue-600 hover:text-blue-800 transition-colors"
-            >
-              {cartCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-            </button>
-          </div>
+    {/* Cart Section - Only show when cart has items */}
+    {cart.length > 0 && (
+      <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-t border-blue-200">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-semibold text-blue-700 uppercase tracking-wide">YOUR CART</h2>
+          <button
+            onClick={toggleCart}
+            className="text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            {cartCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+          </button>
+        </div>
 
-          {!cartCollapsed && (
-            <div className="bg-white rounded-xl shadow-lg border-2 border-blue-300 overflow-hidden">
-              {/* Cart Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <ShoppingCart size={20} className="text-blue-200" />
-                    <div>
-                      <h3 className="font-bold text-lg">Cart Items</h3>
-                      <p className="text-sm text-blue-200">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
-                    </div>
+        {!cartCollapsed && (
+          <div className="bg-white rounded-xl shadow-lg border-2 border-blue-300 overflow-hidden">
+            {/* Cart Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <ShoppingCart size={20} className="text-blue-200" />
+                  <div>
+                    <h3 className="font-bold text-lg">Cart Items</h3>
+                    <p className="text-sm text-blue-200">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
                   </div>
-                  <button
-                    onClick={() => {
-                      setCart([]);
-                      sessionStorage.removeItem('cart');
-                      showToast({
-                        type: 'info',
-                        title: 'Cart Cleared',
-                        message: 'All items have been removed from your cart'
-                      });
-                    }}
-                    className="p-2 bg-blue-800 bg-opacity-60 rounded-lg hover:bg-blue-900 transition-colors"
-                    title="Clear cart"
-                  >
-                    <X size={18} className="text-white" />
-                  </button>
                 </div>
+                <button
+                  onClick={() => {
+                    setCart([]);
+                    sessionStorage.removeItem('cart');
+                    showToast({
+                      type: 'info',
+                      title: 'Cart Cleared',
+                      message: 'All items have been removed from your cart'
+                    });
+                  }}
+                  className="p-2 bg-blue-800 bg-opacity-60 rounded-lg hover:bg-blue-900 transition-colors"
+                  title="Clear cart"
+                >
+                  <X size={18} className="text-white" />
+                </button>
               </div>
+            </div>
 
-              {/* Cart Items */}
-              <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
-                {cart.map(item => (
-                  <div key={item.bar_product_id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200 hover:border-blue-300 transition-colors">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-blue-900">{item.name}</span>
-                        <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-300">
-                          {item.category}
-                        </span>
-                      </div>
-                      <p className="text-sm text-blue-600">{tempFormatCurrency(item.price)} each</p>
+            {/* Cart Items */}
+            <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
+              {cart.map(item => (
+                <div key={item.bar_product_id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200 hover:border-blue-300 transition-colors">
+                  <div className="flex-1">
+                    <div className="mb-1">
+                      <span className="font-medium text-blue-900">{item.name}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 bg-white border-2 border-blue-300 rounded-lg">
-                        <button
-                          onClick={() => updateCartQuantity(item.bar_product_id, -1)}
-                          className="p-2 hover:bg-blue-100 transition-colors text-blue-700"
-                        >
-                          <Minus size={16} />
-                        </button>
-                        <span className="font-bold w-8 text-center text-blue-900">{item.quantity}</span>
-                        <button
-                          onClick={() => updateCartQuantity(item.bar_product_id, 1)}
-                          className="p-2 hover:bg-blue-100 transition-colors text-blue-700"
-                        >
-                          <Plus size={16} />
-                        </button>
-                      </div>
+                    <p className="text-sm text-blue-600">{tempFormatCurrency(item.price)}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 bg-white border-2 border-blue-300 rounded-lg">
                       <button
-                        onClick={() => {
-                          const newCart = cart.filter(cartItem => cartItem.bar_product_id !== item.bar_product_id);
-                          setCart(newCart);
-                          sessionStorage.setItem('cart', JSON.stringify(newCart));
-                          showToast({
-                            type: 'info',
-                            title: 'Item Removed',
-                            message: `${item.name} has been removed from your cart`
-                          });
-                        }}
-                        className="p-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
-                        title="Remove from cart"
+                        onClick={() => updateCartQuantity(item.bar_product_id, -1)}
+                        className="p-2 hover:bg-blue-100 transition-colors text-blue-700"
                       >
-                        <X size={18} className="text-white" />
+                        <Minus size={16} />
+                      </button>
+                      <span className="font-bold w-8 text-center text-blue-900">{item.quantity}</span>
+                      <button
+                        onClick={() => updateCartQuantity(item.bar_product_id, 1)}
+                        className="p-2 hover:bg-blue-100 transition-colors text-blue-700"
+                      >
+                        <Plus size={16} />
                       </button>
                     </div>
+                    <button
+                      onClick={() => {
+                        const newCart = cart.filter(cartItem => cartItem.bar_product_id !== item.bar_product_id);
+                        setCart(newCart);
+                        sessionStorage.setItem('cart', JSON.stringify(newCart));
+                        showToast({
+                          type: 'info',
+                          title: 'Item Removed',
+                          message: `${item.name} has been removed from your cart`
+                        });
+                      }}
+                      className="p-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                      title="Remove from cart"
+                    >
+                      <X size={18} className="text-white" />
+                    </button>
                   </div>
-                ))}
-              </div>
-
-              {/* Cart Footer */}
-              <div className="border-t-2 border-blue-200 p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-sm text-blue-700 font-semibold">Total Amount</p>
-                    <p className="text-2xl font-bold text-blue-900">{tempFormatCurrency(cartTotal)}</p>
-                  </div>
-                  <button
-                    onClick={confirmOrder}
-                    disabled={submittingOrder || cart.length === 0}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
-                  >
-                    {submittingOrder ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <Send size={18} />
-                        Send Order
-                      </>
-                    )}
-                  </button>
                 </div>
-                <div className="text-center">
-                  <p className="text-xs text-blue-600 font-medium">
-                    💡 Add more items or send this order to the staff
-                  </p>
+              ))}
+            </div>
+
+            {/* Cart Footer */}
+            <div className="border-t-2 border-blue-200 p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm text-blue-700 font-semibold">Total Amount</p>
+                  <p className="text-2xl font-bold text-blue-900">{tempFormatCurrency(cartTotal)}</p>
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Menu Viewer - RENAMED from "Static Menu" */}
-      {(staticMenuUrl || staticMenuType === 'slideshow') && (
-        <div className="p-4">
-          {/* Section Header - NEW */}
-          <div className="mb-3">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PROMOS</h2>
-          </div>
-          
-          <div className="bg-white border border-gray-100 overflow-hidden rounded-lg">
-            {/* Menu Header - UPDATED text */}
-            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-700">Specials</h2>
-              </div>
-              <button
-                onClick={toggleStaticMenu}
-                className="text-orange-600 hover:text-orange-700 p-2 transform transition-transform duration-200 hover:scale-110"
-              >
-                <ChevronDown 
-                  size={20} 
-                  className={`transform transition-transform duration-300 ease-in-out ${
-                    !showStaticMenu ? 'rotate-0' : 'rotate-180'
-                  }`}
-                />
-              </button>
-            </div>
-            
-            {/* Static Menu Content */}
-            <div 
-              className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                !showStaticMenu 
-                  ? 'max-h-0 opacity-0' 
-                  : 'max-h-[70vh] opacity-100'
-              }`}
-            >
-              <div className="relative z-10 bg-gray-900 bg-opacity-95 flex flex-col h-[70vh] min-h-[400px]">
-                {/* Content */}
-                <div className="flex-1 overflow-hidden">
-                  {/* PDF viewer temporarily disabled - only show images */}
-                  {staticMenuType === 'pdf' ? (
-                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                      <div className="text-center text-gray-600 p-8">
-                        <FileText size={48} className="mx-auto mb-4 text-gray-400" />
-                        <h3 className="text-lg font-semibold mb-2">PDF Viewer Temporarily Disabled</h3>
-                        <p className="text-sm">PDF menu viewing is currently unavailable. Please ask staff for assistance or use the interactive menu.</p>
-                      </div>
-                    </div>
-                  ) : staticMenuType === 'slideshow' ? (
-                    // Slideshow viewer - MANUAL ONLY (no auto-play)
-                    <div className="w-full h-full bg-gray-100 flex flex-col overflow-hidden">
-                      <div className="flex-1 overflow-hidden flex items-center justify-center p-4 relative">
-                        {slideshowImages.length === 0 ? (
-                          <div className="text-center text-gray-500">No slideshow images available</div>
-                        ) : (
-                          <>
-                            <div className="aspect-[4/5] max-w-[900px] w-full rounded-lg overflow-hidden shadow-lg transition-all duration-300">
-                              <img
-                                src={slideshowImages[currentSlideIndex]}
-                                alt={`Slide ${currentSlideIndex + 1}`}
-                                className="w-full h-full object-cover"
-                                style={{ transform: `scale(${imageScale})`, transformOrigin: 'center' }}
-                              />
-                            </div>
-
-                            {slideshowImages.length > 1 && (
-                              <>
-                                <button
-                                  onClick={() => setCurrentSlideIndex((idx) => (idx - 1 + slideshowImages.length) % slideshowImages.length)}
-                                  className="absolute left-3 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 shadow"
-                                >
-                                  ‹
-                                </button>
-                                <button
-                                  onClick={() => setCurrentSlideIndex((idx) => (idx + 1) % slideshowImages.length)}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 shadow"
-                                >
-                                  ›
-                                </button>
-                              </>
-                            )}
-                          </>
-                        )}
-                      </div>
-
-                      {/* Footer: indicators & controls */}
-                      <div className="bg-white border-t border-gray-200 p-2 flex items-center justify-between gap-2 shrink-0">
-                        <div className="flex items-center gap-2">
-                          {slideshowImages.map((_, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setCurrentSlideIndex(i)}
-                              className={`w-2 h-2 rounded-full ${i === currentSlideIndex ? 'bg-orange-500' : 'bg-gray-300'}`}
-                              title={`Go to slide ${i + 1}`}
-                            />
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {/* Play/Pause button removed since slideshow is manual only */}
-                          <button
-                            onClick={handleImageFitWidth}
-                            className="p-1 hover:bg-gray-100 rounded text-gray-600"
-                            title="Fit to width"
-                          >
-                            <Maximize2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                <button
+                  onClick={confirmOrder}
+                  disabled={submittingOrder || cart.length === 0}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
+                >
+                  {submittingOrder ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Sending...
+                    </>
                   ) : (
-                    // Image viewer with zoom
-                    <div className="w-full h-full bg-gray-100 flex flex-col overflow-hidden">
-                      {/* Image Content */}
-                      <div className="flex-1 overflow-auto flex items-center justify-center p-4">
-                        <img 
-                          src={staticMenuUrl ?? undefined} 
-                          alt="Menu" 
-                          className="max-w-full max-h-full object-contain rounded-lg shadow-lg transition-all duration-300"
-                          style={{ 
-                            transform: `scale(${imageScale})`, 
-                            transformOrigin: 'center',
-                            filter: showStaticMenu ? 'brightness(1)' : 'brightness(0.8)'
-                          }}
-                        />
-                      </div>
-                      
-                      {/* Image Zoom Controls */}
-                      <div className="bg-white border-t border-gray-200 p-2 flex items-center justify-center gap-2 shrink-0">
-                        <button
-                          onClick={handleImageZoomOut}
-                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transform transition-all duration-200 hover:scale-110"
-                          title="Zoom out"
-                        >
-                          <ZoomOut size={14} />
-                        </button>
-                        <span className="text-xs text-gray-600 min-w-[40px] text-center">
-                          {Math.round(imageScale * 100)}%
-                        </span>
-                        <button
-                          onClick={handleImageZoomIn}
-                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transform transition-all duration-200 hover:scale-110"
-                          title="Zoom in"
-                        >
-                          <ZoomIn size={14} />
-                        </button>
-                        <button
-                          onClick={handleImageFitWidth}
-                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transform transition-all duration-200 hover:scale-110"
-                          title="Fit to width"
-                        >
-                          <Maximize2 size={14} />
-                        </button>
-                      </div>
-                    </div>
+                    <>
+                      <Send size={18} />
+                      Send Order
+                    </>
                   )}
-                </div>
+                </button>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-blue-600 font-medium">
+                  💡 Add more items or send this order to the staff
+                </p>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+    )}
 
       <div ref={ordersRef} className="p-4">
         {/* Section Header - NEW */}
