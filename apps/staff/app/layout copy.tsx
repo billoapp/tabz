@@ -9,7 +9,7 @@ import { Analytics } from '@vercel/analytics/next';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://tabeza.co.ke'), // Tabeza platform URL
+  metadataBase: new URL('https://tabeza.co.ke'),
   
   title: {
     default: 'Tabeza Venue - Digital Tab System',
@@ -48,11 +48,10 @@ export const metadata: Metadata = {
     },
   },
   
-  // Open Graph (Facebook, WhatsApp, iMessage, LinkedIn)
   openGraph: {
     type: 'website',
     locale: 'en_KE',
-    url: 'https://staff.tabeza.co.ke',
+    url: 'https://tabeza.co.ke',
     siteName: 'Tabeza Venue',
     title: 'Tabeza Venue - Digital Tab System',
     description: 'Eliminate revenue loss. Track every tab. Process payments seamlessly. Join hundreds of Kenyan venues using Tabeza. 100% free forever.',
@@ -63,22 +62,20 @@ export const metadata: Metadata = {
         height: 630,
         alt: 'Tabeza - Digital Tab Management System',
         type: 'image/png',
-        secureUrl: 'https://staff.tabeza.co.ke/og-banner-staff.png',
+        secureUrl: 'https://tabeza.co.ke/og-banner-staff.png',
       },
     ],
   },
   
-  // Twitter Card
   twitter: {
     card: 'summary_large_image',
     title: 'Tabeza Venue - Digital Tab System',
     description: 'Eliminate revenue loss. Track every tab. 100% free forever.',
-    images: ['https://staff.tabeza.co.ke/og-banner-staff.png'],
-    creator: '@tabeza_ke', // Add your Twitter handle if you have one
+    images: ['https://tabeza.co.ke/og-banner-staff.png'],
+    creator: '@tabeza_ke',
     site: '@tabeza_ke',
   },
   
-  // App-specific metadata
   applicationName: 'Tabeza Venue',
   appleWebApp: {
     capable: true,
@@ -86,7 +83,6 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
   },
   
-  // Icons
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
@@ -97,30 +93,15 @@ export const metadata: Metadata = {
   
   manifest: '/manifest.json',
   
-  // Additional metadata
   category: 'business',
   classification: 'Business Software',
-  
-  // Verification (add when you have these)
-  // verification: {
-  //   google: 'your-google-site-verification',
-  //   yandex: 'your-yandex-verification',
-  // },
-  
-  // Alternate languages (if you support multiple languages)
-  // alternates: {
-  //   languages: {
-  //     'en-KE': 'https://staff.tabeza.co.ke',
-  //     'sw-KE': 'https://staff.tabeza.co.ke/sw',
-  //   },
-  // },
 };
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#F97316', // Your brand orange color
+  themeColor: '#F97316',
 };
 
 export default function RootLayout({
@@ -132,7 +113,6 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="icon" href="/favicon.ico" />
-        {/* Additional meta tags */}
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#F97316" />
@@ -140,11 +120,9 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="format-detection" content="telephone=no" />
         
-        {/* Preconnect to important domains for performance */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         
-        {/* Structured Data for SEO */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
