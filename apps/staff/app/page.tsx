@@ -590,6 +590,34 @@ export default function TabsPage() {
         isVisible={showClock}
         onClose={() => setShowClock(false)}
       />
+      
+      {/* DEBUG: Direct test overlay */}
+      {showClock && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(255, 0, 0, 0.8)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          onClick={() => setShowClock(false)}
+        >
+          <div style={{
+            backgroundColor: 'yellow',
+            padding: '40px',
+            borderRadius: '20px',
+            fontSize: '72px'
+          }}>
+            🚨 TEST 🚨
+          </div>
+        </div>
+      )}
     </div>
   );
 }
