@@ -1539,39 +1539,40 @@ export default function MenuPage() {
               <p className="text-xs text-white text-opacity-90">{barName}</p>
             </div>
             
-            {/* Average Response Time Badge */}
-            {averageResponseTime !== null && !responseTimeLoading && (
-              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
-                <Clock size={14} />
-                ~{averageResponseTime}m response
+            <div className="flex items-center gap-2">
+              {/* Average Response Time Badge */}
+              {averageResponseTime !== null && !responseTimeLoading && (
+                <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
+                  <Clock size={14} />
+                  ~{averageResponseTime}m
+                </div>
+              )}
+              {responseTimeLoading && (
+                <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
+                  <Clock size={14} className="animate-spin" />
+                </div>
+              )}
+              
+              {/* Online/Offline Status */}
+              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-2 py-1.5 rounded-full flex items-center justify-center">
+                {isOnline ? (
+                  <div className="w-2 h-2 bg-green-400 rounded-full shadow-lg shadow-green-400/50"></div>
+                ) : (
+                  <div className="w-2 h-2 bg-red-400 rounded-full shadow-lg shadow-red-400/50 animate-pulse"></div>
+                )}
               </div>
-            )}
-            {responseTimeLoading && (
-              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
-                <Clock size={14} />
-                Loading...
-              </div>
-            )}
-            
-            {/* Online/Offline Status */}
-            <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
-              {isOnline ? (
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              ) : (
-                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+              
+              {/* Connection Status Indicator */}
+              {showConnectionStatus && (
+                <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                  <ConnectionStatusIndicator 
+                    status={connectionStatus} 
+                    retryCount={retryCount}
+                    className="text-xs"
+                  />
+                </div>
               )}
             </div>
-            
-            {/* Connection Status Indicator */}
-            {showConnectionStatus && (
-              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                <ConnectionStatusIndicator 
-                  status={connectionStatus} 
-                  retryCount={retryCount}
-                  className="text-xs"
-                />
-              </div>
-            )}
           </div>
         </div>
         
