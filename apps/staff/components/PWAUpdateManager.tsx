@@ -102,7 +102,7 @@ export default function PWAUpdateManager() {
         <div>
           <h4 className="font-semibold flex items-center gap-2">
             <RefreshCw size={18} className={isUpdating ? 'animate-spin' : ''} />
-            App Update Available
+            Tabeza Update Available
           </h4>
           <p className="text-sm text-blue-100 mt-1">
             A new version is ready to install.
