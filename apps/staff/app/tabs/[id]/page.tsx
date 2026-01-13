@@ -122,8 +122,6 @@ export default function TabDetailPage() {
   
   // Connection status state
   const [showConnectionStatus, setShowConnectionStatus] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error' | 'retrying'>('connecting');
-  const [retryCount, setRetryCount] = useState(0);
   
   // Telegram message state
   const [telegramMessages, setTelegramMessages] = useState<any[]>([]);
