@@ -329,9 +329,9 @@ export default function TabsPage() {
       loadTabs();
       const interval = setInterval(loadTabs, 10000);
       
-      // Add subscription for telegram message updates
+      // Add subscription for telegram message updates (tab-specific)
       const telegramSubscription = supabase
-        .channel(`global-telegram-updates-${bar.id}`)
+        .channel(`telegram-updates-${bar.id}`)
         .on(
           'postgres_changes',
           {
@@ -340,11 +340,17 @@ export default function TabsPage() {
             table: 'tab_telegram_messages'
           },
           (payload: any) => {
-            console.log('🔔 Global telegram update:', payload.eventType, payload.new);
+            console.log('🔔 STAFF APP: Telegram update received:', {
+              eventType: payload.eventType,
+              new: payload.new,
+              old: payload.old,
+              table: payload.table,
+              schema: payload.schema
+            });
             
             // Show high-visibility alert for new customer messages
             if (payload.new?.initiated_by === 'customer') {
-              console.log('🚨 Triggering MESSAGE alert');
+              console.log('🚨 STAFF APP: Customer message detected - triggering MESSAGE alert');
               if (mounted.current) {
                 setAlertType('message');
                 setShowAlert(true);
@@ -356,6 +362,8 @@ export default function TabsPage() {
                   }
                 }, 5000);
               }
+            } else {
+              console.log('ℹ️ STAFF APP: Message not from customer, ignoring:', payload.new?.initiated_by);
             }
             
             loadTabs();
