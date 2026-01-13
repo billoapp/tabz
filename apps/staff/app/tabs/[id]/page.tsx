@@ -115,7 +115,7 @@ export default function TabDetailPage() {
   const { showToast } = useToast();
   
   const [tab, setTab] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [newOrderNotification, setNewOrderNotification] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -245,6 +245,15 @@ export default function TabDetailPage() {
       handler: async (payload: any) => {
         console.log('📨 Telegram update in detail page:', payload.eventType);
         loadTelegramMessages();
+        
+        // Show notification for new customer messages
+        if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
+          showToast({
+            type: 'info',
+            title: 'New Customer Message',
+            message: payload.new?.message || 'Customer sent a new message'
+          });
+        }
       }
     },
     {
@@ -266,7 +275,7 @@ export default function TabDetailPage() {
     }
   ];
 
-  const { connectionStatus: connStatus, retryCount: retries, reconnect, isConnected } = useRealtimeSubscription(
+  const { connectionStatus, retryCount, reconnect, isConnected } = useRealtimeSubscription(
     realtimeConfigs,
     [tabId],
     {
@@ -275,7 +284,6 @@ export default function TabDetailPage() {
       debounceMs: 300,
       onConnectionChange: (status: 'connecting' | 'connected' | 'disconnected' | 'error' | 'retrying') => {
         console.log('📡 Staff app connection status changed:', status);
-        setConnectionStatus(status);
         // Show connection status indicator when not connected
         if (status === 'connected') {
           setShowConnectionStatus(false);
@@ -708,6 +716,33 @@ export default function TabDetailPage() {
     }
   };
 
+  // Auto-acknowledge the most recent pending customer message
+  const acknowledgeLatestPendingCustomerMessage = async () => {
+    try {
+      // Find the most recent pending customer message
+      const { data: pendingMessage, error: fetchError } = await supabase
+        .from('tab_telegram_messages')
+        .select('id')
+        .eq('tab_id', tabId)
+        .eq('initiated_by', 'customer')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (fetchError || !pendingMessage) {
+        console.log('ℹ️ No pending customer messages to acknowledge');
+        return;
+      }
+      
+      // Acknowledge this message
+      await acknowledgeTelegramMessage(pendingMessage.id);
+      
+    } catch (error) {
+      console.log('ℹ️ No pending customer messages found or error occurred:', error);
+    }
+  };
+
   const sendTelegramResponse = async () => {
     if (!messageInput.trim() || !tabId) {
       console.error('❌ No message or tab ID');
@@ -759,6 +794,9 @@ export default function TabDetailPage() {
           title: 'Response Sent',
           message: 'Your response has been sent to the customer'
         });
+        
+        // Auto-acknowledge the most recent pending customer message
+        await acknowledgeLatestPendingCustomerMessage();
         
         // Refresh messages
         await loadTelegramMessages();
@@ -1091,14 +1129,16 @@ export default function TabDetailPage() {
                 <div className="space-y-3">
                   {telegramMessages.map((msg: any) => (
                     <div key={msg.id} className={`p-4 rounded-lg border ${
-                      msg.status === 'pending' ? 'bg-yellow-50 border-yellow-100' :
-                      msg.status === 'acknowledged' ? 'bg-blue-50 border-blue-100' :
-                      'bg-gray-50 border-gray-100'
+                      msg.initiated_by === 'customer' 
+                        ? 'bg-orange-100 border border-orange-200' 
+                        : 'bg-blue-100 border border-blue-200'
                     }`}>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <p className="text-sm text-gray-800">{msg.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className={`text-xs mt-1 ${
+                      msg.initiated_by === 'customer' ? 'text-orange-700' : 'text-blue-700'
+                    }`}>
                             {timeAgo(msg.created_at)} • 
                             <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
                               msg.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :

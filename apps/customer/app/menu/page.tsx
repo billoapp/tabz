@@ -1666,18 +1666,20 @@ export default function MenuPage() {
             
             {/* Recent Messages Preview */}
             {telegramMessages.slice(0, 2).map((msg) => (
-              <div 
+              <div
                 key={msg.id} 
                 className={`p-3 rounded-lg mb-2 ${
-                  msg.status === 'pending' ? 'bg-yellow-50 border border-yellow-100' :
-                  msg.status === 'acknowledged' ? 'bg-blue-50 border border-blue-100' :
-                  'bg-gray-50 border border-gray-100'
+                  msg.initiated_by === 'customer' 
+                    ? 'bg-orange-100 border border-orange-200' 
+                    : 'bg-blue-100 border border-blue-200'
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <p className="text-sm text-gray-800">{msg.message}</p>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className={`text-xs mt-1 ${
+                      msg.initiated_by === 'customer' ? 'text-orange-700' : 'text-blue-700'
+                    }`}>
                       {timeAgo(msg.created_at)} • 
                       <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
                         msg.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
