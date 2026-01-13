@@ -22,3 +22,38 @@ body {
 .animate-shake {
   animation: shake 0.5s ease-in-out infinite;
 }
+
+/* Hide scrollbar styles */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Alert animations */
+@keyframes flash {
+  0%, 100% { background-color: rgba(0, 0, 0, 0.9); }
+  50% { background-color: rgba(120, 53, 15, 0.9); }
+}
+
+@keyframes borderPulse {
+  0%, 100% { 
+    border-color: #ea580c;
+    box-shadow: 0 0 100px rgba(234, 88, 12, 0.8) inset;
+  }
+  50% { 
+    border-color: #fbbf24;
+    box-shadow: 0 0 150px rgba(251, 191, 36, 0.9) inset;
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { 
+    box-shadow: 0 0 150px rgba(234, 88, 12, 0.9);
+  }
+  50% { 
+    box-shadow: 0 0 200px rgba(251, 191, 36, 1);
+  }
+}
