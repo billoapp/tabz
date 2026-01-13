@@ -118,9 +118,45 @@ export default function TabsPage() {
     if (bar) {
       loadTabs();
       const interval = setInterval(loadTabs, 10000);
-      return () => clearInterval(interval);
+      
+      // Add subscription for telegram message updates
+      const telegramSubscription = supabase
+        .channel(`global-telegram-updates-${bar.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tab_telegram_messages',
+            filter: `bar_id=eq.${bar.id}` // Filter by this bar
+          },
+          (payload: any) => {
+            console.log(' Global telegram update:', payload.eventType);
+            loadTabs(); // Refresh tabs when messages change
+          }
+        )
+        .subscribe();
+    
+      return () => {
+        clearInterval(interval);
+        telegramSubscription.unsubscribe();
+      };
     }
   }, [bar]);
+
+  // NEW: Listen for message acknowledgment events from detail pages
+  useEffect(() => {
+    const handleMessageAcknowledged = (event: CustomEvent) => {
+      console.log('📨 Message acknowledged event received for tab:', event.detail.tabId);
+      loadTabs(); // Refresh dashboard when messages are acknowledged
+    };
+
+    window.addEventListener('messageAcknowledged' as any, handleMessageAcknowledged);
+  
+    return () => {
+      window.removeEventListener('messageAcknowledged' as any, handleMessageAcknowledged);
+    };
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -161,9 +197,10 @@ export default function TabsPage() {
               
             supabase
               .from('tab_telegram_messages')
-              .select('id, status, created_at, staff_acknowledged_at, initiated_by')
+              .select('id, status, created_at, staff_acknowledged_at, initiated_by, tab_id')
               .eq('tab_id', tab.id)
-              .in('status', ['pending', 'acknowledged'])
+              .eq('status', 'pending')  // ONLY PENDING
+              .eq('initiated_by', 'customer')  // ONLY FROM CUSTOMER
           ]);
 
           return {
@@ -300,7 +337,7 @@ export default function TabsPage() {
                 <Users size={16} className="text-orange-100" />
                 <span className="text-sm text-orange-100">Avg Response Time</span>
               </div>
-              <p className="text-2xl font-bold text-white">{calculatePendingWaitTime(tabs)}</p>
+              <p className="text-2xl font-bold text-white">{calculateAverageResponseTime(tabs)}</p>
             </div>
             <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">

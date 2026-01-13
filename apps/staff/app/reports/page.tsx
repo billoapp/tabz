@@ -49,18 +49,25 @@ export default function ReportsPage() {
         setBarName(barData.name);
       }
 
+      // FIXED: Explicitly select timestamp fields needed for response time calculation
       const { data: tabsData, error: tabsError } = await supabase
         .from('tabs')
         .select(`
           *,
-          orders:tab_orders(*),
+          orders:tab_orders(id, total, status, created_at, confirmed_at, initiated_by, cancelled_at),
           payments:tab_payments(*),
-          messages:tab_telegram_messages(*)
+          messages:tab_telegram_messages(id, status, created_at, staff_acknowledged_at, initiated_by, message_metadata)
         `)
         .eq('bar_id', userBarId)
         .order('tab_number', { ascending: false });
 
       if (tabsError) throw tabsError;
+
+      console.log('📊 Loaded tabs data for reports:', {
+        totalTabs: tabsData?.length || 0,
+        sampleOrder: tabsData?.[0]?.orders?.[0],
+        sampleMessage: tabsData?.[0]?.messages?.[0]
+      });
 
       setTabs(tabsData || []);
     } catch (error) {
@@ -72,6 +79,8 @@ export default function ReportsPage() {
   };
 
   const calculateStats = () => {
+    console.log('🕒 Calculating stats for reports...');
+    
     const totalTabs = tabs.length;
     const totalOrders = tabs.reduce((sum, tab) => sum + (tab.orders?.length || 0), 0);
     
@@ -93,13 +102,26 @@ export default function ReportsPage() {
 
     // Calculate average response time for both confirmed orders and acknowledged messages
     const confirmedOrders = tabs.flatMap((tab: any) => 
-      (tab.orders || []).filter((order: any) => 
-        order.status === 'confirmed' && 
-        order.created_at && 
-        order.confirmed_at &&
-        order.initiated_by === 'customer' // Only count customer-initiated orders
-      )
+      (tab.orders || []).filter((order: any) => {
+        const isValid = order.status === 'confirmed' && 
+                       order.created_at && 
+                       order.confirmed_at &&
+                       order.initiated_by === 'customer';
+        
+        if (isValid) {
+          console.log('✅ Found confirmed customer order for response time:', {
+            orderId: order.id,
+            created_at: order.created_at,
+            confirmed_at: order.confirmed_at,
+            timeDiff: (new Date(order.confirmed_at).getTime() - new Date(order.created_at).getTime()) / (1000 * 60) + ' min'
+          });
+        }
+        
+        return isValid;
+      })
     );
+
+    console.log('📊 Confirmed customer orders found:', confirmedOrders.length);
 
     // Calculate order response times (in minutes)
     const orderResponseTimes = confirmedOrders.map(order => {
@@ -110,13 +132,26 @@ export default function ReportsPage() {
 
     // Get acknowledged customer messages (message sent → staff acknowledged)
     const acknowledgedMessages = tabs.flatMap(tab => 
-      (tab.messages || []).filter((message: any) => 
-        message.status === 'acknowledged' && 
-        message.staff_acknowledged_at && 
-        message.created_at &&
-        message.initiated_by === 'customer' // Only count customer-initiated messages
-      )
+      (tab.messages || []).filter((message: any) => {
+        const isValid = message.status === 'acknowledged' && 
+                       message.staff_acknowledged_at && 
+                       message.created_at &&
+                       message.initiated_by === 'customer';
+        
+        if (isValid) {
+          console.log('✅ Found acknowledged customer message for response time:', {
+            messageId: message.id,
+            created_at: message.created_at,
+            staff_acknowledged_at: message.staff_acknowledged_at,
+            timeDiff: (new Date(message.staff_acknowledged_at).getTime() - new Date(message.created_at).getTime()) / (1000 * 60) + ' min'
+          });
+        }
+        
+        return isValid;
+      })
     );
+
+    console.log('📊 Acknowledged customer messages found:', acknowledgedMessages.length);
 
     // Calculate message response times (in minutes)
     const messageResponseTimes = acknowledgedMessages.map(message => {
@@ -128,9 +163,19 @@ export default function ReportsPage() {
     // Combine all response times
     const allResponseTimes = [...orderResponseTimes, ...messageResponseTimes];
 
+    console.log('📈 Response time calculation summary:', {
+      orderResponseTimes: orderResponseTimes.length,
+      messageResponseTimes: messageResponseTimes.length,
+      allResponseTimes: allResponseTimes.length,
+      sampleTimes: allResponseTimes.slice(0, 3)
+    });
+
     let averageServiceTime = 0;
     if (allResponseTimes.length > 0) {
       averageServiceTime = allResponseTimes.reduce((sum: number, time: number) => sum + time, 0) / allResponseTimes.length;
+      console.log('🎯 Calculated average service time:', averageServiceTime.toFixed(2), 'minutes');
+    } else {
+      console.log('⚠️ No response time data available for calculation');
     }
 
     return { totalTabs, totalOrders, totalPayments, totalOutstanding, averageServiceTime };
@@ -284,7 +329,7 @@ export default function ReportsPage() {
               </div>
               <div class="summary-item">
                 <span class="label">Avg Service Time</span>
-                <span class="value">${stats.averageServiceTime.toFixed(1)} min</span>
+                <span class="value">${stats.averageServiceTime > 0 ? `${stats.averageServiceTime.toFixed(1)} min` : 'No data'}</span>
               </div>
               <div class="summary-item">
                 <span class="label">Total Payments</span>
@@ -444,7 +489,7 @@ export default function ReportsPage() {
               <div className="flex justify-between">
                 <span className="text-gray-600">Avg Service Time</span>
                 <span className="font-bold text-blue-600">
-                  {stats.averageServiceTime.toFixed(1)} min
+                  {stats.averageServiceTime > 0 ? `${stats.averageServiceTime.toFixed(1)} min` : 'No data'}
                 </span>
               </div>
               <div className="flex justify-between">

@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
 import { checkTabOverdueStatus } from '@/lib/businessHours';
+import { useRealtimeSubscription, ConnectionStatusIndicator } from '@tabeza/shared';
 
 // Temporary format functions
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -114,10 +115,13 @@ export default function TabDetailPage() {
   const { showToast } = useToast();
   
   const [tab, setTab] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [newOrderNotification, setNewOrderNotification] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  
+  // Connection status state
+  const [showConnectionStatus, setShowConnectionStatus] = useState(false);
   
   // Telegram message state
   const [telegramMessages, setTelegramMessages] = useState<any[]>([]);
@@ -133,6 +137,9 @@ export default function TabDetailPage() {
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [closingTab, setClosingTab] = useState(false);
   const [closeTabReason, setCloseTabReason] = useState<'close' | 'overdue'>('close');
+
+  // Optimistic updates state
+  const [optimisticOrders, setOptimisticOrders] = useState<Map<string, any>>(new Map());
 
   // Load cart from localStorage on mount
   useEffect(() => {
@@ -201,95 +208,89 @@ export default function TabDetailPage() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (!tabId) return;
-
-    const orderSubscription = supabase
-      .channel(`tab_orders_${tabId}`)
-      .on('postgres_changes', 
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'tab_orders',
-          filter: `tab_id=eq.${tabId}`
-        }, 
-        (payload: any) => {
-          if (payload.new.initiated_by === 'customer') {
-            setNewOrderNotification(payload.new);
-            
-            setTimeout(() => {
-              setNewOrderNotification(null);
-            }, 10000);
-          }
+  const realtimeConfigs = [
+    {
+      channelName: `tab-orders-${tabId}`,
+      table: 'tab_orders',
+      filter: `tab_id=eq.${tabId}`,
+      event: 'INSERT' as const,
+      handler: async (payload: any) => {
+        if (payload.new?.initiated_by === 'customer') {
+          setNewOrderNotification(payload.new);
           
-          loadTabData();
+          setTimeout(() => {
+            setNewOrderNotification(null);
+          }, 10000);
         }
-      )
-      .subscribe();
-
-    const paymentSubscription = supabase
-      .channel(`tab_payments_${tabId}`)
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'tab_payments',
-          filter: `tab_id=eq.${tabId}`
-        }, 
-        (payload: any) => {
-          loadTabData();
+        
+        loadTabData();
+      }
+    },
+    {
+      channelName: `tab-payments-${tabId}`,
+      table: 'tab_payments',
+      filter: `tab_id=eq.${tabId}`,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        loadTabData();
+      }
+    },
+    {
+      channelName: `tab-telegram-${tabId}`,
+      table: 'tab_telegram_messages',
+      filter: `tab_id=eq.${tabId}`,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📨 Telegram update in detail page:', payload.eventType);
+        loadTelegramMessages();
+        
+        // Show notification for new customer messages
+        if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
+          showToast({
+            type: 'info',
+            title: 'New Customer Message',
+            message: payload.new?.message || 'Customer sent a new message'
+          });
         }
-      )
-      .subscribe();
-
-    // Subscribe to telegram messages
-    const telegramSubscription = supabase
-      .channel(`tab-telegram-detail-${tabId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tab_telegram_messages',
-          filter: `tab_id=eq.${tabId}` 
-        },
-        (payload: any) => {
-          console.log('📨 Telegram update in detail page:', payload.eventType);
-          loadTelegramMessages();
+      }
+    },
+    {
+      channelName: `tab-status-${tabId}`,
+      table: 'tabs',
+      filter: `id=eq.${tabId}`,
+      event: 'UPDATE' as const,
+      handler: async (payload: any) => {
+        if (payload.new?.status === 'closed' && payload.old?.status !== 'closed') {
+          showToast({
+            type: 'warning',
+            title: 'Tab Closed',
+            message: 'This tab was automatically closed'
+          });
         }
-      )
-      .subscribe();
+        
+        loadTabData();
+      }
+    }
+  ];
 
-    const tabSubscription = supabase
-      .channel(`tab_status_${tabId}`)
-      .on('postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'tabs',
-          filter: `id=eq.${tabId}`
-        }, 
-        (payload: any) => {
-          if (payload.new?.status === 'closed' && payload.old?.status !== 'closed') {
-            showToast({
-              type: 'warning',
-              title: 'Tab Closed',
-              message: 'This tab was automatically closed'
-            });
-          }
-          
-          loadTabData();
+  const { connectionStatus, retryCount, reconnect, isConnected } = useRealtimeSubscription(
+    realtimeConfigs,
+    [tabId],
+    {
+      maxRetries: 10,
+      retryDelay: [1000, 2000, 5000, 10000, 30000, 60000],
+      debounceMs: 300,
+      onConnectionChange: (status: 'connecting' | 'connected' | 'disconnected' | 'error' | 'retrying') => {
+        console.log('📡 Staff app connection status changed:', status);
+        // Show connection status indicator when not connected
+        if (status === 'connected') {
+          setShowConnectionStatus(false);
+        } else {
+          setShowConnectionStatus(true);
         }
-      )
-      .subscribe();
-
-    return () => {
-      orderSubscription.unsubscribe();
-      paymentSubscription.unsubscribe();
-      tabSubscription.unsubscribe();
-      telegramSubscription.unsubscribe();
-    };
-  }, [tabId]);
+      }
+    }
+  );
 
   const loadTabData = async () => {
     setLoading(true);
@@ -713,6 +714,33 @@ export default function TabDetailPage() {
     }
   };
 
+  // Auto-acknowledge the most recent pending customer message
+  const acknowledgeLatestPendingCustomerMessage = async () => {
+    try {
+      // Find the most recent pending customer message
+      const { data: pendingMessage, error: fetchError } = await supabase
+        .from('tab_telegram_messages')
+        .select('id')
+        .eq('tab_id', tabId)
+        .eq('initiated_by', 'customer')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (fetchError || !pendingMessage) {
+        console.log('ℹ️ No pending customer messages to acknowledge');
+        return;
+      }
+      
+      // Acknowledge this message
+      await acknowledgeTelegramMessage(pendingMessage.id);
+      
+    } catch (error) {
+      console.log('ℹ️ No pending customer messages found or error occurred:', error);
+    }
+  };
+
   const sendTelegramResponse = async () => {
     if (!messageInput.trim() || !tabId) {
       console.error('❌ No message or tab ID');
@@ -765,6 +793,9 @@ export default function TabDetailPage() {
           message: 'Your response has been sent to the customer'
         });
         
+        // Auto-acknowledge the most recent pending customer message
+        await acknowledgeLatestPendingCustomerMessage();
+        
         // Refresh messages
         await loadTelegramMessages();
       }
@@ -781,66 +812,59 @@ export default function TabDetailPage() {
     }
   };
 
+  // FIXED: Single acknowledgment function for customer messages
   const acknowledgeTelegramMessage = async (messageId: string) => {
     try {
-      console.log('👍 Acknowledging telegram message:', messageId);
+      console.log('✅ Acknowledging customer message:', messageId);
       
-      const { data, error } = await (supabase as any)
+      // First, get the current message to check its status
+      const { data: currentMessage, error: fetchError } = await supabase
         .from('tab_telegram_messages')
-        .update({
-          status: 'acknowledged',
-          staff_acknowledged_at: new Date().toISOString(),
-          customer_notified: true,
-          customer_notified_at: new Date().toISOString()
-        })
+        .select('status, initiated_by')
         .eq('id', messageId)
-        .eq('status', 'pending')
-        .select()
         .single();
       
-      if (error) {
-        console.error('❌ Failed to acknowledge message:', error);
+      if (fetchError) {
+        console.error('❌ Failed to fetch message:', fetchError);
         showToast({
           type: 'error',
           title: 'Failed to Acknowledge',
-          message: 'Please try again'
+          message: 'Could not fetch message details'
         });
-      } else {
-        console.log('✅ Message acknowledged:', data);
-        showToast({
-          type: 'success',
-          title: 'Message Acknowledged',
-          message: 'Message has been acknowledged'
-        });
-        
-        // Refresh messages
-        await loadTelegramMessages();
+        return;
       }
       
-    } catch (error: any) {
-      console.error('❌ Error acknowledging message:', error);
-      showToast({
-        type: 'error',
-        title: 'Failed to Acknowledge',
-        message: 'Please try again'
-      });
-    }
-  };
-
-  const completeTelegramMessage = async (messageId: string) => {
-    try {
-      console.log('✅ Acknowledging telegram message:', messageId);
+      // Only acknowledge customer-initiated messages that are pending
+      if (currentMessage.initiated_by !== 'customer') {
+        console.log('⚠️ Skipping - message not initiated by customer');
+        showToast({
+          type: 'warning',
+          title: 'Cannot Acknowledge',
+          message: 'Only customer messages can be acknowledged'
+        });
+        return;
+      }
       
-      const { data, error } = await (supabase as any)
+      if (currentMessage.status !== 'pending') {
+        console.log('⚠️ Skipping - message already acknowledged:', currentMessage.status);
+        showToast({
+          type: 'warning',
+          title: 'Already Acknowledged',
+          message: 'This message has already been acknowledged'
+        });
+        return;
+      }
+      
+      // Update the message status to acknowledged
+      const { data, error } = await supabase
         .from('tab_telegram_messages')
         .update({
           status: 'acknowledged',
           staff_acknowledged_at: new Date().toISOString(),
-          customer_notified: true,
-          customer_notified_at: new Date().toISOString()
+          updated_at: new Date().toISOString()
         })
         .eq('id', messageId)
-        .in('status', ['pending'])
+        .eq('initiated_by', 'customer') // Double-check it's a customer message
         .select()
         .single();
       
@@ -852,11 +876,11 @@ export default function TabDetailPage() {
           message: 'Please try again'
         });
       } else {
-        console.log('✅ Message acknowledged:', data);
+        console.log('✅ Message acknowledged successfully:', data);
         showToast({
           type: 'success',
           title: 'Message Acknowledged',
-          message: 'Request has been marked as acknowledged'
+          message: 'Customer message has been acknowledged'
         });
         
         // Refresh messages
@@ -963,12 +987,25 @@ export default function TabDetailPage() {
             >
               <ArrowRight size={24} className="transform rotate-180" />
             </button>
-            <button 
-              onClick={loadTabData}
-              className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
-            >
-              <RefreshCw size={24} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={loadTabData}
+                className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+              >
+                <RefreshCw size={24} />
+              </button>
+              
+              {/* Connection Status Indicator */}
+              {showConnectionStatus && (
+                <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                  <ConnectionStatusIndicator 
+                    status={connectionStatus} 
+                    retryCount={retryCount}
+                    className="text-xs"
+                  />
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="flex items-start justify-between mb-4">
@@ -1090,14 +1127,16 @@ export default function TabDetailPage() {
                 <div className="space-y-3">
                   {telegramMessages.map((msg: any) => (
                     <div key={msg.id} className={`p-4 rounded-lg border ${
-                      msg.status === 'pending' ? 'bg-yellow-50 border-yellow-100' :
-                      msg.status === 'acknowledged' ? 'bg-blue-50 border-blue-100' :
-                      'bg-gray-50 border-gray-100'
+                      msg.initiated_by === 'customer' 
+                        ? 'bg-orange-100 border border-orange-200' 
+                        : 'bg-blue-100 border border-blue-200'
                     }`}>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <p className="text-sm text-gray-800">{msg.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className={`text-xs mt-1 ${
+                      msg.initiated_by === 'customer' ? 'text-orange-700' : 'text-blue-700'
+                    }`}>
                             {timeAgo(msg.created_at)} • 
                             <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
                               msg.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
@@ -1109,20 +1148,20 @@ export default function TabDetailPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => acknowledgeTelegramMessage(msg.id)}
-                            className="p-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-                            disabled={msg.status !== 'pending'}
-                          >
-                            Ack
-                          </button>
-                          <button
-                            onClick={() => completeTelegramMessage(msg.id)}
-                            className="p-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-                            disabled={msg.status === 'acknowledged'}
-                          >
-                            Acknowledge
-                          </button>
+                          {/* Only show acknowledge button for pending customer messages */}
+                          {msg.status === 'pending' && msg.initiated_by === 'customer' && (
+                            <button
+                              onClick={() => acknowledgeTelegramMessage(msg.id)}
+                              className="px-3 py-1 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                            >
+                              Acknowledge
+                            </button>
+                          )}
+                          {msg.status === 'acknowledged' && (
+                            <span className="text-xs text-green-600 font-medium">
+                              ✓ Acknowledged
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

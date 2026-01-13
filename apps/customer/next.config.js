@@ -17,9 +17,7 @@ const withPWA = require('next-pwa')({
         }
       }
     }
-  ],
-  customWorkerDir: 'public',
-  sw: 'enhanced-sw.js'
+  ]
 });
 
 const nextConfig = {

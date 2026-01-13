@@ -166,8 +166,8 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
                     <div
                       className={`max-w-[80%] rounded-2xl p-3 shadow-sm ${
                         msg.initiated_by === 'customer'
-                          ? 'bg-yellow-50 text-gray-900 rounded-br-none border border-yellow-200'
-                          : 'bg-blue-50 text-gray-900 rounded-bl-none border border-blue-200'
+                          ? 'bg-orange-100 text-gray-900 rounded-br-none border border-orange-200'
+                          : 'bg-blue-100 text-gray-900 rounded-bl-none border border-blue-200'
                       }`}
                     >
                       <div className="flex items-start gap-2">
@@ -178,15 +178,15 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
                         )}
                         <div className="flex-1">
                           <p className="text-sm leading-relaxed">{msg.message}</p>
-                          <div className={`flex items-center gap-2 mt-2 ${msg.initiated_by === 'customer' ? 'text-yellow-700' : 'text-blue-700'}`}>
+                          <div className={`flex items-center gap-2 mt-2 ${msg.initiated_by === 'customer' ? 'text-orange-700' : 'text-blue-700'}`}>
                             <span className="text-xs font-medium">
                               {formatTime(msg.created_at)}
                             </span>
                             {msg.initiated_by === 'customer' && (
                               <>
                                 <span className="text-xs">•</span>
-                                {msg.status === 'pending' && <Clock size={12} className="text-yellow-600" />}
-                                {msg.status === 'acknowledged' && <CheckCircle size={12} className="text-yellow-700" />}
+                                {msg.status === 'pending' && <Clock size={12} className="text-orange-600" />}
+                                {msg.status === 'acknowledged' && <CheckCircle size={12} className="text-orange-700" />}
                                 <span className="text-xs capitalize font-medium">{msg.status}</span>
                               </>
                             )}

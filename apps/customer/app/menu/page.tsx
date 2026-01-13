@@ -12,6 +12,7 @@ import { useSound } from '@/hooks/useSound';
 import { telegramMessageQueries } from '@/lib/telegram-queries';
 import { MessageAlert, InitiatedBy } from '../../../../packages/shared/types';
 import { TokensService } from '../../../../packages/shared/tokens-service';
+import { useRealtimeSubscription, ConnectionStatusIndicator } from '../../../../packages/shared';
 import { useToast } from '@/components/ui/Toast';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 import PDFViewer from '../../../../components/PDFViewer'; 
@@ -64,6 +65,21 @@ interface Tab {
   };
 }
 
+// Define proper types for the response time queries
+interface OrderResponseData {
+  created_at: string;
+  confirmed_at: string;
+  status: string;
+  initiated_by: string;
+}
+
+interface MessageResponseData {
+  created_at: string;
+  staff_acknowledged_at: string;
+  status: string;
+  initiated_by: string;
+}
+
 export default function MenuPage() {
   const router = useRouter();
   const { buzz } = useVibrate(); 
@@ -80,13 +96,10 @@ export default function MenuPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [showCart, setShowCart] = useState(false);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [approvingOrder, setApprovingOrder] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [menuExpanded, setMenuExpanded] = useState(true);
-  const [paymentCollapsed, setPaymentCollapsed] = useState(true);
   const [scrollY, setScrollY] = useState(0);
   const [currentTime, setCurrentTime] = useState(Date.now()); // Add this state for real-time updates
   const [processedOrders, setProcessedOrders] = useState<Set<string>>(new Set()); // Track processed orders for notifications
@@ -141,9 +154,8 @@ export default function MenuPage() {
   const [menuType, setMenuType] = useState<'interactive' | 'static'>('interactive');
   const [staticMenuUrl, setStaticMenuUrl] = useState<string | null>(null);
   const [staticMenuType, setStaticMenuType] = useState<'pdf' | 'image' | 'slideshow' | null>(null);
-  const [showStaticMenu, setShowStaticMenu] = useState(true); // Start expanded by default
+  const [showStaticMenu, setShowStaticMenu] = useState(false); // Start collapsed by default
   const [imageScale, setImageScale] = useState(1);
-  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
 
   // Slideshow state for static slideshows
   const [slideshowImages, setSlideshowImages] = useState<string[]>([]);
@@ -151,6 +163,17 @@ export default function MenuPage() {
   const [slideshowSettings, setSlideshowSettings] = useState<Record<string, any> | null>(null);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
+
+  // THREE COLLAPSIBLE SECTIONS - all start closed
+  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(true);
+  const [cartCollapsed, setCartCollapsed] = useState(true);
+  const [paymentCollapsed, setPaymentCollapsed] = useState(true);
+
+  // NEW: Average response time state
+  const [averageResponseTime, setAverageResponseTime] = useState<number | null>(null);
+  const [responseTimeLoading, setResponseTimeLoading] = useState(false);
+
+  const [showConnectionStatus, setShowConnectionStatus] = useState(false);
 
   const loadAttempted = useRef(false);
 
@@ -260,6 +283,20 @@ export default function MenuPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Load cart from sessionStorage on component mount
+  useEffect(() => {
+    const cartData = sessionStorage.getItem('cart');
+    if (cartData) {
+      try {
+        setCart(JSON.parse(cartData));
+        console.log('🛒 Cart loaded from sessionStorage:', JSON.parse(cartData));
+      } catch (error) {
+        console.error('Error parsing cart data:', error);
+        setCart([]);
+      }
+    }
+  }, []);
+
   // Load user's token balance
   useEffect(() => {
     const loadTokenBalance = async () => {
@@ -279,312 +316,389 @@ export default function MenuPage() {
     loadTokenBalance();
   }, [tab?.id]);
 
-  // Set up real-time subscriptions
-  useEffect(() => {
-    if (!tab?.id) return;
-
-    console.log('📡 Setting up real-time subscriptions for tab:', tab.id);
-
-    // Subscribe to orders changes
-    const ordersSubscription = supabase
-      .channel(`tab-orders-${tab.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tab_orders',
-          filter: `tab_id=eq.${tab.id}`
-        },
-        async (payload: any) => {
-          console.log('📦 Real-time order update received:', payload);
-          console.log('📊 Payload details:', {
-            eventType: payload.eventType,
-            new: payload.new,
-            old: payload.old,
-            table: payload.table,
-            schema: payload.schema
-          });
-          
-          // Check if staff accepted an order (multiple scenarios)
-          const isStaffAcceptance = (
-            // Scenario 1: pending -> confirmed (staff accepts customer order)
-            (payload.new?.status === 'confirmed' && 
-             payload.old?.status === 'pending' && 
-             payload.new?.initiated_by === 'customer') ||
-            // Scenario 2: Any change to confirmed status for customer orders
-            (payload.new?.status === 'confirmed' && 
-             payload.new?.initiated_by === 'customer' && 
-             payload.old?.status !== 'confirmed')
-          );
-          
-          // Check if order was served/completed (for notification purposes only)
-          const isOrderCompleted = (
-            (payload.new?.status === 'served' || payload.new?.status === 'completed') &&
-            payload.old?.status !== 'served' && payload.old?.status !== 'completed'
-          );
-          
-          console.log('🤖 Is staff acceptance?', isStaffAcceptance);
-          console.log('📋 Processed orders:', Array.from(processedOrders));
-          
-          if (isStaffAcceptance && !processedOrders.has(payload.new.id)) {
-            console.log('🎉 Staff accepted order:', payload.new.id);
-            
-            // Mark this order as processed to avoid duplicate notifications
-            setProcessedOrders(prev => new Set([...prev, payload.new.id]));
-            
-            console.log('🔔 Showing acceptance modal with notifications...');
-            
-            // Trigger vibration and sound
-            buzz([200, 100, 200]); // Vibration pattern: buzz-pause-buzz
-            playAcceptanceSound(); // Play acceptance sound
-            
-            // Show modal instead of toast
-            setAcceptanceModal({
-              show: true,
-              orderTotal: payload.new.total, // Pass the number, not formatted string
-              message: 'Your order has been accepted and is being prepared'
-            });
-          } else if (isOrderCompleted && !processedOrders.has(payload.new.id)) {
-            console.log('✅ Order completed:', payload.new.id);
-            
-            // Mark this order as processed to avoid duplicate notifications
-            setProcessedOrders(prev => new Set([...prev, payload.new.id]));
-          } else {
-            console.log('❌ Not showing modal - conditions not met:', {
-              isStaffAcceptance,
-              alreadyProcessed: processedOrders.has(payload.new?.id),
-              orderId: payload.new?.id
-            });
-          }
-          
-          // Refresh orders data
-          const { data: ordersData, error } = await supabase
-            .from('tab_orders')
-            .select('*')
-            .eq('tab_id', tab.id)
-            .order('created_at', { ascending: false });
-          
-          if (!error && ordersData) {
-            setOrders(ordersData);
-          }
-        }
-      )
-      .subscribe();
-
-    // Subscribe to tab changes
-    const tabSubscription = supabase
-      .channel(`tab-${tab.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tabs',
-          filter: `id=eq.${tab.id}`
-        },
-        async (payload) => {
-          console.log('📋 Real-time tab update:', payload);
-          if (payload.eventType === 'UPDATE') {
-            const updatedTab = payload.new as Tab;
-            
-            if (updatedTab.status === 'closed') {
-              console.log('🛑 Tab was closed, redirecting to home');
-              sessionStorage.removeItem('currentTab');
-              sessionStorage.removeItem('cart');
-              router.replace('/');
-              return;
-            }
-            
-            const { data: fullTab, error } = await supabase
-              .from('tabs')
-              .select('*, bar:bars(id, name, location)')
-              .eq('id', tab.id)
-              .maybeSingle();
-            
-            if (!error && fullTab) {
-              setTab(fullTab as Tab);
-              setBarName((fullTab as any).bar?.name || 'Bar');
-              
-              let name = 'Your Tab';
-              if ((fullTab as any).notes) {
-                try {
-                  const notes = JSON.parse((fullTab as any).notes);
-                  name = notes.display_name || `Tab ${(fullTab as any).tab_number || ''}`;
-                } catch (e) {
-                  name = (fullTab as any).tab_number ? `Tab ${(fullTab as any).tab_number}` : 'Your Tab';
-                }
-              } else if ((fullTab as any).tab_number) {
-                name = `Tab ${(fullTab as any).tab_number}`;
-              }
-              setDisplayName(name);
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    // Subscribe to payments changes
-    const paymentsSubscription = supabase
-      .channel(`tab-payments-${tab.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tab_payments',
-          filter: `tab_id=eq.${tab.id}`
-        },
-        async (payload) => {
-          console.log('💳 Real-time payment update:', payload);
-          
-          // Show token notification for successful payments
-          if (payload.eventType === 'INSERT' && 
-              payload.new?.status === 'success') {
-            
-            // Award tokens for order value
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user && tab?.bar_id) {
-              const orderValue = Math.round(parseFloat(payload.new.amount) * 100); // Convert to cents
-              
-              try {
-                const result = await tokensService.awardOrderTokens(
-                  user.id,
-                  tab.bar_id,
-                  payload.new.id, // payment ID
-                  orderValue
-                );
-                
-                if (result.success && result.tokensAwarded) {
-                  console.log('🎉 Tokens awarded successfully:', result.tokensAwarded);
-                  showNotification({
-                    type: 'earned',
-                    title: 'Tokens Earned!',
-                    message: `🎉 +${result.tokensAwarded} tokens earned from your payment!`,
-                    amount: result.tokensAwarded,
-                    autoHide: 5000, // Auto-hide after 5 seconds
-                    timestamp: new Date().toISOString()
-                  });
-                  
-                  // Refresh token balance immediately
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (user) {
-                    const balance = await tokensService.getBalance(user.id);
-                    setCurrentBalance(balance?.balance || 0);
-                    console.log('🪙 Updated token balance:', balance?.balance || 0);
-                  }
-                } else {
-                  console.log('❌ Token awarding failed:', result);
-                }
-              } catch (error) {
-                console.error('Error awarding tokens for payment:', error);
-              }
-            }
-          }
-          
-          // Refresh payments data
-          const { data: paymentsData, error: paymentError } = await supabase
-            .from('tab_payments')
-            .select('*')
-            .eq('tab_id', tab.id)
-            .order('created_at', { ascending: false });
-          
-          if (!paymentError && paymentsData) {
-            setPayments(paymentsData);
-          }
-        }
-      )
-      .subscribe();
-
-    // Subscribe to telegram messages
-    const telegramSubscription = supabase
-      .channel(`tab-telegram-${tab.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tab_telegram_messages',
-          filter: `tab_id=eq.${tab.id}` 
-        },
-        async (payload: any) => {
-          console.log('📩 Telegram message real-time update:', {
-            event: payload.eventType,
-            new: payload.new,
-            old: payload.old
-          });
-          
-          // Refresh messages
-          const { data: messages, error } = await supabase
-            .from('tab_telegram_messages')
-            .select('*')
-            .eq('tab_id', tab.id)
-            .order('created_at', { ascending: false });
-          
-          if (!error && messages) {
-            setTelegramMessages(messages);
-            
-            // Calculate and update unread messages count
-            const unreadCount = messages.filter((msg: any) => 
-              msg.initiated_by === 'staff' && 
-              msg.status === 'pending'
-            ).length;
-            setUnreadMessagesCount(unreadCount);
-            
-            // Show notification for new messages (when staff responds)
-            if (payload.new?.initiated_by === 'staff' && 
-                payload.eventType === 'INSERT') {
-              
-              buzz([200]);
-              playAcceptanceSound();
-              
-              setNewMessageAlert({
-                type: 'acknowledged',
-                message: 'Staff responded to your message',
-                timestamp: new Date().toISOString(),
-                messageContent: payload.new.message
-              });
-              
-              setTimeout(() => {
-                setNewMessageAlert(null);
-              }, 5000);
-            }
-            
-            // Show notification for staff acknowledgments
-            if (payload.new?.status === 'acknowledged' && 
-                payload.old?.status === 'pending' &&
-                payload.new?.staff_acknowledged_at) {
-              
-              buzz([200, 100, 200]);
-              playAcceptanceSound();
-              
-              setNewMessageAlert({
-                type: 'acknowledged',
-                message: 'Staff has acknowledged your message',
-                timestamp: new Date().toISOString()
-              });
-              
-              setTimeout(() => {
-                setNewMessageAlert(null);
-              }, 5000);
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      console.log('🧹 Cleaning up real-time subscriptions');
-      ordersSubscription.unsubscribe();
-      paymentsSubscription.unsubscribe();
-      tabSubscription.unsubscribe();
-      telegramSubscription.unsubscribe();
-    };
-  }, [tab?.id, router, processedOrders]); // Add processedOrders to dependencies
-
-  const toggleMenu = () => {
-    setMenuExpanded(!menuExpanded);
+  // NEW: Function to calculate average response time for this bar
+  // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
+  // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
+  const calculateAverageResponseTime = async (barId: string) => {
+    console.log('🔍 [CUSTOMER] Starting response time calculation for bar:', barId);
+    setResponseTimeLoading(true);
+    try {
+      // Get all tabs for this bar with their orders and messages (SAME AS STAFF APP)
+      const { data: tabsData, error: tabsError } = await supabase
+        .from('tabs')
+        .select(`
+          id,
+          orders:tab_orders(id, status, created_at, confirmed_at, initiated_by),
+          messages:tab_telegram_messages(id, status, created_at, staff_acknowledged_at, initiated_by)
+        `)
+        .eq('bar_id', barId);
+      
+      if (tabsError || !tabsData) {
+        console.error('❌ [CUSTOMER] Error fetching tabs:', tabsError);
+        setAverageResponseTime(null);
+        setResponseTimeLoading(false);
+        return;
+      }
+      
+      console.log('📋 [CUSTOMER] Loaded tabs with data:', tabsData.length);
+      
+      // Get confirmed orders (order placed → confirmed) - only customer-initiated orders
+      const confirmedOrders = (tabsData as any[]).flatMap((tab: any) => 
+        (tab.orders || []).filter((o: any) => 
+          o.status === 'confirmed' && 
+          o.confirmed_at && 
+          o.created_at &&
+          o.initiated_by === 'customer'
+        )
+      );
+      
+      console.log('📦 [CUSTOMER] Found confirmed customer orders:', confirmedOrders.length);
+      
+      // Calculate order response times (in minutes)
+      const orderResponseTimes = confirmedOrders.map((order: any) => {
+        const created = new Date(order.created_at).getTime();
+        const confirmed = new Date(order.confirmed_at).getTime();
+        const timeInMinutes = (confirmed - created) / (1000 * 60);
+        console.log('⏱️ [CUSTOMER] Order response time:', timeInMinutes.toFixed(1), 'minutes');
+        return timeInMinutes;
+      });
+      
+      // Get acknowledged customer messages (message sent → staff acknowledged)
+      const acknowledgedMessages = (tabsData as any[]).flatMap((tab: any) => 
+        (tab.messages || []).filter((m: any) => 
+          m.status === 'acknowledged' && 
+          m.staff_acknowledged_at && 
+          m.created_at &&
+          m.initiated_by === 'customer'
+        )
+      );
+      
+      console.log('💬 [CUSTOMER] Found acknowledged customer messages:', acknowledgedMessages.length);
+      
+      // Calculate message response times (in minutes)
+      const messageResponseTimes = acknowledgedMessages.map((message: any) => {
+        const created = new Date(message.created_at).getTime();
+        const acknowledged = new Date(message.staff_acknowledged_at).getTime();
+        const timeInMinutes = (acknowledged - created) / (1000 * 60);
+        console.log('⏱️ [CUSTOMER] Message response time:', timeInMinutes.toFixed(1), 'minutes');
+        return timeInMinutes;
+      });
+      
+      // Combine all response times
+      const allResponseTimes = [...orderResponseTimes, ...messageResponseTimes];
+      
+      console.log('📊 [CUSTOMER] Total response times:', allResponseTimes.length);
+      
+      if (allResponseTimes.length === 0) {
+        console.log('❌ [CUSTOMER] No response time data available');
+        setAverageResponseTime(null);
+        setResponseTimeLoading(false);
+        return;
+      }
+      
+      const avgMinutes = allResponseTimes.reduce((sum, time) => sum + time, 0) / allResponseTimes.length;
+      const roundedAvg = Math.round(avgMinutes);
+      setAverageResponseTime(roundedAvg);
+      
+      console.log('✅ [CUSTOMER] Average response time calculated:', {
+        average: roundedAvg + ' minutes',
+        totalSamples: allResponseTimes.length,
+        fromOrders: orderResponseTimes.length,
+        fromMessages: messageResponseTimes.length
+      });
+    } catch (error) {
+      console.error('[CUSTOMER] Error calculating average response time:', error);
+      setAverageResponseTime(null);
+    } finally {
+      setResponseTimeLoading(false);
+    }
   };
+  
+  // Load average response time when tab is loaded
+  useEffect(() => {
+    if (tab?.bar_id) {
+      calculateAverageResponseTime(tab.bar_id);
+    }
+  }, [tab?.bar_id]);
+
+  // Set up real-time subscriptions with improved error handling and debouncing
+  const realtimeConfigs = [
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tab_orders',
+      filter: tab?.id ? `tab_id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📦 Real-time order update received:', payload);
+        console.log('📊 Payload details:', {
+          eventType: payload.eventType,
+          new: payload.new,
+          old: payload.old,
+          table: payload.table,
+          schema: payload.schema
+        });
+        
+        // Check if staff accepted an order (multiple scenarios)
+        const isStaffAcceptance = (
+          // Scenario 1: pending -> confirmed (staff accepts customer order)
+          (payload.new?.status === 'confirmed' && 
+           payload.old?.status === 'pending' && 
+           payload.new?.initiated_by === 'customer') ||
+          // Scenario 2: Any change to confirmed status for customer orders
+          (payload.new?.status === 'confirmed' && 
+           payload.new?.initiated_by === 'customer' && 
+           payload.old?.status !== 'confirmed')
+        );
+        
+        // Check if order was served/completed (for notification purposes only)
+        const isOrderCompleted = (
+          (payload.new?.status === 'served' || payload.new?.status === 'completed') &&
+          payload.old?.status !== 'served' && payload.old?.status !== 'completed'
+        );
+        
+        console.log('🤖 Is staff acceptance?', isStaffAcceptance);
+        console.log('📋 Processed orders:', Array.from(processedOrders));
+        
+        if (isStaffAcceptance && !processedOrders.has(payload.new.id)) {
+          console.log('🎉 Staff accepted order:', payload.new.id);
+          
+          // Mark this order as processed to avoid duplicate notifications
+          setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+          
+          console.log('🔔 Showing acceptance modal with notifications...');
+          
+          // Trigger vibration and sound
+          buzz([200, 100, 200]); // Vibration pattern: buzz-pause-buzz
+          playAcceptanceSound(); // Play acceptance sound
+          
+          // Show modal instead of toast
+          setAcceptanceModal({
+            show: true,
+            orderTotal: payload.new.total, // Pass the number, not formatted string
+            message: 'Your order has been accepted and is being prepared'
+          });
+        } else if (isOrderCompleted && !processedOrders.has(payload.new.id)) {
+          console.log('✅ Order completed:', payload.new.id);
+          
+          // Mark this order as processed to avoid duplicate notifications
+          setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+        } else {
+          console.log('❌ Not showing modal - conditions not met:', {
+            isStaffAcceptance,
+            alreadyProcessed: processedOrders.has(payload.new?.id),
+            orderId: payload.new?.id
+          });
+        }
+        
+        // Refresh orders data
+        const { data: ordersData, error } = await supabase
+          .from('tab_orders')
+          .select('*')
+          .eq('tab_id', tab?.id || '')
+          .order('created_at', { ascending: false });
+        
+        if (!error && ordersData) {
+          setOrders(ordersData);
+        }
+      }
+    },
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tabs',
+      filter: tab?.id ? `id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📋 Real-time tab update:', payload);
+        if (payload.eventType === 'UPDATE') {
+          const updatedTab = payload.new as Tab;
+          
+          if (updatedTab.status === 'closed') {
+            console.log('🛑 Tab was closed, redirecting to home');
+            sessionStorage.removeItem('currentTab');
+            sessionStorage.removeItem('cart');
+            router.replace('/');
+            return;
+          }
+          
+          const { data: fullTab, error } = await supabase
+            .from('tabs')
+            .select('*, bar:bars(id, name, location)')
+            .eq('id', tab?.id || '')
+            .maybeSingle();
+          
+          if (!error && fullTab) {
+            setTab(fullTab as Tab);
+            setBarName((fullTab as any).bar?.name || 'Bar');
+            
+            let name = 'Your Tab';
+            if ((fullTab as any).notes) {
+              try {
+                const notes = JSON.parse((fullTab as any).notes);
+                name = notes.display_name || `Tab ${(fullTab as any).tab_number || ''}`;
+              } catch (e) {
+                name = (fullTab as any).tab_number ? `Tab ${(fullTab as any).tab_number}` : 'Your Tab';
+              }
+            } else if ((fullTab as any).tab_number) {
+              name = `Tab ${(fullTab as any).tab_number}`;
+            }
+            setDisplayName(name);
+          }
+        }
+      }
+    },
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tab_payments',
+      filter: tab?.id ? `tab_id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('💳 Real-time payment update:', payload);
+        
+        // Show token notification for successful payments
+        if (payload.eventType === 'INSERT' && 
+            payload.new?.status === 'success') {
+          
+          // Award tokens for order value
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && tab?.bar_id) {
+            const orderValue = Math.round(parseFloat(payload.new.amount) * 100); // Convert to cents
+            
+            try {
+              const result = await tokensService.awardOrderTokens(
+                user.id,
+                tab.bar_id,
+                payload.new.id, // payment ID
+                orderValue
+              );
+              
+              if (result.success && result.tokensAwarded) {
+                console.log('🎉 Tokens awarded successfully:', result.tokensAwarded);
+                showNotification({
+                  type: 'earned',
+                  title: 'Tokens Earned!',
+                  message: `🎉 +${result.tokensAwarded} tokens earned from your payment!`,
+                  amount: result.tokensAwarded,
+                  autoHide: 5000, // Auto-hide after 5 seconds
+                  timestamp: new Date().toISOString()
+                });
+                
+                // Refresh token balance immediately
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                  const balance = await tokensService.getBalance(user.id);
+                  setCurrentBalance(balance?.balance || 0);
+                  console.log('🪙 Updated token balance:', balance?.balance || 0);
+                }
+              } else {
+                console.log('❌ Token awarding failed:', result);
+              }
+            } catch (error) {
+              console.error('Error awarding tokens for payment:', error);
+            }
+          }
+        }
+        
+        // Refresh payments data
+        const { data: paymentsData, error: paymentError } = await supabase
+          .from('tab_payments')
+          .select('*')
+          .eq('tab_id', tab?.id || '')
+          .order('created_at', { ascending: false });
+        
+        if (!paymentError && paymentsData) {
+          setPayments(paymentsData);
+        }
+      }
+    },
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tab_telegram_messages',
+      filter: tab?.id ? `tab_id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📩 Telegram message real-time update:', {
+          event: payload.eventType,
+          new: payload.new,
+          old: payload.old
+        });
+        
+        // Refresh messages
+        const { data: messages, error } = await supabase
+          .from('tab_telegram_messages')
+          .select('*')
+          .eq('tab_id', tab?.id || '')
+          .order('created_at', { ascending: false });
+        
+        if (!error && messages) {
+          setTelegramMessages(messages);
+          
+          // Calculate and update unread messages count
+          const unreadCount = messages.filter((msg: any) => 
+            msg.initiated_by === 'staff' && 
+            msg.status === 'pending'
+          ).length;
+          setUnreadMessagesCount(unreadCount);
+          
+          // Show notification for new messages (when staff responds)
+          if (payload.new?.initiated_by === 'staff' && 
+              payload.eventType === 'INSERT') {
+            
+            buzz([200]);
+            playAcceptanceSound();
+            
+            setNewMessageAlert({
+              type: 'acknowledged',
+              message: 'Staff responded to your message',
+              timestamp: new Date().toISOString(),
+              messageContent: payload.new.message
+            });
+            
+            setTimeout(() => {
+              setNewMessageAlert(null);
+            }, 5000);
+          }
+          
+          // Show notification for staff acknowledgments
+          if (payload.new?.status === 'acknowledged' && 
+              payload.old?.status === 'pending' &&
+              payload.new?.staff_acknowledged_at) {
+            
+            buzz([200, 100, 200]);
+            playAcceptanceSound();
+            
+            setNewMessageAlert({
+              type: 'acknowledged',
+              message: 'Staff has acknowledged your message',
+              timestamp: new Date().toISOString()
+            });
+            
+            setTimeout(() => {
+              setNewMessageAlert(null);
+            }, 5000);
+          }
+        }
+      }
+    }
+  ];
+
+  const { connectionStatus, retryCount, reconnect, isConnected } = useRealtimeSubscription(
+    realtimeConfigs,
+    [tab?.id, router, processedOrders],
+    {
+      maxRetries: 10,
+      retryDelay: [1000, 2000, 5000, 10000, 30000, 60000],
+      debounceMs: 300,
+      onConnectionChange: (status) => {
+        console.log('📡 Connection status changed:', status);
+        // Show connection status indicator when not connected
+        if (status === 'connected') {
+          setShowConnectionStatus(false);
+        } else {
+          setShowConnectionStatus(true);
+        }
+      }
+    }
+  );
 
   // Image zoom handlers
   const handleImageZoomIn = () => {
@@ -599,23 +713,53 @@ export default function MenuPage() {
     setImageScale(1);
   };
 
-  // Menu toggle functions - can both be closed, but never open at same time
+  // Toggle functions for THREE EXCLUSIVE collapsible sections
   const toggleInteractiveMenu = () => {
     if (!interactiveMenuCollapsed) {
-      // Collapsing interactive menu - just collapse it
+      // If already open, just close it
       setInteractiveMenuCollapsed(true);
     } else {
-      // Opening interactive menu - close static menu
+      // Open interactive menu, close others
       setInteractiveMenuCollapsed(false);
+      setCartCollapsed(true);
+      setPaymentCollapsed(true);
+      setShowStaticMenu(false);
+    }
+  };
+
+  const toggleCart = () => {
+    if (!cartCollapsed) {
+      // If already open, just close it
+      setCartCollapsed(true);
+    } else {
+      // Open cart, close others
+      setCartCollapsed(false);
+      setInteractiveMenuCollapsed(true);
+      setPaymentCollapsed(true);
+      setShowStaticMenu(false);
+    }
+  };
+
+  const togglePayment = () => {
+    if (!paymentCollapsed) {
+      // If already open, just close it
+      setPaymentCollapsed(true);
+    } else {
+      // Open payment, close others
+      setPaymentCollapsed(false);
+      setInteractiveMenuCollapsed(true);
+      setCartCollapsed(true);
       setShowStaticMenu(false);
     }
   };
 
   const toggleStaticMenu = () => {
     if (!showStaticMenu) {
-      // Opening static menu - close interactive menu
+      // Opening static menu - close all collapsible sections
       setShowStaticMenu(true);
       setInteractiveMenuCollapsed(true);
+      setCartCollapsed(true);
+      setPaymentCollapsed(true);
     } else {
       // Closing static menu - just collapse it
       setShowStaticMenu(false);
@@ -945,9 +1089,6 @@ export default function MenuPage() {
     getPendingOrderTime();
   };
 
-  // REMOVED: Auto-play slideshow useEffect entirely
-  // Slideshow is now manual-only, controlled by user clicks
-
   const handleCloseTab = async () => {
     try {
       if (!tab) {
@@ -1120,6 +1261,13 @@ export default function MenuPage() {
       }];
     setCart(newCart);
     sessionStorage.setItem('cart', JSON.stringify(newCart));
+    
+    // Show toast notification for cart addition
+    showToast({
+      type: 'success',
+      title: 'Added to Cart! 🛒',
+      message: `${product.name} has been added to your cart`
+    });
   };
 
   const updateCartQuantity = (barProductId: string, delta: number) => {
@@ -1162,7 +1310,6 @@ export default function MenuPage() {
       sessionStorage.setItem('oldestPendingCustomerOrderTime', orderSubmissionTime);
       sessionStorage.removeItem('cart');
       setCart([]);
-      setShowCart(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error('Error creating order:', error);
@@ -1176,40 +1323,6 @@ export default function MenuPage() {
     // DISABLED: Show coming soon message instead of processing payment
     alert('Digital payments coming soon! Please pay directly at the bar using cash, M-Pesa, Airtel Money, or credit/debit cards.');
     return;
-    
-    // Original payment logic (commented out)
-    /*
-    if (activePaymentMethod === 'cash') {
-      alert('Cash payment confirmed. Please wait for staff to confirm.');
-      return;
-    }
-    if (activePaymentMethod === 'mpesa' && (!phoneNumber || !paymentAmount)) {
-      alert('Please enter phone number and amount');
-      return;
-    }
-    if (activePaymentMethod === 'cards' && !paymentAmount) {
-      alert('Please enter amount');
-      return;
-    }
-    try {
-      const { error } = await (supabase as any)
-        .from('tab_payments')
-        .insert({
-          tab_id: tab!.id,
-          amount: parseFloat(paymentAmount),
-          method: activePaymentMethod,
-          status: 'success',
-          reference: `PAY${Date.now()}`
-        });
-      if (error) throw error;
-      alert(`Payment successful! KSh ${paymentAmount}`);
-      setPaymentAmount('');
-      setPhoneNumber('');
-    } catch (error) {
-      console.error('Payment error:', error);
-      alert('Payment failed');
-    }
-    */
   };
 
   const sendTelegramMessage = async () => {
@@ -1386,147 +1499,187 @@ export default function MenuPage() {
   const lastOrder = orders.filter(order => order.status !== 'cancelled')[0]; // Most recent non-cancelled order
   const lastOrderTotal = lastOrder ? parseFloat(lastOrder.total).toFixed(0) : '0';
   const lastOrderTime = lastOrder ? timeAgo(lastOrder.created_at) : '';
+  
+  // Get pending order timer
+  const pendingOrderTime = getPendingOrderTime();
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 sticky top-0 z-20 shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold">{displayName}</h1>
-            <p className="text-sm text-white">{barName}</p>
-            <div className="flex items-center gap-2 mt-2">
-              <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
-                🪙 {currentBalance || 0} tokens
-              </div>
+      <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0 z-20 shadow-lg">
+        {/* Top Row: Restaurant Name & Tab Info */}
+        <div className="px-4 py-3 border-b border-white border-opacity-20">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold">{displayName}</h1>
+              <p className="text-xs text-white text-opacity-90">{barName}</p>
             </div>
+            
+            {/* Average Response Time Badge */}
+            {averageResponseTime !== null && !responseTimeLoading && (
+              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
+                <Clock size={14} />
+                ~{averageResponseTime}m response
+              </div>
+            )}
+            {responseTimeLoading && (
+              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                Loading...
+              </div>
+            )}
+            
+            {/* Connection Status Indicator */}
+            {showConnectionStatus && (
+              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                <ConnectionStatusIndicator 
+                  status={connectionStatus} 
+                  retryCount={retryCount}
+                  className="text-xs"
+                />
+              </div>
+            )}
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Menu</button>
-            <button onClick={() => ordersRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Orders</button>
-            <button onClick={() => paymentRef.current?.scrollIntoView({ behavior: 'smooth' })} className="px-3 py-1 bg-white bg-opacity-20 rounded-lg text-sm">Pay</button>
+        </div>
+        
+        {/* Bottom Row: Quick Actions */}
+        <div className="px-4 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <button 
+              onClick={() => ordersRef.current?.scrollIntoView({ behavior: 'smooth' })} 
+              className="flex-1 bg-white bg-opacity-20 backdrop-blur-sm hover:bg-opacity-30 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+            >
+              Orders
+            </button>
+            <button 
+              onClick={() => paymentRef.current?.scrollIntoView({ behavior: 'smooth' })} 
+              className="flex-1 bg-white bg-opacity-20 backdrop-blur-sm hover:bg-opacity-30 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+            >
+              Pay
+            </button>
+            <button 
+              onClick={() => setShowMessagePanel(true)}
+              className="flex-1 bg-white bg-opacity-20 backdrop-blur-sm hover:bg-opacity-30 rounded-lg px-4 py-2 text-sm font-medium transition-all relative"
+            >
+              Messages
+              {unreadMessagesCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-yellow-400 text-orange-900 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {unreadMessagesCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Pending Order Timer */}
+      {pendingOrderTime && (
+        <div className="bg-gradient-to-r from-orange-600 to-red-700 text-white p-3 border-b border-orange-500">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock size={20} className="text-orange-200" />
+              <div>
+                <p className="text-sm font-medium">Order pending</p>
+                <p className="text-xs text-orange-100">Waiting for staff confirmation</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold">{formatTime(pendingOrderTime.elapsed)}</p>
+              <p className="text-xs text-orange-100">elapsed</p>
+            </div>
+          </div>
+          
+          {/* Circular Timer */}
+          <div className="flex items-center justify-center mt-3">
+            <div className="relative w-20 h-20">
+              <svg className="w-20 h-20 transform -rotate-90">
+                {/* Background circle */}
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="36"
+                  stroke="rgba(255,255,255,0.2)"
+                  strokeWidth="4"
+                  fill="transparent"
+                />
+                {/* Progress circle */}
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="36"
+                  stroke="#fdba74"
+                  strokeWidth="4"
+                  fill="transparent"
+                  strokeLinecap="round"
+                  strokeDasharray={226.08} // 2 * π * 36
+                  strokeDashoffset={226.08 * (1 - Math.min(pendingOrderTime.elapsed * 0.5 / 100, 1))}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-lg font-bold">{formatTime(pendingOrderTime.elapsed)}</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Linear progress bar (optional backup) */}
+          <div className="w-full bg-orange-900 bg-opacity-30 rounded-full h-2 mt-3">
+            <div 
+              className="bg-orange-300 h-2 rounded-full transition-all duration-1000" 
+              style={{ width: `${Math.min(pendingOrderTime.elapsed * 0.5, 100)}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
 
       {/* Pending Staff Orders Alert */}
       {pendingStaffOrders > 0 && (
         <div className="bg-yellow-400 border-b-2 border-yellow-500 p-3 animate-pulse">
           <div className="flex items-center gap-2">
             <UserCog size={20} className="text-yellow-900" />
-            <p className="text-sm font-bold text-yellow-900">
-              {pendingStaffOrders} order{pendingStaffOrders > 1 ? 's' : ''} need your approval! Scroll to Orders ↓
-            </p>
+            <span className="text-yellow-900 font-medium">{pendingStaffOrders} staff order{pendingStaffOrders > 1 ? 's' : ''} pending</span>
           </div>
         </div>
       )}
 
-      {/* Timer Modal */}
-      {(() => {
-        const pendingTime = getPendingOrderTime();
-        if (!pendingTime) return null;
-        const elapsedSeconds = pendingTime.elapsed;
-        const maxTimeSeconds = 900;
-        const elapsedPercentage = Math.min((elapsedSeconds / maxTimeSeconds) * 100, 100);
-        const getStrokeColor = (percentage: number) => {
-          if (percentage <= 33) return "url(#gradient-green)";
-          else if (percentage <= 66) return "url(#gradient-orange)";
-          else return "url(#gradient-red)";
-        };
-        const circumference = 2 * Math.PI * 45;
-        const segmentLength = (elapsedPercentage / 100) * circumference;
-        const strokeDasharray = `${segmentLength} ${circumference}`;
-        const startOffset = circumference * 0.25;
-        const strokeDashoffset = startOffset;
-        const strokeColor = getStrokeColor(elapsedPercentage);
-        return (
-          <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 flex flex-col items-center justify-center animate-fadeIn">
-            <div className="relative" style={{ width: '45vw', height: '45vw', maxWidth: '280px', maxHeight: '280px' }}>
-              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-orange-400 to-red-500 opacity-20 animate-pulse-slow"></div>
-              <svg className="absolute inset-0 w-full h-full">
-                <circle cx="50%" cy="50%" r="45%" fill="none" stroke="#e5e7eb" strokeWidth="8" />
-                <circle
-                  cx="50%"
-                  cy="50%"
-                  r="45%"
-                  fill="none"
-                  stroke={strokeColor}
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={strokeDasharray}
-                  strokeDashoffset={strokeDashoffset}
-                  className="transition-all duration-1000 ease-linear"
-                />
-                <defs>
-                  <linearGradient id="gradient-green" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#10B981" />
-                    <stop offset="100%" stopColor="#059669" />
-                  </linearGradient>
-                  <linearGradient id="gradient-orange" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#FB923C" />
-                    <stop offset="100%" stopColor="#EA580C" />
-                  </linearGradient>
-                  <linearGradient id="gradient-red" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#EF4444" />
-                    <stop offset="100%" stopColor="#DC2626" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <Clock size={32} className="text-orange-500 mb-2 animate-pulse" />
-                <div className="text-5xl font-bold text-gray-800 animate-pulse-number">
-                  {formatTime(elapsedSeconds)}
-                </div>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 mt-6 text-center max-w-xs">
-              We'll notify you when your order is confirmed!
-            </p>
-          </div>
-        );
-      })()}
-
-      {/* Token Notifications */}
-      <TokenNotifications />
-      
-      {/* Telegram Message Section - UPDATED */}
+      {/* Message Section */}
       <div className="p-4">
         {/* Section Header */}
         <div className="mb-3">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">MESSAGES</h2>
-          <p className="text-sm text-gray-600 mt-1">Chat with staff about orders</p>
         </div>
-
-        <div className="bg-white border border-gray-100 rounded-lg">
+        
+        <div className="bg-white border border-gray-100 overflow-hidden rounded-lg">
           <div className="p-4">
             {/* Message Stats */}
-            {telegramMessages.length > 0 && (
-              <div className="flex gap-3 text-xs mb-3">
-                <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
                   <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'pending').length} Pending</span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
                   <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'acknowledged').length} Acknowledged</span>
                 </div>
               </div>
-            )}
+            </div>
             
             {/* Recent Messages Preview */}
             {telegramMessages.slice(0, 2).map((msg) => (
-              <div 
+              <div
                 key={msg.id} 
                 className={`p-3 rounded-lg mb-2 ${
-                  msg.status === 'pending' ? 'bg-yellow-50 border border-yellow-100' :
-                  msg.status === 'acknowledged' ? 'bg-blue-50 border border-blue-100' :
-                  'bg-gray-50 border border-gray-100'
+                  msg.initiated_by === 'customer' 
+                    ? 'bg-orange-100 border border-orange-200' 
+                    : 'bg-blue-100 border border-blue-200'
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <p className="text-sm text-gray-800">{msg.message}</p>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className={`text-xs mt-1 ${
+                      msg.initiated_by === 'customer' ? 'text-orange-700' : 'text-blue-700'
+                    }`}>
                       {timeAgo(msg.created_at)} • 
                       <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
                         msg.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
@@ -1573,13 +1726,12 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Interactive Menu Section */}
+      {/* Interactive Menu Section - COLLAPSIBLE */}
       <div className="bg-gray-50 px-4">
         <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
           <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
             <div>
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Interactive Menu</h2>
-              <p className="text-sm text-gray-600 mt-1">Browse products & add to cart</p>
             </div>
             <button
               onClick={toggleInteractiveMenu}
@@ -1678,7 +1830,7 @@ export default function MenuPage() {
                               )}
                             </div>
                             <div className="flex-1 p-3 flex flex-col justify-between">
-                              <h3 className="text-sm font-medium text-gray-900 text-left">{product.name || 'Product'}</h3>
+                              <h3 className={`text-sm font-medium text-gray-900 text-left leading-tight ${product.name && product.name.length > 20 ? 'text-xs' : ''}`}>{product.name || 'Product'}</h3>
                               <p className="text-sm text-gray-600 mt-2 text-left">{tempFormatCurrency(barProduct.sale_price)}</p>
                             </div>
                           </div>
@@ -1693,13 +1845,123 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* Cart Section - Only show when cart has items */}
+      {cart.length > 0 && (
+        <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 border-t border-orange-200">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-orange-600 uppercase tracking-wide">YOUR CART</h2>
+            <button
+              onClick={toggleCart}
+              className="text-orange-600 hover:text-orange-700 transition-colors"
+            >
+              {cartCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            </button>
+          </div>
+
+          {!cartCollapsed && (
+            <div className="bg-white rounded-xl shadow-sm border border-orange-200 overflow-hidden">
+              {/* Cart Header */}
+              <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <ShoppingCart size={20} />
+                    <div>
+                      <h3 className="font-bold text-lg">Cart Items</h3>
+                      <p className="text-sm text-orange-100">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setCart([])}
+                    className="p-2 bg-orange-700 bg-opacity-50 rounded-lg hover:bg-orange-800 transition-colors"
+                    title="Clear cart"
+                  >
+                    <X size={18} className="text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Cart Items */}
+              <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
+                {cart.map(item => (
+                  <div key={item.bar_product_id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-orange-900">{item.name}</span>
+                        <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
+                          {item.category}
+                        </span>
+                      </div>
+                      <p className="text-sm text-orange-600">{tempFormatCurrency(item.price)} each</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-lg">
+                        <button
+                          onClick={() => updateCartQuantity(item.bar_product_id, -1)}
+                          className="p-2 hover:bg-orange-200 transition-colors"
+                        >
+                          <Minus size={16} className="text-orange-700" />
+                        </button>
+                        <span className="font-bold w-8 text-center text-orange-900">{item.quantity}</span>
+                        <button
+                          onClick={() => updateCartQuantity(item.bar_product_id, 1)}
+                          className="p-2 hover:bg-orange-200 transition-colors"
+                        >
+                          <Plus size={16} className="text-orange-700" />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newCart = cart.filter(cartItem => cartItem.bar_product_id !== item.bar_product_id);
+                          setCart(newCart);
+                          sessionStorage.setItem('cart', JSON.stringify(newCart));
+                        }}
+                        className="p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                        title="Remove from cart"
+                      >
+                        <X size={18} className="text-white" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Cart Footer */}
+              <div className="border-t border-orange-200 p-4 bg-orange-50">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm text-orange-600">Total</p>
+                    <p className="text-2xl font-bold text-orange-900">{tempFormatCurrency(cartTotal)}</p>
+                  </div>
+                  <button
+                    onClick={confirmOrder}
+                    disabled={submittingOrder || cart.length === 0}
+                    className="bg-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {submittingOrder ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={18} />
+                        Send Order
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Menu Viewer - RENAMED from "Static Menu" */}
       {(staticMenuUrl || staticMenuType === 'slideshow') && (
         <div className="p-4">
           {/* Section Header - NEW */}
           <div className="mb-3">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">MENU</h2>
-            <p className="text-sm text-gray-600 mt-1">View menu items</p>
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PROMOS</h2>
           </div>
           
           <div className="bg-white border border-gray-100 overflow-hidden rounded-lg">
@@ -1707,7 +1969,6 @@ export default function MenuPage() {
             <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
               <div>
                 <h2 className="text-sm font-semibold text-gray-700">Specials</h2>
-                <p className="text-xs text-gray-500">View special offers</p>
               </div>
               <button
                 onClick={toggleStaticMenu}
@@ -1730,7 +1991,7 @@ export default function MenuPage() {
                   : 'max-h-[70vh] opacity-100'
               }`}
             >
-              <div className="relative z-40 bg-gray-900 bg-opacity-95 flex flex-col h-[70vh] min-h-[400px]">
+              <div className="relative z-10 bg-gray-900 bg-opacity-95 flex flex-col h-[70vh] min-h-[400px]">
                 {/* Content */}
                 <div className="flex-1 overflow-hidden">
                   {/* PDF viewer temporarily disabled - only show images */}
@@ -1860,7 +2121,6 @@ export default function MenuPage() {
         {/* Section Header - NEW */}
         <div className="mb-3">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">ORDER HISTORY</h2>
-          <p className="text-sm text-gray-600 mt-1">View order history</p>
         </div>
         
         {orders.length > 0 && (
@@ -1948,107 +2208,144 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Payment Section */}
+      {/* Payment Section - COLLAPSIBLE */}
       {balance > 0 && (
         <div ref={paymentRef} className="p-4">
           {/* Section Header - NEW */}
           <div className="mb-3">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PAYMENT</h2>
-            <p className="text-sm text-gray-600 mt-1">Pay your outstanding balance</p>
           </div>
           
-          <div 
-            className="flex items-center justify-between mb-3 cursor-pointer"
-            onClick={() => setPaymentCollapsed(!paymentCollapsed)}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-orange-600">{tempFormatCurrency(balance)}</span>
-              {paymentCollapsed ? (
-                <ChevronDown size={16} className="text-gray-400" />
-              ) : (
-                <ChevronUp size={16} className="text-gray-400" />
-              )}
-            </div>
-          </div>
-          
-          {!paymentCollapsed && (
-            <div className="bg-white rounded-lg border border-gray-100 p-4">
-              <div className="flex border-b border-gray-200 mb-4">
-                {paymentSettings.mpesa_enabled && (
-                  <button
-                    onClick={() => setActivePaymentMethod('mpesa')}
-                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Phone size={16} />
-                      M-Pesa
-                    </div>
-                  </button>
-                )}
-                {paymentSettings.card_enabled && (
-                  <button
-                    onClick={() => setActivePaymentMethod('cards')}
-                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <CreditCardIcon size={16} />
-                      Cards
-                    </div>
-                  </button>
-                )}
-                {paymentSettings.cash_enabled && (
-                  <button
-                    onClick={() => setActivePaymentMethod('cash')}
-                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <DollarSign size={16} />
-                      Cash
-                    </div>
-                  </button>
-                )}
+          <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
+            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50">
+              <div>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</h2>
+                <p className="text-sm text-gray-600 mt-1">Outstanding balance: {tempFormatCurrency(balance)}</p>
               </div>
-              {activePaymentMethod === 'cards' && (
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-400 rounded flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">VISA</span>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-900">•••• 4242</p>
-                      <p className="text-xs text-gray-400">Expires 12/26</p>
-                    </div>
-                  </div>
-                  <button className="text-xs text-orange-500 font-medium">Change</button>
-                </div>
-              )}
-              <div className="border-t border-gray-100 pt-4">
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-                  <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
-                  <p className="text-3xl font-bold text-orange-600">{tempFormatCurrency(balance)}</p>
-                </div>
-                <div className="space-y-4">
-                  {activePaymentMethod === 'mpesa' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">M-Pesa Number</label>
-                        <input
-                          type="tel"
-                          value={phoneNumber}
-                          onChange={(e) => setPhoneNumber(e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                          placeholder="0712345678"
-                        />
+              <button
+                onClick={togglePayment}
+                className="text-green-600 hover:text-green-700 p-2 transform transition-transform duration-200 hover:scale-110"
+              >
+                <ChevronDown 
+                  size={20} 
+                  className={`transform transition-transform duration-300 ease-in-out ${
+                    paymentCollapsed ? 'rotate-0' : 'rotate-180'
+                  }`}
+                />
+              </button>
+            </div>
+            
+            <div 
+              className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                paymentCollapsed 
+                  ? 'max-h-0 opacity-0' 
+                  : 'max-h-[800px] opacity-100'
+              }`}
+            >
+              <div className="bg-white p-4">
+                <div className="flex border-b border-gray-200 mb-4">
+                  {paymentSettings.mpesa_enabled && (
+                    <button
+                      onClick={() => setActivePaymentMethod('mpesa')}
+                      className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
+                          ? 'text-orange-500 border-b-2 border-orange-500'
+                          : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Phone size={16} />
+                        M-Pesa
                       </div>
+                    </button>
+                  )}
+                  {paymentSettings.card_enabled && (
+                    <button
+                      onClick={() => setActivePaymentMethod('cards')}
+                      className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
+                          ? 'text-orange-500 border-b-2 border-orange-500'
+                          : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <CreditCardIcon size={16} />
+                        Cards
+                      </div>
+                    </button>
+                  )}
+                  {paymentSettings.cash_enabled && (
+                    <button
+                      onClick={() => setActivePaymentMethod('cash')}
+                      className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
+                          ? 'text-orange-500 border-b-2 border-orange-500'
+                          : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <DollarSign size={16} />
+                        Cash
+                      </div>
+                    </button>
+                  )}
+                </div>
+                {activePaymentMethod === 'cards' && (
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-400 rounded flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">VISA</span>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-900">•••• 4242</p>
+                        <p className="text-xs text-gray-400">Expires 12/26</p>
+                      </div>
+                    </div>
+                    <button className="text-xs text-orange-500 font-medium">Change</button>
+                  </div>
+                )}
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+                    <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
+                    <p className="text-3xl font-bold text-orange-600">{tempFormatCurrency(balance)}</p>
+                  </div>
+                  <div className="space-y-4">
+                    {activePaymentMethod === 'mpesa' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">M-Pesa Number</label>
+                          <input
+                            type="tel"
+                            value={phoneNumber}
+                            onChange={(e) => setPhoneNumber(e.target.value)}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                            placeholder="0712345678"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
+                          <input
+                            type="number"
+                            value={paymentAmount}
+                            onChange={(e) => setPaymentAmount(e.target.value)}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                            placeholder="0"
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => setPaymentAmount((balance / 2).toFixed(0))}
+                              className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
+                            >
+                              Half
+                            </button>
+                            <button
+                              onClick={() => setPaymentAmount(balance.toFixed(0))}
+                              className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
+                            >
+                              Full
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    {activePaymentMethod === 'cards' && (
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
                         <input
@@ -2073,95 +2370,41 @@ export default function MenuPage() {
                           </button>
                         </div>
                       </div>
-                    </>
-                  )}
-                  {activePaymentMethod === 'cards' && (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
-                      <input
-                        type="number"
-                        value={paymentAmount}
-                        onChange={(e) => setPaymentAmount(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
-                        placeholder="0"
-                      />
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          onClick={() => setPaymentAmount((balance / 2).toFixed(0))}
-                          className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
-                        >
-                          Half
-                        </button>
-                        <button
-                          onClick={() => setPaymentAmount(balance.toFixed(0))}
-                          className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
-                        >
-                          Full
-                        </button>
+                    )}
+                    {activePaymentMethod === 'cash' && (
+                      <div className="text-center py-4">
+                        <div className="bg-gray-100 rounded-xl p-6 mb-4">
+                          <DollarSign size={48} className="mx-auto text-gray-400 mb-3" />
+                          <p className="text-gray-600">Please request cash payment from staff</p>
+                          <p className="text-sm text-gray-500 mt-2">Your payment will be confirmed by the restaurant system</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {activePaymentMethod === 'cash' && (
-                    <div className="text-center py-4">
-                      <div className="bg-gray-100 rounded-xl p-6 mb-4">
-                        <DollarSign size={48} className="mx-auto text-gray-400 mb-3" />
-                        <p className="text-gray-600">Please request cash payment from staff</p>
-                        <p className="text-sm text-gray-500 mt-2">Your payment will be confirmed by the restaurant system</p>
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    onClick={processPayment}
-                    disabled={true}
-                    className="w-full bg-gray-300 text-gray-500 py-3 rounded-lg text-sm font-medium cursor-not-allowed"
-                  >
-                    Digital Payments Coming Soon
-                  </button>
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    Please pay at the bar using
-                    {(() => {
-                      const methods = [];
-                      if (paymentSettings.cash_enabled) methods.push('cash');
-                      if (paymentSettings.mpesa_enabled) methods.push('M-Pesa');
-                      if (paymentSettings.card_enabled) methods.push('cards');
-                      if (paymentSettings.mpesa_enabled && (paymentSettings.card_enabled || paymentSettings.cash_enabled)) methods.push('Airtel Money');
-                      return methods.join(', ');
-                    })()}
-                  </p>
+                    )}
+                    <button
+                      onClick={processPayment}
+                      disabled={true}
+                      className="w-full bg-gray-300 text-gray-500 py-3 rounded-lg text-sm font-medium cursor-not-allowed"
+                    >
+                      Digital Payments Coming Soon
+                    </button>
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                      Please pay at the bar using
+                      {(() => {
+                        const methods = [];
+                        if (paymentSettings.cash_enabled) methods.push('cash');
+                        if (paymentSettings.mpesa_enabled) methods.push('M-Pesa');
+                        if (paymentSettings.card_enabled) methods.push('cards');
+                        if (paymentSettings.mpesa_enabled && (paymentSettings.card_enabled || paymentSettings.cash_enabled)) methods.push('Airtel Money');
+                        return methods.join(', ');
+                      })()}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
       )}
-      
-      {/* Close Tab Section - Simple text button */}
-      <div className="bg-white p-4 border-t">
-        <button
-          onClick={() => {
-            if (balance > 0) {
-              // Show red toast immediately for outstanding balance
-              showToast({
-                type: 'error',
-                title: 'Cannot Close Tab',
-                message: 'You have outstanding balance. Please pay at the bar before closing your tab.'
-              });
-              return;
-            }
-            // Show confirmation for green tabs (no balance)
-            setShowCloseConfirm(true);
-          }}
-          className={`w-full py-3 rounded-xl font-medium transition ${
-            orders.filter(order => order.status === 'confirmed').length === 0 
-              ? 'text-green-600 hover:bg-green-50' 
-              : balance > 0 
-                ? 'text-red-600 hover:bg-red-50'
-                : 'text-green-600 hover:bg-green-50'
-          }`}
-        >
-          Close Tab
-        </button>
-      </div>
       
       {balance === 0 && orders.filter(order => order.status === 'confirmed').length > 0 && (
         <div className="bg-white p-4">
@@ -2191,110 +2434,37 @@ export default function MenuPage() {
           </p>
         </div>
       )}
-      {showCloseConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
-            <h3 className="text-xl font-bold text-gray-800 mb-3">Close Your Tab?</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to close your tab? You'll need to start a new one if you want to order again later.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowCloseConfirm(false)}
-                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowCloseConfirm(false);
-                  handleCloseTab();
-                }}
-                className="flex-1 bg-green-500 text-white py-3 rounded-xl font-semibold hover:bg-green-600"
-              >
-                Yes, Close Tab
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showCart && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-30 flex items-end">
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 w-full rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto border-t-4 border-blue-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Your Cart</h3>
-              <button onClick={() => setShowCart(false)} className="text-white hover:bg-blue-800 p-2 rounded-lg transition-colors"><X size={24} /></button>
-            </div>
-            <div className="space-y-3 mb-4">
-              {cart.map(item => (
-                <div key={item.bar_product_id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <span className="text-2xl">
-                        {(() => {
-                          const Icon = getCategoryIcon(item.category);
-                          return <Icon size={32} className="text-blue-600" />;
-                        })()}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-white">{item.name}</p>
-                      <p className="text-sm text-blue-200">{tempFormatCurrency(item.price)}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => updateCartQuantity(item.bar_product_id, -1)} className="bg-blue-800 text-white p-1 rounded hover:bg-blue-900 transition-colors"><Minus size={16} /></button>
-                    <span className="font-bold w-8 text-center text-white">{item.quantity}</span>
-                    <button onClick={() => updateCartQuantity(item.bar_product_id, 1)} className="bg-green-500 text-white p-1 rounded hover:bg-green-600 transition-colors"><Plus size={16} /></button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="border-t border-blue-400 pt-4">
-              <div className="flex justify-between mb-4">
-                <span className="font-bold text-white">Total</span>
-                <span className="text-xl font-bold text-green-300">{tempFormatCurrency(cartTotal)}</span>
-              </div>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => {
-                    setCart([]);
-                    sessionStorage.removeItem('cart');
-                    showToast({
-                      type: 'info',
-                      title: 'Cart Cleared',
-                      message: 'Your cart has been emptied.'
-                    });
-                  }} 
-                  className="flex-1 bg-gray-500 text-white py-3 rounded-xl font-semibold hover:bg-gray-600 transition-colors"
-                >
-                  Cancel Order
-                </button>
-                <button onClick={confirmOrder} disabled={submittingOrder} className="flex-2 bg-green-500 text-white py-4 rounded-xl font-semibold hover:bg-green-600 disabled:bg-gray-400 transition-colors">
-                  {submittingOrder ? 'Submitting...' : 'Confirm Order'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {cartCount > 0 && (
-        <button onClick={() => setShowCart(true)} className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full p-4 shadow-lg hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 z-[60] border-2 border-blue-300">
-          <ShoppingCart size={24} />
-          <span className="font-bold">{cartCount}</span>
-          <span className="ml-2 font-bold text-green-300">{tempFormatCurrency(cartTotal)}</span>
-        </button>
-      )}
+      
       {acceptanceModal.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]">
-          <div className="bg-white rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl transform animate-fadeIn">
-            <div className="text-center">
+        <div className="fixed inset-x-0 bottom-0 bg-black bg-opacity-50 flex items-end justify-center z-[9999]">
+          <div className="bg-white rounded-t-3xl w-full max-w-lg mx-auto shadow-2xl transform animate-slideUp max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex-shrink-0 p-6 text-center border-b">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle size={32} className="text-green-500" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Accepted! 🎉</h2>
-              <p className="text-gray-600 mb-4">{acceptanceModal.message}</p>
-              <div className="text-3xl font-bold text-orange-500 mb-6">{formatCurrency(parseFloat(acceptanceModal.orderTotal))}</div>
+              <p className="text-gray-600">{acceptanceModal.message}</p>
+            </div>
+            
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="text-center mb-6">
+                <div className="text-3xl font-bold text-orange-500">{formatCurrency(parseFloat(acceptanceModal.orderTotal))}</div>
+              </div>
+              
+              {/* Order Items - Scrollable if needed */}
+              <div className="space-y-3 mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Order Details</h3>
+                {/* You can map through the actual order items here */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-600">Order items will appear here when available</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Footer - Fixed at bottom */}
+            <div className="flex-shrink-0 p-6 border-t">
               <button 
                 onClick={() => setAcceptanceModal({ show: false, orderTotal: '', message: '' })}
                 className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition-colors"
@@ -2504,6 +2674,63 @@ export default function MenuPage() {
                 className="p-1 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
               >
                 <X size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Close Tab Section - Always Last */}
+      <div className="bg-white p-4 border-t">
+        <button
+          onClick={() => {
+            if (balance > 0) {
+              // Show red toast immediately for outstanding balance
+              showToast({
+                type: 'error',
+                title: 'Cannot Close Tab',
+                message: 'You have outstanding balance. Please pay at the bar before closing your tab.'
+              });
+              return;
+            }
+            // Show confirmation for green tabs (no balance)
+            setShowCloseConfirm(true);
+          }}
+          className={`w-full py-3 rounded-xl font-medium transition ${
+            orders.filter(order => order.status === 'confirmed').length === 0 
+              ? 'text-green-600 hover:bg-green-50' 
+              : balance > 0 
+                ? 'text-red-600 hover:bg-red-50'
+                : 'text-green-600 hover:bg-green-50'
+          }`}
+        >
+          Close Tab
+        </button>
+      </div>
+      
+      {/* Close Tab Confirmation Modal */}
+      {showCloseConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 className="text-xl font-bold text-gray-800 mb-3">Close Your Tab?</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to close your tab? You'll need to start a new one if you want to order again later.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCloseConfirm(false)}
+                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowCloseConfirm(false);
+                  handleCloseTab();
+                }}
+                className="flex-1 bg-green-500 text-white py-3 rounded-xl font-semibold hover:bg-green-600"
+              >
+                Close Tab
               </button>
             </div>
           </div>

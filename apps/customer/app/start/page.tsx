@@ -1,9 +1,9 @@
-// app/start/page.tsx - COMPLETE WITH FLAG SUPPORT
+// app/start/page.tsx - FIXED QR SCANNER
 'use client';
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Shield, Bell, Store, AlertCircle, CheckCircle, X } from 'lucide-react';
+import { Shield, Bell, Store, AlertCircle, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { 
   getDeviceId, 
@@ -20,6 +20,9 @@ function ConsentContent() {
   const searchParams = useSearchParams();
   const { showToast } = useToast();
   
+  // Customer app origin for QR code validation
+  const customerOrigin = process.env.NEXT_PUBLIC_CUSTOMER_ORIGIN || 'https://app.tabeza.co.ke';
+  
   // Token service and notifications
   const tokensService = new TokensService(supabase);
   const { showNotification } = useTokenNotifications();
@@ -35,7 +38,6 @@ function ConsentContent() {
   
   // QR Scanner states
   const [isScannerMode, setIsScannerMode] = useState(false);
-  const [scannedCode, setScannedCode] = useState('');
   const [qrScanner, setQrScanner] = useState<QrScanner | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   
@@ -46,6 +48,54 @@ function ConsentContent() {
   const [error, setError] = useState<string>('');
 
   const [debugDeviceId, setDebugDeviceId] = useState<string>('');
+
+  // IMPROVED QR CODE EXTRACTION
+  const extractSlugFromQRCode = (qrCode: string): string | null => {
+    console.log('🔍 RAW QR CODE:', JSON.stringify(qrCode));
+    
+    // Clean the code
+    const cleanCode = qrCode.trim();
+    
+    // Pattern 1: Extract from full URL format (most common from staff QR codes)
+    // Example: https://app.tabeza.co.ke/menu?bar=sunset-lounge
+    const urlPattern = /[?&]bar=([a-z0-9\-]+)/i;
+    const urlMatch = cleanCode.match(urlPattern);
+    if (urlMatch && urlMatch[1]) {
+      console.log('✅ Extracted slug from URL pattern:', urlMatch[1]);
+      return urlMatch[1].toLowerCase();
+    }
+    
+    // Pattern 2: slug= parameter
+    const slugPattern = /[?&]slug=([a-z0-9\-]+)/i;
+    const slugMatch = cleanCode.match(slugPattern);
+    if (slugMatch && slugMatch[1]) {
+      console.log('✅ Extracted slug from slug parameter:', slugMatch[1]);
+      return slugMatch[1].toLowerCase();
+    }
+    
+    // Pattern 3: Direct slug format (just the slug itself)
+    // Example: sunset-lounge
+    if (/^[a-z0-9\-]+$/i.test(cleanCode)) {
+      console.log('✅ Direct slug format detected:', cleanCode);
+      return cleanCode.toLowerCase();
+    }
+    
+    // Pattern 4: Try URL parsing as last resort
+    try {
+      const url = new URL(cleanCode.includes('://') ? cleanCode : `https://${cleanCode}`);
+      const params = new URLSearchParams(url.search);
+      const barParam = params.get('bar') || params.get('slug');
+      if (barParam) {
+        console.log('✅ Extracted slug from URL parsing:', barParam);
+        return barParam.toLowerCase();
+      }
+    } catch (e) {
+      // Not a valid URL
+    }
+    
+    console.log('❌ Could not extract slug from QR code');
+    return null;
+  };
 
   // QR Scanner functions
   const startQRScanner = async () => {
@@ -89,104 +139,45 @@ function ConsentContent() {
   const handleQRCodeDetected = (code: string) => {
     stopScanner();
     
-    // Clean and normalize the QR code
-    const cleanCode = code.trim().replace(/^\s+|\s+$/g, '');
+    console.log('📷 QR CODE SCANNED:', code);
     
-    let extractedSlug = '';
-    
-    try {
-      // Try to parse as URL if it looks like one
-      if (cleanCode.includes('://') || cleanCode.startsWith('http')) {
-        try {
-          const urlToParse = cleanCode.includes('://') ? cleanCode : `https://${cleanCode}`;
-          const url = new URL(urlToParse);
-          const params = new URLSearchParams(url.search);
-          extractedSlug = params.get('bar') || params.get('slug') || '';
-        } catch (urlError) {
-          // Continue to regex patterns
-        }
-      }
-      
-      // Regex patterns if URL parsing failed or no slug found
-      if (!extractedSlug) {
-        // Pattern A: bar= parameter anywhere in string
-        const barMatch = cleanCode.match(/[?&]bar=([^&\s#]+)/i);
-        if (barMatch && barMatch[1]) {
-          extractedSlug = barMatch[1];
-        }
-        // Pattern B: slug= parameter anywhere in string
-        else if (cleanCode.match(/[?&]slug=([^&\s#]+)/i)) {
-          const slugMatch = cleanCode.match(/[?&]slug=([^&\s#]+)/i);
-          if (slugMatch && slugMatch[1]) {
-            extractedSlug = slugMatch[1];
-          }
-        }
-        // Pattern C: Direct slug pattern (vovo-cafe format)
-        else if (/^[a-z0-9\-]+$/i.test(cleanCode)) {
-          extractedSlug = cleanCode.toLowerCase();
-        }
-        // Pattern D: Contains tabeza.co.ke domain
-        else if (cleanCode.includes('tabeza.co.ke')) {
-          // Look for /menu?bar=
-          const menuMatch = cleanCode.match(/\/menu[?&]bar=([^&\s#]+)/i);
-          if (menuMatch && menuMatch[1]) {
-            extractedSlug = menuMatch[1];
-          }
-          // Look for /start?bar=
-          else {
-            const startMatch = cleanCode.match(/\/start[?&]bar=([^&\s#]+)/i);
-            if (startMatch && startMatch[1]) {
-              extractedSlug = startMatch[1];
-            }
-          }
-        }
-      }
-      
-      // Last resort - find any slug-like pattern
-      if (!extractedSlug) {
-        const slugPattern = cleanCode.match(/([a-z0-9\-]+)/gi);
-        if (slugPattern) {
-          const commonWords = ['http', 'https', 'www', 'com', 'co', 'ke', 'app', 'menu', 'start'];
-          const candidates = slugPattern.filter(slug => 
-            slug.length > 3 && 
-            !commonWords.includes(slug.toLowerCase()) &&
-            /^[a-z0-9\-]+$/i.test(slug)
-          );
-          
-          if (candidates.length > 0) {
-            extractedSlug = candidates[0].toLowerCase();
-          }
-        }
-      }
-      
-    } catch (parseError) {
-      // Fallback: treat as direct slug
-      extractedSlug = cleanCode;
-    }
+    // Extract slug using improved parser
+    const extractedSlug = extractSlugFromQRCode(code);
     
     if (!extractedSlug) {
       showToast({
         type: 'error',
         title: 'Invalid QR Code',
-        message: 'Could not extract bar information from QR code'
+        message: 'Could not extract bar information. Please try again or enter code manually.'
       });
-      setIsScannerMode(true);
+      // Stay in scanner mode to allow retry
+      setTimeout(() => {
+        if (videoRef.current) {
+          startQRScanner();
+        }
+      }, 2000);
       return;
     }
     
-    // Normalize slug (lowercase, trim)
-    const normalizedSlug = extractedSlug.toLowerCase().trim();
+    console.log('✅ EXTRACTED SLUG:', extractedSlug);
     
-    setScannedCode(normalizedSlug);
-    setBarSlug(normalizedSlug);
+    // Store and navigate directly to consent page (not landing page)
+    setBarSlug(extractedSlug);
+    sessionStorage.setItem('scanned_bar_slug', extractedSlug);
+    sessionStorage.removeItem('qr_scan_mode'); // Clear this flag
+    
+    showToast({
+      type: 'success',
+      title: 'QR Code Scanned',
+      message: 'Loading bar information...'
+    });
+    
+    // Turn off scanner mode and load bar info
     setIsScannerMode(false);
-    
-    // Load bar info for the extracted slug
-    loadBarInfo(normalizedSlug);
+    loadBarInfo(extractedSlug);
   };
 
   useEffect(() => {
-    // Get device ID for debug display
     getDeviceId().then(id => setDebugDeviceId(id.slice(0, 20)));
   }, []);
 
@@ -211,38 +202,35 @@ function ConsentContent() {
 
   const initializeConsent = async () => {
     try {
-      // Check if we're coming from QR scanner
-      const isScannerMode = searchParams?.get('scanner') === 'true';
+      // Check if scanner mode was requested
+      const urlScannerParam = searchParams?.get('scanner') === 'true';
+      
+      if (urlScannerParam) {
+        console.log('📷 Scanner mode requested');
+        setIsScannerMode(true);
+        setLoading(false);
+        return;
+      }
       
       // Get bar slug from URL or sessionStorage
       let slug = searchParams?.get('bar') || searchParams?.get('slug');
       
       if (!slug) {
         slug = sessionStorage.getItem('scanned_bar_slug');
-      } else {
-        sessionStorage.setItem('scanned_bar_slug', slug);
       }
 
-      if (!slug && !isScannerMode) {
+      if (!slug) {
+        console.log('❌ No slug found, redirecting to landing');
         router.replace('/');
         return;
       }
 
+      console.log('✅ Slug found, loading bar info:', slug);
       setBarSlug(slug);
-      setIsScannerMode(isScannerMode);
+      await loadBarInfo(slug);
       
-      if (isScannerMode) {
-        setLoading(false);
-        return;
-      }
-      
-      if (slug) {
-        await loadBarInfo(slug);
-      } else {
-        router.replace('/');
-        return;
-      }
     } catch (error) {
+      console.error('❌ Error in initializeConsent:', error);
       setError('Failed to load bar information. Please try again.');
       setLoading(false);
     }
@@ -250,6 +238,8 @@ function ConsentContent() {
 
   const loadBarInfo = async (slug: string) => {
     try {
+      console.log('🔍 Loading bar info for slug:', slug);
+      
       const { data: bar, error: barError } = await (supabase as any)
         .from('bars')
         .select('id, name, active, location, slug')
@@ -257,12 +247,14 @@ function ConsentContent() {
         .maybeSingle();
 
       if (barError) {
+        console.error('❌ Database error:', barError);
         setError(`Database error: ${barError.message}`);
         setLoading(false);
         return;
       }
 
       if (!bar) {
+        console.error('❌ Bar not found:', slug);
         setError(`Bar not found with slug: "${slug}". Please scan a valid QR code.`);
         setLoading(false);
         return;
@@ -271,16 +263,19 @@ function ConsentContent() {
       const isActive = bar.active !== false;
       
       if (!isActive) {
+        console.error('❌ Bar inactive:', bar.name);
         setError('This bar is currently unavailable. Please contact staff.');
         setLoading(false);
         return;
       }
 
+      console.log('✅ Bar loaded successfully:', bar.name);
       setBarId(bar.id);
       setBarName(bar.name || 'Bar');
       setLoading(false);
 
     } catch (error) {
+      console.error('❌ Error loading bar:', error);
       setError('Error loading bar information. Please try again.');
       setLoading(false);
     }
@@ -347,7 +342,6 @@ function ConsentContent() {
         sessionStorage.setItem('displayName', displayName);
         sessionStorage.setItem('barName', barName);
         
-        // Clear the "just created" flag since we're continuing existing tab
         sessionStorage.removeItem('just_created_tab');
         
         showToast({
@@ -356,7 +350,6 @@ function ConsentContent() {
           message: `Continuing to your ${displayName}`
         });
         
-        // Navigate to menu
         setTimeout(() => {
           router.replace('/menu');
         }, 300);
@@ -364,12 +357,12 @@ function ConsentContent() {
         return;
       }
 
-      // No existing tab - create new one
+      // Create new tab
       let displayName: string;
       let tabNumber: number | null;
       
       if (nickname.trim()) {
-        // Check for existing nicknames and show suggestions if conflict
+        // Check for nickname conflicts
         const { data: existingNicknames } = await (supabase as any)
           .from('tabs')
           .select('notes')
@@ -392,7 +385,6 @@ function ConsentContent() {
             .filter((name: any) => name && name.toLowerCase() === nickname.trim().toLowerCase());
 
           if (openNicknames.length > 0) {
-            // Generate suggestions and show alert
             const suggestions = [
               `${nickname.trim()} ${Math.floor(Math.random() * 999) + 1}`,
               `${nickname.trim()}_${Math.floor(Math.random() * 999) + 1}`,
@@ -419,7 +411,6 @@ function ConsentContent() {
                 finalNickname = userChoice.trim();
               }
             } else {
-              // User cancelled, don't create tab
               setCreating(false);
               return;
             }
@@ -427,7 +418,7 @@ function ConsentContent() {
         }
         
         displayName = finalNickname;
-        tabNumber = null; // Named tabs don't need numbers
+        tabNumber = null;
       } else {
         // Get next tab number
         const { data: existingTabs } = await (supabase as any)
@@ -472,16 +463,14 @@ function ConsentContent() {
         throw new Error(tabError.message || 'Failed to create tab');
       }
 
-      // Set flag to prevent showing existing tabs modal on return to landing page
       sessionStorage.setItem('just_created_tab', 'true');
       
-      // Store tab data in session
       storeActiveTab(barId, tab);
       sessionStorage.setItem('currentTab', JSON.stringify(tab));
       sessionStorage.setItem('displayName', displayName);
       sessionStorage.setItem('barName', barName);
       
-      // Award first connection tokens for NEW tab only
+      // Award first connection tokens
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user && barId) {
@@ -493,7 +482,7 @@ function ConsentContent() {
               title: '🎉 Welcome Bonus!',
               message: `🎉 +${TOKENS_CONFIG.FIRST_CONNECT_TOKENS} tokens earned for connecting to ${barName}!`,
               amount: TOKENS_CONFIG.FIRST_CONNECT_TOKENS,
-              autoHide: 5000, // Auto-hide after 5 seconds
+              autoHide: 5000,
               timestamp: new Date().toISOString()
             });
           }
@@ -520,7 +509,6 @@ function ConsentContent() {
       });
       setCreating(false);
     }
-    // Don't set creating to false on success - navigation will happen
   };
 
   // Loading state
@@ -542,7 +530,6 @@ function ConsentContent() {
   if (isScannerMode) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center relative">
-        {/* Close button */}
         <button
           onClick={() => {
             stopScanner();
@@ -553,7 +540,6 @@ function ConsentContent() {
           <X size={24} />
         </button>
         
-        {/* Camera View */}
         <div className="w-full h-full relative">
           <video
             ref={videoRef}
@@ -563,7 +549,6 @@ function ConsentContent() {
             muted
           />
           
-          {/* Scanner overlay */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-4 border-white rounded-lg">
               <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-orange-500 rounded-tl-lg"></div>
@@ -573,7 +558,6 @@ function ConsentContent() {
             </div>
           </div>
           
-          {/* Instructions */}
           <div className="absolute bottom-8 left-0 right-0 text-center px-4">
             <p className="text-white text-lg font-medium mb-2">Point camera at QR code</p>
             <p className="text-white/80 text-sm">The scanner will detect the code automatically</p>
@@ -618,7 +602,6 @@ function ConsentContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-        {/* Bar Information */}
         <div className="text-center mb-6 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl border border-orange-200">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Store size={20} className="text-orange-600" />
@@ -628,7 +611,6 @@ function ConsentContent() {
           <p className="text-sm text-gray-600">Ready to start your tab</p>
         </div>
 
-        {/* Trust Statement */}
         <div className="text-center mb-6">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Shield size={32} className="text-green-600" />
@@ -639,7 +621,6 @@ function ConsentContent() {
           </p>
         </div>
 
-        {/* Optional Nickname */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Nickname <span className="text-gray-400">(optional)</span>
@@ -658,7 +639,6 @@ function ConsentContent() {
           </p>
         </div>
 
-        {/* Notifications */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
             <Bell size={20} className="text-gray-600" />
@@ -686,7 +666,6 @@ function ConsentContent() {
           </label>
         </div>
 
-        {/* Terms Consent */}
         <div className="mb-6">
           <label className="flex items-start gap-3 cursor-pointer">
             <input
@@ -719,7 +698,6 @@ function ConsentContent() {
           </label>
         </div>
 
-        {/* CTA */}
         <button
           onClick={handleStartTab}
           disabled={!termsAccepted || creating}
@@ -735,7 +713,6 @@ function ConsentContent() {
           )}
         </button>
 
-        {/* Footer */}
         <div className="text-center mt-6 pt-4 border-t border-gray-100">
           <p className="text-xs text-gray-500">
             🔒 Your privacy is protected
