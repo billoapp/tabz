@@ -130,6 +130,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.39.7
         version: 2.89.0
+      '@tabeza/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@vercel/analytics':
         specifier: ^1.6.1
         version: 1.6.1(next@15.5.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)

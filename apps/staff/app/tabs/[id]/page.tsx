@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
 import { checkTabOverdueStatus } from '@/lib/businessHours';
+import { useRealtimeSubscription, ConnectionStatusIndicator } from '@tabeza/shared';
 
 // Temporary format functions
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -119,6 +120,11 @@ export default function TabDetailPage() {
   const [newOrderNotification, setNewOrderNotification] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
+  // Connection status state
+  const [showConnectionStatus, setShowConnectionStatus] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error' | 'retrying'>('connecting');
+  const [retryCount, setRetryCount] = useState(0);
+  
   // Telegram message state
   const [telegramMessages, setTelegramMessages] = useState<any[]>([]);
   const [messageInput, setMessageInput] = useState('');
@@ -204,95 +210,81 @@ export default function TabDetailPage() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (!tabId) return;
-
-    const orderSubscription = supabase
-      .channel(`tab_orders_${tabId}`)
-      .on('postgres_changes', 
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'tab_orders',
-          filter: `tab_id=eq.${tabId}`
-        }, 
-        (payload: any) => {
-          if (payload.new.initiated_by === 'customer') {
-            setNewOrderNotification(payload.new);
-            
-            setTimeout(() => {
-              setNewOrderNotification(null);
-            }, 10000);
-          }
+  const realtimeConfigs = [
+    {
+      channelName: `tab-orders-${tabId}`,
+      table: 'tab_orders',
+      filter: `tab_id=eq.${tabId}`,
+      event: 'INSERT' as const,
+      handler: async (payload: any) => {
+        if (payload.new?.initiated_by === 'customer') {
+          setNewOrderNotification(payload.new);
           
-          loadTabData();
+          setTimeout(() => {
+            setNewOrderNotification(null);
+          }, 10000);
         }
-      )
-      .subscribe();
-
-    const paymentSubscription = supabase
-      .channel(`tab_payments_${tabId}`)
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'tab_payments',
-          filter: `tab_id=eq.${tabId}`
-        }, 
-        (payload: any) => {
-          loadTabData();
+        
+        loadTabData();
+      }
+    },
+    {
+      channelName: `tab-payments-${tabId}`,
+      table: 'tab_payments',
+      filter: `tab_id=eq.${tabId}`,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        loadTabData();
+      }
+    },
+    {
+      channelName: `tab-telegram-${tabId}`,
+      table: 'tab_telegram_messages',
+      filter: `tab_id=eq.${tabId}`,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📨 Telegram update in detail page:', payload.eventType);
+        loadTelegramMessages();
+      }
+    },
+    {
+      channelName: `tab-status-${tabId}`,
+      table: 'tabs',
+      filter: `id=eq.${tabId}`,
+      event: 'UPDATE' as const,
+      handler: async (payload: any) => {
+        if (payload.new?.status === 'closed' && payload.old?.status !== 'closed') {
+          showToast({
+            type: 'warning',
+            title: 'Tab Closed',
+            message: 'This tab was automatically closed'
+          });
         }
-      )
-      .subscribe();
+        
+        loadTabData();
+      }
+    }
+  ];
 
-    // Subscribe to telegram messages
-    const telegramSubscription = supabase
-      .channel(`tab-telegram-detail-${tabId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tab_telegram_messages',
-          filter: `tab_id=eq.${tabId}` 
-        },
-        (payload: any) => {
-          console.log('📨 Telegram update in detail page:', payload.eventType);
-          loadTelegramMessages();
+  const { connectionStatus: connStatus, retryCount: retries, reconnect, isConnected } = useRealtimeSubscription(
+    realtimeConfigs,
+    [tabId],
+    {
+      maxRetries: 10,
+      retryDelay: [1000, 2000, 5000, 10000, 30000, 60000],
+      debounceMs: 300,
+      onConnectionChange: (status: 'connecting' | 'connected' | 'disconnected' | 'error' | 'retrying') => {
+        console.log('📡 Staff app connection status changed:', status);
+        setConnectionStatus(status);
+        // Show connection status indicator when not connected
+        if (status === 'connected') {
+          setShowConnectionStatus(false);
+        } else {
+          setShowConnectionStatus(true);
         }
-      )
-      .subscribe();
-
-    const tabSubscription = supabase
-      .channel(`tab_status_${tabId}`)
-      .on('postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'tabs',
-          filter: `id=eq.${tabId}`
-        }, 
-        (payload: any) => {
-          if (payload.new?.status === 'closed' && payload.old?.status !== 'closed') {
-            showToast({
-              type: 'warning',
-              title: 'Tab Closed',
-              message: 'This tab was automatically closed'
-            });
-          }
-          
-          loadTabData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      orderSubscription.unsubscribe();
-      paymentSubscription.unsubscribe();
-      tabSubscription.unsubscribe();
-      telegramSubscription.unsubscribe();
-    };
-  }, [tabId]);
+      }
+    }
+  );
 
   const loadTabData = async () => {
     setLoading(true);
@@ -959,12 +951,25 @@ export default function TabDetailPage() {
             >
               <ArrowRight size={24} className="transform rotate-180" />
             </button>
-            <button 
-              onClick={loadTabData}
-              className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
-            >
-              <RefreshCw size={24} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={loadTabData}
+                className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
+              >
+                <RefreshCw size={24} />
+              </button>
+              
+              {/* Connection Status Indicator */}
+              {showConnectionStatus && (
+                <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                  <ConnectionStatusIndicator 
+                    status={connectionStatus} 
+                    retryCount={retryCount}
+                    className="text-xs"
+                  />
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="flex items-start justify-between mb-4">

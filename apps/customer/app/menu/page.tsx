@@ -12,6 +12,7 @@ import { useSound } from '@/hooks/useSound';
 import { telegramMessageQueries } from '@/lib/telegram-queries';
 import { MessageAlert, InitiatedBy } from '../../../../packages/shared/types';
 import { TokensService } from '../../../../packages/shared/tokens-service';
+import { useRealtimeSubscription, ConnectionStatusIndicator } from '../../../../packages/shared';
 import { useToast } from '@/components/ui/Toast';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 import PDFViewer from '../../../../components/PDFViewer'; 
@@ -171,6 +172,8 @@ export default function MenuPage() {
   // NEW: Average response time state
   const [averageResponseTime, setAverageResponseTime] = useState<number | null>(null);
   const [responseTimeLoading, setResponseTimeLoading] = useState(false);
+
+  const [showConnectionStatus, setShowConnectionStatus] = useState(false);
 
   const loadAttempted = useRef(false);
 
@@ -418,308 +421,284 @@ export default function MenuPage() {
     }
   }, [tab?.bar_id]);
 
-  // Set up real-time subscriptions
-  useEffect(() => {
-    if (!tab?.id) return;
-
-    console.log('📡 Setting up real-time subscriptions for tab:', tab.id);
-
-    // Subscribe to orders changes
-    const ordersSubscription = supabase
-      .channel(`tab-orders-${tab.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tab_orders',
-          filter: `tab_id=eq.${tab.id}`
-        },
-        async (payload: any) => {
-          console.log('📦 Real-time order update received:', payload);
-          console.log('📊 Payload details:', {
-            eventType: payload.eventType,
-            new: payload.new,
-            old: payload.old,
-            table: payload.table,
-            schema: payload.schema
+  // Set up real-time subscriptions with improved error handling and debouncing
+  const realtimeConfigs = [
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tab_orders',
+      filter: tab?.id ? `tab_id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📦 Real-time order update received:', payload);
+        console.log('📊 Payload details:', {
+          eventType: payload.eventType,
+          new: payload.new,
+          old: payload.old,
+          table: payload.table,
+          schema: payload.schema
+        });
+        
+        // Check if staff accepted an order (multiple scenarios)
+        const isStaffAcceptance = (
+          // Scenario 1: pending -> confirmed (staff accepts customer order)
+          (payload.new?.status === 'confirmed' && 
+           payload.old?.status === 'pending' && 
+           payload.new?.initiated_by === 'customer') ||
+          // Scenario 2: Any change to confirmed status for customer orders
+          (payload.new?.status === 'confirmed' && 
+           payload.new?.initiated_by === 'customer' && 
+           payload.old?.status !== 'confirmed')
+        );
+        
+        // Check if order was served/completed (for notification purposes only)
+        const isOrderCompleted = (
+          (payload.new?.status === 'served' || payload.new?.status === 'completed') &&
+          payload.old?.status !== 'served' && payload.old?.status !== 'completed'
+        );
+        
+        console.log('🤖 Is staff acceptance?', isStaffAcceptance);
+        console.log('📋 Processed orders:', Array.from(processedOrders));
+        
+        if (isStaffAcceptance && !processedOrders.has(payload.new.id)) {
+          console.log('🎉 Staff accepted order:', payload.new.id);
+          
+          // Mark this order as processed to avoid duplicate notifications
+          setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+          
+          console.log('🔔 Showing acceptance modal with notifications...');
+          
+          // Trigger vibration and sound
+          buzz([200, 100, 200]); // Vibration pattern: buzz-pause-buzz
+          playAcceptanceSound(); // Play acceptance sound
+          
+          // Show modal instead of toast
+          setAcceptanceModal({
+            show: true,
+            orderTotal: payload.new.total, // Pass the number, not formatted string
+            message: 'Your order has been accepted and is being prepared'
           });
+        } else if (isOrderCompleted && !processedOrders.has(payload.new.id)) {
+          console.log('✅ Order completed:', payload.new.id);
           
-          // Check if staff accepted an order (multiple scenarios)
-          const isStaffAcceptance = (
-            // Scenario 1: pending -> confirmed (staff accepts customer order)
-            (payload.new?.status === 'confirmed' && 
-             payload.old?.status === 'pending' && 
-             payload.new?.initiated_by === 'customer') ||
-            // Scenario 2: Any change to confirmed status for customer orders
-            (payload.new?.status === 'confirmed' && 
-             payload.new?.initiated_by === 'customer' && 
-             payload.old?.status !== 'confirmed')
-          );
-          
-          // Check if order was served/completed (for notification purposes only)
-          const isOrderCompleted = (
-            (payload.new?.status === 'served' || payload.new?.status === 'completed') &&
-            payload.old?.status !== 'served' && payload.old?.status !== 'completed'
-          );
-          
-          console.log('🤖 Is staff acceptance?', isStaffAcceptance);
-          console.log('📋 Processed orders:', Array.from(processedOrders));
-          
-          if (isStaffAcceptance && !processedOrders.has(payload.new.id)) {
-            console.log('🎉 Staff accepted order:', payload.new.id);
-            
-            // Mark this order as processed to avoid duplicate notifications
-            setProcessedOrders(prev => new Set([...prev, payload.new.id]));
-            
-            console.log('🔔 Showing acceptance modal with notifications...');
-            
-            // Trigger vibration and sound
-            buzz([200, 100, 200]); // Vibration pattern: buzz-pause-buzz
-            playAcceptanceSound(); // Play acceptance sound
-            
-            // Show modal instead of toast
-            setAcceptanceModal({
-              show: true,
-              orderTotal: payload.new.total, // Pass the number, not formatted string
-              message: 'Your order has been accepted and is being prepared'
-            });
-          } else if (isOrderCompleted && !processedOrders.has(payload.new.id)) {
-            console.log('✅ Order completed:', payload.new.id);
-            
-            // Mark this order as processed to avoid duplicate notifications
-            setProcessedOrders(prev => new Set([...prev, payload.new.id]));
-          } else {
-            console.log('❌ Not showing modal - conditions not met:', {
-              isStaffAcceptance,
-              alreadyProcessed: processedOrders.has(payload.new?.id),
-              orderId: payload.new?.id
-            });
-          }
-          
-          // Refresh orders data
-          const { data: ordersData, error } = await supabase
-            .from('tab_orders')
-            .select('*')
-            .eq('tab_id', tab.id)
-            .order('created_at', { ascending: false });
-          
-          if (!error && ordersData) {
-            setOrders(ordersData);
-          }
+          // Mark this order as processed to avoid duplicate notifications
+          setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+        } else {
+          console.log('❌ Not showing modal - conditions not met:', {
+            isStaffAcceptance,
+            alreadyProcessed: processedOrders.has(payload.new?.id),
+            orderId: payload.new?.id
+          });
         }
-      )
-      .subscribe();
-
-    // Subscribe to tab changes
-    const tabSubscription = supabase
-      .channel(`tab-${tab.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tabs',
-          filter: `id=eq.${tab.id}`
-        },
-        async (payload) => {
-          console.log('📋 Real-time tab update:', payload);
-          if (payload.eventType === 'UPDATE') {
-            const updatedTab = payload.new as Tab;
-            
-            if (updatedTab.status === 'closed') {
-              console.log('🛑 Tab was closed, redirecting to home');
-              sessionStorage.removeItem('currentTab');
-              sessionStorage.removeItem('cart');
-              router.replace('/');
-              return;
-            }
-            
-            const { data: fullTab, error } = await supabase
-              .from('tabs')
-              .select('*, bar:bars(id, name, location)')
-              .eq('id', tab.id)
-              .maybeSingle();
-            
-            if (!error && fullTab) {
-              setTab(fullTab as Tab);
-              setBarName((fullTab as any).bar?.name || 'Bar');
-              
-              let name = 'Your Tab';
-              if ((fullTab as any).notes) {
-                try {
-                  const notes = JSON.parse((fullTab as any).notes);
-                  name = notes.display_name || `Tab ${(fullTab as any).tab_number || ''}`;
-                } catch (e) {
-                  name = (fullTab as any).tab_number ? `Tab ${(fullTab as any).tab_number}` : 'Your Tab';
-                }
-              } else if ((fullTab as any).tab_number) {
-                name = `Tab ${(fullTab as any).tab_number}`;
-              }
-              setDisplayName(name);
-            }
-          }
+        
+        // Refresh orders data
+        const { data: ordersData, error } = await supabase
+          .from('tab_orders')
+          .select('*')
+          .eq('tab_id', tab?.id || '')
+          .order('created_at', { ascending: false });
+        
+        if (!error && ordersData) {
+          setOrders(ordersData);
         }
-      )
-      .subscribe();
-
-    // Subscribe to payments changes
-    const paymentsSubscription = supabase
-      .channel(`tab-payments-${tab.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tab_payments',
-          filter: `tab_id=eq.${tab.id}`
-        },
-        async (payload) => {
-          console.log('💳 Real-time payment update:', payload);
+      }
+    },
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tabs',
+      filter: tab?.id ? `id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📋 Real-time tab update:', payload);
+        if (payload.eventType === 'UPDATE') {
+          const updatedTab = payload.new as Tab;
           
-          // Show token notification for successful payments
-          if (payload.eventType === 'INSERT' && 
-              payload.new?.status === 'success') {
+          if (updatedTab.status === 'closed') {
+            console.log('🛑 Tab was closed, redirecting to home');
+            sessionStorage.removeItem('currentTab');
+            sessionStorage.removeItem('cart');
+            router.replace('/');
+            return;
+          }
+          
+          const { data: fullTab, error } = await supabase
+            .from('tabs')
+            .select('*, bar:bars(id, name, location)')
+            .eq('id', tab?.id || '')
+            .maybeSingle();
+          
+          if (!error && fullTab) {
+            setTab(fullTab as Tab);
+            setBarName((fullTab as any).bar?.name || 'Bar');
             
-            // Award tokens for order value
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user && tab?.bar_id) {
-              const orderValue = Math.round(parseFloat(payload.new.amount) * 100); // Convert to cents
-              
+            let name = 'Your Tab';
+            if ((fullTab as any).notes) {
               try {
-                const result = await tokensService.awardOrderTokens(
-                  user.id,
-                  tab.bar_id,
-                  payload.new.id, // payment ID
-                  orderValue
-                );
-                
-                if (result.success && result.tokensAwarded) {
-                  console.log('🎉 Tokens awarded successfully:', result.tokensAwarded);
-                  showNotification({
-                    type: 'earned',
-                    title: 'Tokens Earned!',
-                    message: `🎉 +${result.tokensAwarded} tokens earned from your payment!`,
-                    amount: result.tokensAwarded,
-                    autoHide: 5000, // Auto-hide after 5 seconds
-                    timestamp: new Date().toISOString()
-                  });
-                  
-                  // Refresh token balance immediately
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (user) {
-                    const balance = await tokensService.getBalance(user.id);
-                    setCurrentBalance(balance?.balance || 0);
-                    console.log('🪙 Updated token balance:', balance?.balance || 0);
-                  }
-                } else {
-                  console.log('❌ Token awarding failed:', result);
-                }
-              } catch (error) {
-                console.error('Error awarding tokens for payment:', error);
+                const notes = JSON.parse((fullTab as any).notes);
+                name = notes.display_name || `Tab ${(fullTab as any).tab_number || ''}`;
+              } catch (e) {
+                name = (fullTab as any).tab_number ? `Tab ${(fullTab as any).tab_number}` : 'Your Tab';
               }
+            } else if ((fullTab as any).tab_number) {
+              name = `Tab ${(fullTab as any).tab_number}`;
             }
-          }
-          
-          // Refresh payments data
-          const { data: paymentsData, error: paymentError } = await supabase
-            .from('tab_payments')
-            .select('*')
-            .eq('tab_id', tab.id)
-            .order('created_at', { ascending: false });
-          
-          if (!paymentError && paymentsData) {
-            setPayments(paymentsData);
+            setDisplayName(name);
           }
         }
-      )
-      .subscribe();
-
-    // Subscribe to telegram messages
-    const telegramSubscription = supabase
-      .channel(`tab-telegram-${tab.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tab_telegram_messages',
-          filter: `tab_id=eq.${tab.id}` 
-        },
-        async (payload: any) => {
-          console.log('📩 Telegram message real-time update:', {
-            event: payload.eventType,
-            new: payload.new,
-            old: payload.old
-          });
+      }
+    },
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tab_payments',
+      filter: tab?.id ? `tab_id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('💳 Real-time payment update:', payload);
+        
+        // Show token notification for successful payments
+        if (payload.eventType === 'INSERT' && 
+            payload.new?.status === 'success') {
           
-          // Refresh messages
-          const { data: messages, error } = await supabase
-            .from('tab_telegram_messages')
-            .select('*')
-            .eq('tab_id', tab.id)
-            .order('created_at', { ascending: false });
-          
-          if (!error && messages) {
-            setTelegramMessages(messages);
+          // Award tokens for order value
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && tab?.bar_id) {
+            const orderValue = Math.round(parseFloat(payload.new.amount) * 100); // Convert to cents
             
-            // Calculate and update unread messages count
-            const unreadCount = messages.filter((msg: any) => 
-              msg.initiated_by === 'staff' && 
-              msg.status === 'pending'
-            ).length;
-            setUnreadMessagesCount(unreadCount);
-            
-            // Show notification for new messages (when staff responds)
-            if (payload.new?.initiated_by === 'staff' && 
-                payload.eventType === 'INSERT') {
+            try {
+              const result = await tokensService.awardOrderTokens(
+                user.id,
+                tab.bar_id,
+                payload.new.id, // payment ID
+                orderValue
+              );
               
-              buzz([200]);
-              playAcceptanceSound();
-              
-              setNewMessageAlert({
-                type: 'acknowledged',
-                message: 'Staff responded to your message',
-                timestamp: new Date().toISOString(),
-                messageContent: payload.new.message
-              });
-              
-              setTimeout(() => {
-                setNewMessageAlert(null);
-              }, 5000);
-            }
-            
-            // Show notification for staff acknowledgments
-            if (payload.new?.status === 'acknowledged' && 
-                payload.old?.status === 'pending' &&
-                payload.new?.staff_acknowledged_at) {
-              
-              buzz([200, 100, 200]);
-              playAcceptanceSound();
-              
-              setNewMessageAlert({
-                type: 'acknowledged',
-                message: 'Staff has acknowledged your message',
-                timestamp: new Date().toISOString()
-              });
-              
-              setTimeout(() => {
-                setNewMessageAlert(null);
-              }, 5000);
+              if (result.success && result.tokensAwarded) {
+                console.log('🎉 Tokens awarded successfully:', result.tokensAwarded);
+                showNotification({
+                  type: 'earned',
+                  title: 'Tokens Earned!',
+                  message: `🎉 +${result.tokensAwarded} tokens earned from your payment!`,
+                  amount: result.tokensAwarded,
+                  autoHide: 5000, // Auto-hide after 5 seconds
+                  timestamp: new Date().toISOString()
+                });
+                
+                // Refresh token balance immediately
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                  const balance = await tokensService.getBalance(user.id);
+                  setCurrentBalance(balance?.balance || 0);
+                  console.log('🪙 Updated token balance:', balance?.balance || 0);
+                }
+              } else {
+                console.log('❌ Token awarding failed:', result);
+              }
+            } catch (error) {
+              console.error('Error awarding tokens for payment:', error);
             }
           }
         }
-      )
-      .subscribe();
+        
+        // Refresh payments data
+        const { data: paymentsData, error: paymentError } = await supabase
+          .from('tab_payments')
+          .select('*')
+          .eq('tab_id', tab?.id || '')
+          .order('created_at', { ascending: false });
+        
+        if (!paymentError && paymentsData) {
+          setPayments(paymentsData);
+        }
+      }
+    },
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tab_telegram_messages',
+      filter: tab?.id ? `tab_id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📩 Telegram message real-time update:', {
+          event: payload.eventType,
+          new: payload.new,
+          old: payload.old
+        });
+        
+        // Refresh messages
+        const { data: messages, error } = await supabase
+          .from('tab_telegram_messages')
+          .select('*')
+          .eq('tab_id', tab?.id || '')
+          .order('created_at', { ascending: false });
+        
+        if (!error && messages) {
+          setTelegramMessages(messages);
+          
+          // Calculate and update unread messages count
+          const unreadCount = messages.filter((msg: any) => 
+            msg.initiated_by === 'staff' && 
+            msg.status === 'pending'
+          ).length;
+          setUnreadMessagesCount(unreadCount);
+          
+          // Show notification for new messages (when staff responds)
+          if (payload.new?.initiated_by === 'staff' && 
+              payload.eventType === 'INSERT') {
+            
+            buzz([200]);
+            playAcceptanceSound();
+            
+            setNewMessageAlert({
+              type: 'acknowledged',
+              message: 'Staff responded to your message',
+              timestamp: new Date().toISOString(),
+              messageContent: payload.new.message
+            });
+            
+            setTimeout(() => {
+              setNewMessageAlert(null);
+            }, 5000);
+          }
+          
+          // Show notification for staff acknowledgments
+          if (payload.new?.status === 'acknowledged' && 
+              payload.old?.status === 'pending' &&
+              payload.new?.staff_acknowledged_at) {
+            
+            buzz([200, 100, 200]);
+            playAcceptanceSound();
+            
+            setNewMessageAlert({
+              type: 'acknowledged',
+              message: 'Staff has acknowledged your message',
+              timestamp: new Date().toISOString()
+            });
+            
+            setTimeout(() => {
+              setNewMessageAlert(null);
+            }, 5000);
+          }
+        }
+      }
+    }
+  ];
 
-    return () => {
-      console.log('🧹 Cleaning up real-time subscriptions');
-      ordersSubscription.unsubscribe();
-      paymentsSubscription.unsubscribe();
-      tabSubscription.unsubscribe();
-      telegramSubscription.unsubscribe();
-    };
-  }, [tab?.id, router, processedOrders]); // Add processedOrders to dependencies
+  const { connectionStatus, retryCount, reconnect, isConnected } = useRealtimeSubscription(
+    realtimeConfigs,
+    [tab?.id, router, processedOrders],
+    {
+      maxRetries: 10,
+      retryDelay: [1000, 2000, 5000, 10000, 30000, 60000],
+      debounceMs: 300,
+      onConnectionChange: (status) => {
+        console.log('📡 Connection status changed:', status);
+        // Show connection status indicator when not connected
+        if (status === 'connected') {
+          setShowConnectionStatus(false);
+        } else {
+          setShowConnectionStatus(true);
+        }
+      }
+    }
+  );
 
   // Image zoom handlers
   const handleImageZoomIn = () => {
@@ -1547,6 +1526,17 @@ export default function MenuPage() {
               <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
                 Loading...
+              </div>
+            )}
+            
+            {/* Connection Status Indicator */}
+            {showConnectionStatus && (
+              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                <ConnectionStatusIndicator 
+                  status={connectionStatus} 
+                  retryCount={retryCount}
+                  className="text-xs"
+                />
               </div>
             )}
           </div>
