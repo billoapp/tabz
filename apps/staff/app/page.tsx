@@ -335,7 +335,7 @@ export default function TabsPage() {
         .on(
           'postgres_changes',
           {
-            event: '*',
+            event: 'INSERT',
             schema: 'public',
             table: 'tab_telegram_messages'
           },
@@ -343,7 +343,7 @@ export default function TabsPage() {
             console.log('🔔 Global telegram update:', payload.eventType, payload.new);
             
             // Show high-visibility alert for new customer messages
-            if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
+            if (payload.new?.initiated_by === 'customer') {
               console.log('🚨 Triggering MESSAGE alert');
               if (mounted.current) {
                 setAlertType('message');
@@ -358,8 +358,26 @@ export default function TabsPage() {
               }
             }
             
+            loadTabs();
+          }
+        )
+        .subscribe();
+
+      // Add subscription for message acknowledgments (customer notifications)
+      const telegramAckSubscription = supabase
+        .channel(`telegram-ack-updates-${bar.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'tab_telegram_messages'
+          },
+          (payload: any) => {
+            console.log('🔔 Telegram acknowledgment update:', payload.eventType, payload.new);
+            
             // When staff acknowledges a message, this could trigger customer notification
-            if (payload.eventType === 'UPDATE' && payload.new?.staff_acknowledged_at && !payload.old?.staff_acknowledged_at) {
+            if (payload.new?.staff_acknowledged_at && !payload.old?.staff_acknowledged_at) {
               console.log('📋 Message acknowledged by staff - customer should be notified');
               // Here you would send notification to customer that message was received
             }
@@ -431,6 +449,7 @@ export default function TabsPage() {
       return () => {
         clearInterval(interval);
         telegramSubscription.unsubscribe();
+        telegramAckSubscription.unsubscribe();
         customerOrderSubscription.unsubscribe();
         staffOrderSubscription.unsubscribe();
       };
