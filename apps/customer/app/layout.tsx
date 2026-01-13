@@ -11,7 +11,7 @@ import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Tabeza',
+  title: 'Tabeza v2.0',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },

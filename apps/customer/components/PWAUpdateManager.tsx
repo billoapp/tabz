@@ -1,14 +1,29 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { RefreshCw, X } from 'lucide-react';
+import { RefreshCw, X, Wifi, WifiOff } from 'lucide-react';
 
 export default function PWAUpdateManager() {
   const [showUpdate, setShowUpdate] = useState(false);
   const [newWorker, setNewWorker] = useState<ServiceWorker | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
+    // Handle online/offline events
+    const handleOnline = () => {
+      console.log('🌐 Connection: Online');
+      setIsOnline(true);
+    };
+    
+    const handleOffline = () => {
+      console.log('📵 Connection: Offline');
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then(registration => {
@@ -54,7 +69,11 @@ export default function PWAUpdateManager() {
         }
       }, 5 * 60 * 1000);
 
-      return () => clearInterval(updateInterval);
+      return () => {
+        clearInterval(updateInterval);
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+      };
     }
   }, []);
 
@@ -94,10 +113,27 @@ export default function PWAUpdateManager() {
     }
   }, []);
 
-  if (!showUpdate) return null;
-
+  // Always show connection status for debugging
   return (
-    <div className="fixed bottom-4 right-4 z-50 bg-green-600 text-white p-4 rounded-lg shadow-lg max-w-sm animate-in slide-in-from-bottom-4">
+    <>
+      {/* Connection Status Indicator */}
+      <div className="fixed top-4 right-4 z-50 bg-gray-800 text-white p-2 rounded-lg shadow-lg flex items-center gap-2">
+        {isOnline ? (
+          <>
+            <Wifi size={16} className="text-green-400" />
+            <span className="text-xs">Online</span>
+          </>
+        ) : (
+          <>
+            <WifiOff size={16} className="text-red-400" />
+            <span className="text-xs">Offline</span>
+          </>
+        )}
+      </div>
+
+      {/* Update Notification */}
+      {showUpdate && (
+        <div className="fixed bottom-4 right-4 z-50 bg-green-600 text-white p-4 rounded-lg shadow-lg max-w-sm animate-in slide-in-from-bottom-4">
       <div className="flex items-start justify-between mb-3">
         <div>
           <h4 className="font-semibold flex items-center gap-2">
@@ -144,5 +180,7 @@ export default function PWAUpdateManager() {
         </button>
       </div>
     </div>
+      )}
+    </>
   );
 }
