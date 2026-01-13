@@ -10,6 +10,7 @@ import LargeAnimatedClock from '@/components/LargeAnimatedClock';
 import TestClock from '@/components/TestClock';
 import EmojiClock from '@/components/EmojiClock';
 import SimpleOverlay from '@/components/SimpleOverlay';
+import { PiBellSimpleRingingBold } from "react-icons/pi";
 
 // Format functions for thousand separators
 const formatCurrency = (amount: number | string, decimals = 0): string => {
@@ -107,6 +108,102 @@ const calculatePendingWaitTime = (tabs: any[], currentTime?: number): string => 
   }
 };
 
+// Alert Overlay Component
+const AlertOverlay = ({ 
+  isVisible, 
+  type = 'order' 
+}: { 
+  isVisible: boolean; 
+  type: 'order' | 'message' 
+}) => {
+  if (!isVisible) return null;
+  
+  return (
+    <div 
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{
+        animation: 'fadeIn 0.2s ease-out',
+        backgroundColor: 'rgba(0, 0, 0, 0.85)'
+      }}
+    >
+      <div 
+        className="text-center"
+        style={{
+          animation: 'scaleIn 0.3s ease-out'
+        }}
+      >
+        <div className="relative">
+          <div className="relative">
+            {/* Outer glow */}
+            <div className="absolute inset-0 blur-3xl bg-orange-500 opacity-40 rounded-full animate-ping"></div>
+            
+            {/* Main bell icon */}
+            <PiBellSimpleRingingBold 
+              className="relative text-orange-400"
+              style={{
+                fontSize: '120px',
+                animation: 'ring 0.8s ease-in-out infinite',
+                filter: 'drop-shadow(0 0 30px rgba(249, 115, 22, 0.8))'
+              }}
+            />
+            
+            {/* Inner glow */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-20 h-20 bg-orange-300 rounded-full opacity-30 blur-xl"></div>
+            </div>
+          </div>
+          
+          {/* Title */}
+          <div className="mt-8">
+            <h2 className="text-4xl font-bold text-white mb-2 animate-pulse">
+              {type === 'order' ? 'NEW ORDER!' : 'NEW MESSAGE!'}
+            </h2>
+            <p className="text-xl text-orange-200">
+              {type === 'order' ? 'Customer placed an order' : 'Customer sent a message'}
+            </p>
+          </div>
+          
+          {/* Progress bar */}
+          <div className="mt-8 w-64 h-2 bg-gray-700 rounded-full overflow-hidden mx-auto">
+            <div 
+              className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"
+              style={{
+                animation: 'progress 3s linear forwards'
+              }}
+            ></div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Add these styles */}
+      <style jsx global>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes scaleIn {
+          0% { transform: scale(0.5); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        
+        @keyframes ring {
+          0% { transform: rotate(-15deg); }
+          25% { transform: rotate(15deg); }
+          50% { transform: rotate(-10deg); }
+          75% { transform: rotate(10deg); }
+          100% { transform: rotate(0deg); }
+        }
+        
+        @keyframes progress {
+          0% { width: 0%; }
+          100% { width: 100%; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
 export default function TabsPage() {
   const router = useRouter();
   const { user, bar, loading: authLoading, signOut } = useAuth();
@@ -122,97 +219,42 @@ export default function TabsPage() {
   const [showClock, setShowClock] = useState(false);
   const [clockType, setClockType] = useState<'order' | 'message'>('order');
 
+  // Sound function
+  const playAlertSound = () => {
+    try {
+      // Create audio context for web audio API
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Bell-like sound
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.5);
+      
+      // Volume envelope
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.1);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1);
+      
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 1);
+    } catch (error) {
+      console.log('Could not play sound:', error);
+      // Fallback to simple beep
+      const beep = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ');
+      beep.play().catch(() => console.log('Audio playback failed'));
+    }
+  };
+
   // Debug: Log state changes
   useEffect(() => {
     console.log('🕐 Clock state changed:', { showClock, clockType });
   }, [showClock, clockType]);
 
-  useEffect(() => {
-    if (bar) {
-      loadTabs();
-      const interval = setInterval(loadTabs, 10000);
-      
-      // Add subscription for telegram message updates
-      const telegramSubscription = supabase
-        .channel(`global-telegram-updates-${bar.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'tab_telegram_messages',
-            filter: `bar_id=eq.${bar.id}` // Filter by this bar
-          },
-          (payload: any) => {
-            console.log('🔔 Global telegram update:', payload.eventType, payload.new);
-            
-            // Show animated clock for new customer messages
-            if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
-              console.log('🕐 Triggering message clock');
-              setClockType('message');
-              setShowClock(true);
-            }
-            
-            loadTabs(); // Refresh tabs when messages change
-          }
-        )
-        .subscribe();
-      
-      // Add subscription for order updates
-      const orderSubscription = supabase
-        .channel(`global-order-updates-${bar.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'tab_orders',
-            filter: `bar_id=eq.${bar.id}` // Filter by this bar
-          },
-          (payload: any) => {
-            console.log('🛒 Global order update:', payload.eventType, payload.new);
-            
-            // Show animated clock for new customer orders
-            if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
-              console.log('🕐 Triggering order clock');
-              setClockType('order');
-              setShowClock(true);
-            }
-            
-            loadTabs(); // Refresh tabs when orders change
-          }
-        )
-        .subscribe();
-    
-      return () => {
-        clearInterval(interval);
-        telegramSubscription.unsubscribe();
-        orderSubscription.unsubscribe();
-      };
-    }
-  }, [bar]);
-
-  // NEW: Listen for message acknowledgment events from detail pages
-  useEffect(() => {
-    const handleMessageAcknowledged = (event: CustomEvent) => {
-      console.log('📨 Message acknowledged event received for tab:', event.detail.tabId);
-      loadTabs(); // Refresh dashboard when messages are acknowledged
-    };
-
-    window.addEventListener('messageAcknowledged' as any, handleMessageAcknowledged);
-  
-    return () => {
-      window.removeEventListener('messageAcknowledged' as any, handleMessageAcknowledged);
-    };
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
+  // Load tabs function
   const loadTabs = async () => {
     if (!bar) return;
     
@@ -268,6 +310,104 @@ export default function TabsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (bar) {
+      loadTabs();
+      const interval = setInterval(loadTabs, 10000);
+      
+      // Add subscription for telegram message updates
+      const telegramSubscription = supabase
+        .channel(`global-telegram-updates-${bar.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tab_telegram_messages',
+            filter: `bar_id=eq.${bar.id}` // Filter by this bar
+          },
+          (payload: any) => {
+            console.log('🔔 Global telegram update:', payload.eventType, payload.new);
+            
+            // Show animated clock for new customer messages
+            if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
+              console.log('🕐 Triggering message clock');
+              playAlertSound(); // Play sound
+              setClockType('message');
+              setShowClock(true);
+              
+              // Auto-hide after 3 seconds
+              setTimeout(() => {
+                setShowClock(false);
+              }, 3000);
+            }
+            
+            loadTabs(); // Refresh tabs when messages change
+          }
+        )
+        .subscribe();
+      
+      // Add subscription for order updates
+      const orderSubscription = supabase
+        .channel(`global-order-updates-${bar.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tab_orders',
+            filter: `bar_id=eq.${bar.id}` // Filter by this bar
+          },
+          (payload: any) => {
+            console.log('🛒 Global order update:', payload.eventType, payload.new);
+            
+            // Show animated clock for new customer orders
+            if (payload.eventType === 'INSERT' && payload.new?.initiated_by === 'customer') {
+              console.log('🕐 Triggering order clock');
+              playAlertSound(); // Play sound
+              setClockType('order');
+              setShowClock(true);
+              
+              // Auto-hide after 3 seconds
+              setTimeout(() => {
+                setShowClock(false);
+              }, 3000);
+            }
+            
+            loadTabs(); // Refresh tabs when orders change
+          }
+        )
+        .subscribe();
+    
+      return () => {
+        clearInterval(interval);
+        telegramSubscription.unsubscribe();
+        orderSubscription.unsubscribe();
+      };
+    }
+  }, [bar]);
+
+  // NEW: Listen for message acknowledgment events from detail pages
+  useEffect(() => {
+    const handleMessageAcknowledged = (event: CustomEvent) => {
+      console.log('📨 Message acknowledged event received for tab:', event.detail.tabId);
+      loadTabs(); // Refresh dashboard when messages are acknowledged
+    };
+
+    window.addEventListener('messageAcknowledged' as any, handleMessageAcknowledged);
+  
+    return () => {
+      window.removeEventListener('messageAcknowledged' as any, handleMessageAcknowledged);
+    };
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getDisplayName = (tab: any) => {
     if (tab.notes) {
@@ -373,10 +513,14 @@ export default function TabsPage() {
               <button 
                 onClick={() => {
                   console.log('🧪 Test button clicked!');
-                  console.log('🧪 Before state change:', { showClock, clockType });
+                  playAlertSound(); // Play sound
                   setClockType('order');
                   setShowClock(true);
-                  console.log('🧪 After state change:', { showClock: true, clockType: 'order' });
+                  
+                  // Auto-hide after 3 seconds
+                  setTimeout(() => {
+                    setShowClock(false);
+                  }, 3000);
                 }}
                 className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30"
                 title="Test Clock"
@@ -585,39 +729,11 @@ export default function TabsPage() {
         `}</style>
       </div>
       
-      {/* Large Animated Clock Overlay */}
-      <SimpleOverlay
-        isVisible={showClock}
-        onClose={() => setShowClock(false)}
+      {/* Alert Overlay */}
+      <AlertOverlay 
+        isVisible={showClock} 
+        type={clockType} 
       />
-      
-      {/* DEBUG: Direct test overlay */}
-      {showClock && (
-        <div 
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(255, 0, 0, 0.8)',
-            zIndex: 99999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-          onClick={() => setShowClock(false)}
-        >
-          <div style={{
-            backgroundColor: 'yellow',
-            padding: '40px',
-            borderRadius: '20px',
-            fontSize: '72px'
-          }}>
-            🚨 TEST 🚨
-          </div>
-        </div>
-      )}
     </div>
   );
 }
