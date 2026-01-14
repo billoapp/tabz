@@ -545,14 +545,14 @@ export default function TabsPage() {
                          tab.owner_identifier?.includes(searchQuery);
     const matchesFilter = filterStatus === 'all' || tab.status === filterStatus;
     
-    const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending');
+    const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending' && o.status !== 'cancelled');
     const hasPendingMessages = (tab.unreadMessages || 0) > 0;
     const matchesPendingFilter = filterStatus !== 'pending' || hasPendingOrders || hasPendingMessages;
     
     return matchesSearch && matchesFilter && matchesPendingFilter;
   }).sort((a, b) => {
-    const aHasPendingOrders = a.orders?.some((o: any) => o.status === 'pending');
-    const bHasPendingOrders = b.orders?.some((o: any) => o.status === 'pending');
+    const aHasPendingOrders = a.orders?.some((o: any) => o.status === 'pending' && o.status !== 'cancelled');
+    const bHasPendingOrders = b.orders?.some((o: any) => o.status === 'pending' && o.status !== 'cancelled');
     const aHasPendingMessages = (a.unreadMessages || 0) > 0;
     const bHasPendingMessages = (b.unreadMessages || 0) > 0;
     
@@ -576,7 +576,7 @@ export default function TabsPage() {
     totalRevenue: tabs.reduce((sum, tab) => 
       sum + (tab.orders?.reduce((s: number, o: any) => s + parseFloat(o.total), 0) || 0), 0),
     pendingOrders: tabs.reduce((sum, tab) => 
-      sum + (tab.orders?.filter((o: any) => o.status === 'pending').length || 0), 0),
+      sum + (tab.orders?.filter((o: any) => o.status === 'pending' && o.status !== 'cancelled').length || 0), 0),
     pendingMessages: tabs.reduce((sum, tab) => 
       sum + (tab.unreadMessages || 0), 0),
   };
@@ -751,7 +751,7 @@ export default function TabsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredTabs.map(tab => {
                 const balance = getTabBalance(tab);
-                const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending');
+                const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending' && o.status !== 'cancelled');
                 const hasPendingMessages = (tab.unreadMessages || 0) > 0;
                 const hasPending = hasPendingOrders || hasPendingMessages;
                 
