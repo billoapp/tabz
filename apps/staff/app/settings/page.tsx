@@ -619,7 +619,8 @@ export default function SettingsPage() {
                 <h2>📱 How to Connect:</h2>
                 <ol>
                   <li>Scan QR code with phone camera</li>
-                  <li>No scanner? Type URL: <code>${qrUrl}</code></li>
+                  <li>No scanner? Type URL: <code>${customerOrigin}</code></li>
+                  <li>Insert <code>${barInfo.slug}</code> in the search bar</li>
                   <li>Install our app for easier access</li>
                 </ol>
               </div>

@@ -325,7 +325,6 @@ export default function MenuPage() {
   }, [tab?.id]);
 
   // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
-  // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
   const calculateAverageResponseTime = async (barId: string) => {
     console.log('🔍 [CUSTOMER] Starting response time calculation for bar:', barId);
     setResponseTimeLoading(true);
@@ -448,8 +447,6 @@ export default function MenuPage() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
-  // ...
 
   // Set up real-time subscriptions using staff app pattern (simple and working)
   useEffect(() => {
@@ -1742,7 +1739,8 @@ export default function MenuPage() {
       </div>
 
       {/* Pending Order Timer - TEMPORARILY COMMENTED */}
-      {/* {pendingOrderTime && (
+      {/* 
+      {pendingOrderTime && (
         <div className="bg-gradient-to-r from-orange-600 to-red-700 text-white p-3 border-b border-orange-500">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1758,11 +1756,9 @@ export default function MenuPage() {
             </div>
           </div>
           
-          {/* Circular Timer */}
           <div className="flex items-center justify-center mt-3">
             <div className="relative w-20 h-20">
               <svg className="w-20 h-20 transform -rotate-90">
-                {/* Background circle */}
                 <circle
                   cx="40"
                   cy="40"
@@ -1771,7 +1767,6 @@ export default function MenuPage() {
                   strokeWidth="4"
                   fill="transparent"
                 />
-                {/* Progress circle */}
                 <circle
                   cx="40"
                   cy="40"
@@ -1780,7 +1775,7 @@ export default function MenuPage() {
                   strokeWidth="4"
                   fill="transparent"
                   strokeLinecap="round"
-                  strokeDasharray={226.08} // 2 * π * 36
+                  strokeDasharray={226.08}
                   strokeDashoffset={226.08 * (1 - Math.min(pendingOrderTime.elapsed * 0.5 / 100, 1))}
                 />
               </svg>
@@ -1790,15 +1785,15 @@ export default function MenuPage() {
             </div>
           </div>
           
-          {/* Linear progress bar (optional backup) */}
           <div className="w-full bg-orange-900 bg-opacity-30 rounded-full h-2 mt-3">
             <div 
               className="bg-orange-300 h-2 rounded-full transition-all duration-1000" 
               style={{ width: `${Math.min(pendingOrderTime.elapsed * 0.5, 100)}%` }}
-            ></div>
+            />
           </div>
         </div>
       )}
+      */}
 
       {/* Pending Staff Orders Alert */}
       {pendingStaffOrders > 0 && (
@@ -1824,17 +1819,17 @@ export default function MenuPage() {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                  <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'pending').length} Pending</span>
+                  <span className="text-gray-600">{telegramMessages.filter((m: any) => m.status === 'pending').length} Pending</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'acknowledged').length} Acknowledged</span>
+                  <span className="text-gray-600">{telegramMessages.filter((m: any) => m.status === 'acknowledged').length} Acknowledged</span>
                 </div>
               </div>
             </div>
             
             {/* Recent Messages Preview */}
-            {telegramMessages.slice(0, 2).map((msg) => (
+            {telegramMessages.slice(0, 2).map((msg: any) => (
               <div
                 key={msg.id} 
                 className={`p-3 rounded-lg mb-2 ${
@@ -2189,12 +2184,12 @@ export default function MenuPage() {
         )}
         <div className="bg-white rounded-lg border border-gray-100 p-4 space-y-0">
           {/* FIXED: Only show CONFIRMED orders in customer history, not pending orders */}
-          {orders.filter(order => order.status === 'confirmed').length === 0 ? (
+          {orders.filter((order: any) => order.status === 'confirmed').length === 0 ? (
             <div className="text-center py-8 text-gray-500"><p>No orders yet</p></div>
           ) : (
             <div className="space-y-0">
               {/* FIXED: Only show CONFIRMED orders in customer history */}
-              {orders.filter(order => order.status === 'confirmed').map((order, index) => {
+              {orders.filter((order: any) => order.status === 'confirmed').map((order: any, index: number) => {
                 const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
                 const initiatedBy = order.initiated_by || 'customer';
                 const isStaffOrder = initiatedBy === 'staff';
@@ -2251,7 +2246,7 @@ export default function MenuPage() {
                         </div>
                       )}
                     </div>
-                    {index < orders.filter(order => order.status === 'confirmed').length - 1 && (
+                    {index < orders.filter((order: any) => order.status === 'confirmed').length - 1 && (
                       <div className="border-b border-gray-100"></div>
                     )}
                   </div>
@@ -2460,7 +2455,7 @@ export default function MenuPage() {
         </div>
       )}
       
-      {balance === 0 && orders.filter(order => order.status === 'confirmed').length > 0 && (
+      {balance === 0 && orders.filter((order: any) => order.status === 'confirmed').length > 0 && (
         <div className="bg-white p-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">All Paid! 🎉</h2>
           <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-4 text-center">
@@ -2751,7 +2746,7 @@ export default function MenuPage() {
             setShowCloseConfirm(true);
           }}
           className={`w-full py-3 rounded-xl font-medium transition ${
-            orders.filter(order => order.status === 'confirmed').length === 0 
+            orders.filter((order: any) => order.status === 'confirmed').length === 0 
               ? 'text-green-600 hover:bg-green-50' 
               : balance > 0 
                 ? 'text-red-600 hover:bg-red-50'
