@@ -1741,8 +1741,8 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Pending Order Timer */}
-      {pendingOrderTime && (
+      {/* Pending Order Timer - TEMPORARILY COMMENTED */}
+      {/* {pendingOrderTime && (
         <div className="bg-gradient-to-r from-orange-600 to-red-700 text-white p-3 border-b border-orange-500">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
