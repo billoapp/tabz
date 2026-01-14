@@ -438,6 +438,64 @@ export default function MenuPage() {
           schema: payload.schema
         });
         
+        // Check if customer approved a staff order (NEW)
+        const isCustomerApproval = (
+          (payload.new?.status === 'confirmed' && 
+           payload.old?.status === 'pending' && 
+           payload.new?.initiated_by === 'staff')
+        );
+        
+        console.log('👤 Is customer approval?', isCustomerApproval);
+        console.log('📋 Processed orders:', Array.from(processedOrders));
+        
+        if (isCustomerApproval && !processedOrders.has(payload.new.id)) {
+          console.log('✅ Customer approved staff order:', payload.new.id);
+          
+          // Mark this order as processed to avoid duplicate notifications
+          setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+          
+          // Show success feedback
+          showToast({
+            type: 'success',
+            title: 'Order Approved!',
+            message: 'Staff order has been approved and will be prepared'
+          });
+          
+          // Close rejection modal if open
+          setShowRejectModal(false);
+          
+          // Refresh orders data
+          await loadTabData();
+        }
+        
+        // Check if customer rejected a staff order (NEW)
+        const isCustomerRejection = (
+          (payload.new?.status === 'cancelled' && 
+           payload.old?.status === 'pending' && 
+           payload.new?.initiated_by === 'staff' &&
+           payload.new?.cancelled_by === 'customer')
+        );
+        
+        if (isCustomerRejection && !processedOrders.has(payload.new.id)) {
+          console.log('❌ Customer rejected staff order:', payload.new.id);
+          
+          // Mark this order as processed to avoid duplicate notifications
+          setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+          
+          // Show rejection feedback
+          showToast({
+            type: 'info',
+            title: 'Order Rejected',
+            message: 'Staff order has been rejected'
+          });
+          
+          // Close rejection modal if open
+          setShowRejectModal(false);
+          
+          // Refresh orders data
+          await loadTabData();
+        }
+        
         // Check if staff accepted an order (multiple scenarios)
         const isStaffAcceptance = (
           // Scenario 1: pending -> confirmed (staff accepts customer order)
@@ -1160,12 +1218,31 @@ export default function MenuPage() {
 
       if (error) {
         console.error('Error approving order:', error);
-        alert('Failed to approve order');
+        showToast({
+          type: 'error',
+          title: 'Failed to Approve Order',
+          message: 'Please try again'
+        });
         return;
       }
+      
+      // Success - show toast and reload data
+      showToast({
+        type: 'success',
+        title: 'Order Approved!',
+        message: 'Staff order has been approved'
+      });
+      
+      // Reload tab data to reflect the change
+      await loadTabData();
+      
     } catch (error) {
       console.error('Error in handleApproveOrder:', error);
-      alert('An error occurred while approving the order');
+      showToast({
+        type: 'error',
+        title: 'Failed to Approve Order',
+        message: 'An error occurred while approving the order'
+      });
     } finally {
       setApprovingOrder(null);
     }
