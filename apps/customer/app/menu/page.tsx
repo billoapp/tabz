@@ -133,12 +133,7 @@ export default function MenuPage() {
     cash_enabled: true
   });
   const [loadingPaymentSettings, setLoadingPaymentSettings] = useState(true);
-  const { showToast, clearAllToasts } = useToast();
-  
-  // Debug: Monitor toast hook
-  useEffect(() => {
-    console.log('🔔 Toast hook loaded:', { showToast: typeof showToast });
-  }, [showToast]);
+  const { showToast } = useToast();
   
   // Token service instance
   const tokensService = new TokensService(supabase);
@@ -170,16 +165,13 @@ export default function MenuPage() {
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
 
   // THREE COLLAPSIBLE SECTIONS - all start closed
-  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
+  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(true);
   const [cartCollapsed, setCartCollapsed] = useState(true);
   const [paymentCollapsed, setPaymentCollapsed] = useState(true);
 
   // NEW: Average response time state
   const [averageResponseTime, setAverageResponseTime] = useState<number | null>(null);
   const [responseTimeLoading, setResponseTimeLoading] = useState(false);
-
-  // NEW: Online/Offline status
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const [showConnectionStatus, setShowConnectionStatus] = useState(false);
 
@@ -324,6 +316,8 @@ export default function MenuPage() {
     loadTokenBalance();
   }, [tab?.id]);
 
+  // NEW: Function to calculate average response time for this bar
+  // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
   // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
   const calculateAverageResponseTime = async (barId: string) => {
     console.log('🔍 [CUSTOMER] Starting response time calculation for bar:', barId);
@@ -427,313 +421,227 @@ export default function MenuPage() {
     }
   }, [tab?.bar_id]);
 
-  // Handle online/offline events
-  useEffect(() => {
-    const handleOnline = () => {
-      console.log('🌐 Customer app: Online');
-      setIsOnline(true);
-    };
-    
-    const handleOffline = () => {
-      console.log('📵 Customer app: Offline');
-      setIsOnline(false);
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Set up real-time subscriptions using staff app pattern (simple and working)
-  useEffect(() => {
-    if (tab?.id) {
-      console.log('📡 CUSTOMER APP: Setting up real-time subscriptions for tab:', tab.id);
-      console.log('🔍 Tab object:', tab);
-      console.log('🔍 Tab ID:', tab.id);
-      
-      // Add subscription for order updates (staff actions)
-      const orderSubscription = supabase
-        .channel(`customer-order-updates-${tab.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'tab_orders',
-            filter: `tab_id=eq.${tab.id}`
-          },
-          async (payload: any) => {
-            console.log('🛒 CUSTOMER APP: Order UPDATE received:', {
-              eventType: payload.eventType,
-              new: payload.new,
-              old: payload.old
-            });
+  // Set up real-time subscriptions with improved error handling and debouncing
+  const realtimeConfigs = [
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tab_orders',
+      filter: tab?.id ? `tab_id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📦 Real-time order update received:', payload);
+        console.log('📊 Payload details:', {
+          eventType: payload.eventType,
+          new: payload.new,
+          old: payload.old,
+          table: payload.table,
+          schema: payload.schema
+        });
+        
+        // Check if staff accepted an order (multiple scenarios)
+        const isStaffAcceptance = (
+          // Scenario 1: pending -> confirmed (staff accepts customer order)
+          (payload.new?.status === 'confirmed' && 
+           payload.old?.status === 'pending' && 
+           payload.new?.initiated_by === 'customer') ||
+          // Scenario 2: Any change to confirmed status for customer orders
+          (payload.new?.status === 'confirmed' && 
+           payload.new?.initiated_by === 'customer' && 
+           payload.old?.status !== 'confirmed')
+        );
+        
+        // Check if order was served/completed (for notification purposes only)
+        const isOrderCompleted = (
+          (payload.new?.status === 'served' || payload.new?.status === 'completed') &&
+          payload.old?.status !== 'served' && payload.old?.status !== 'completed'
+        );
+        
+        console.log('🤖 Is staff acceptance?', isStaffAcceptance);
+        console.log('📋 Processed orders:', Array.from(processedOrders));
+        
+        if (isStaffAcceptance && !processedOrders.has(payload.new.id)) {
+          console.log('🎉 Staff accepted order:', payload.new.id);
+          
+          // Mark this order as processed to avoid duplicate notifications
+          setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+          
+          console.log('🔔 Showing acceptance modal with notifications...');
+          
+          // Trigger vibration and sound
+          buzz([200, 100, 200]); // Vibration pattern: buzz-pause-buzz
+          playAcceptanceSound(); // Play acceptance sound
+          
+          // Show modal instead of toast
+          setAcceptanceModal({
+            show: true,
+            orderTotal: payload.new.total, // Pass the number, not formatted string
+            message: 'Your order has been accepted and is being prepared'
+          });
+        } else if (isOrderCompleted && !processedOrders.has(payload.new.id)) {
+          console.log('✅ Order completed:', payload.new.id);
+          
+          // Mark this order as processed to avoid duplicate notifications
+          setProcessedOrders(prev => new Set([...prev, payload.new.id]));
+        } else {
+          console.log('❌ Not showing modal - conditions not met:', {
+            isStaffAcceptance,
+            alreadyProcessed: processedOrders.has(payload.new?.id),
+            orderId: payload.new?.id
+          });
+        }
+        
+        // Refresh orders data
+        const { data: ordersData, error } = await supabase
+          .from('tab_orders')
+          .select('*')
+          .eq('tab_id', tab?.id || '')
+          .order('created_at', { ascending: false });
+        
+        if (!error && ordersData) {
+          setOrders(ordersData);
+        }
+      }
+    },
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tabs',
+      filter: tab?.id ? `id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📋 Real-time tab update:', payload);
+        if (payload.eventType === 'UPDATE') {
+          const updatedTab = payload.new as Tab;
+          
+          if (updatedTab.status === 'closed') {
+            console.log('🛑 Tab was closed, redirecting to home');
+            sessionStorage.removeItem('currentTab');
+            sessionStorage.removeItem('cart');
+            router.replace('/');
+            return;
+          }
+          
+          const { data: fullTab, error } = await supabase
+            .from('tabs')
+            .select('*, bar:bars(id, name, location)')
+            .eq('id', tab?.id || '')
+            .maybeSingle();
+          
+          if (!error && fullTab) {
+            setTab(fullTab as Tab);
+            setBarName((fullTab as any).bar?.name || 'Bar');
             
-            console.log('📊 Order subscription is working - received event!');
-            
-            // DEBUG: Log all of acceptance condition values
-            console.log('🔍 Acceptance condition check:', {
-              newStatus: payload.new?.status,
-              oldStatus: payload.old?.status,
-              initiatedBy: payload.new?.initiated_by,
-              condition1: payload.new?.status === 'confirmed',
-              condition2: payload.old?.status === 'pending',
-              condition3: payload.new?.initiated_by === 'customer',
-              orderId: payload.new?.id,
-              processedOrders: Array.from(processedOrders)
-            });
-            
-            // Check if staff accepted an order
-            const isStaffAcceptance = (
-              payload.new?.status === 'confirmed' && 
-              payload.old?.status === 'pending' && 
-              payload.new?.initiated_by === 'customer'
-            );
-            
-            // NEW: Also handle orders created directly as confirmed (no pending state)
-            const isDirectConfirmation = (
-              payload.eventType === 'INSERT' &&
-              payload.new?.status === 'confirmed' && 
-              payload.new?.initiated_by === 'customer'
-            );
-            
-            if ((isStaffAcceptance || isDirectConfirmation) && !processedOrders.has(payload.new.id)) {
-              console.log('🎉 CUSTOMER APP: Order confirmed - showing notification');
-              
-              // Mark as processed to avoid duplicates
-              setProcessedOrders(prev => new Set([...prev, payload.new.id]));
-              
-              // Trigger vibration and sound
-              buzz([200, 100, 200]);
-              playAcceptanceSound();
-              
-              // Show acceptance modal
-              setAcceptanceModal({
-                show: true,
-                orderTotal: payload.new.total,
-                message: 'Your order has been accepted and is being prepared'
-              });
-              
-              // ADD TOAST NOTIFICATION HERE
-              console.log('🔔 About to call showToast for order acceptance...');
-              console.log('🔔 showToast function available:', typeof showToast);
-              console.log('🔔 Order details:', {
-                orderNumber: payload.new.order_number,
-                status: payload.new.status,
-                initiatedBy: payload.new.initiated_by
-              });
-              
-              if (showToast) {
-                console.log('🔔 Calling showToast now...');
-                showToast({
-                  type: 'success',
-                  title: 'Order Accepted! 🎉',
-                  message: `Your order #${payload.new.order_number || '?'} has been accepted and is being prepared`,
-                  duration: 5000
-                });
-                console.log('🔔 showToast called successfully');
-              } else {
-                console.error('🔔 showToast is not available!');
-              }
-              
-              // IMPORTANT: Also send a Telegram message back to customer
+            let name = 'Your Tab';
+            if ((fullTab as any).notes) {
               try {
-                const result = await (supabase.rpc as any)('create_telegram_message', {
-                  p_tab_id: tab.id,
-                  p_message: `✅ Order #${payload.new.order_number || '?'} has been accepted and is being prepared!`,
-                  p_initiated_by: 'staff',
-                  p_metadata: {
-                    type: 'order_confirmation',
-                    order_id: payload.new.id,
-                    order_total: payload.new.total,
-                    platform: 'staff-web'
-                  }
+                const notes = JSON.parse((fullTab as any).notes);
+                name = notes.display_name || `Tab ${(fullTab as any).tab_number || ''}`;
+              } catch (e) {
+                name = (fullTab as any).tab_number ? `Tab ${(fullTab as any).tab_number}` : 'Your Tab';
+              }
+            } else if ((fullTab as any).tab_number) {
+              name = `Tab ${(fullTab as any).tab_number}`;
+            }
+            setDisplayName(name);
+          }
+        }
+      }
+    },
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tab_payments',
+      filter: tab?.id ? `tab_id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('💳 Real-time payment update:', payload);
+        
+        // Show token notification for successful payments
+        if (payload.eventType === 'INSERT' && 
+            payload.new?.status === 'success') {
+          
+          // Award tokens for order value
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && tab?.bar_id) {
+            const orderValue = Math.round(parseFloat(payload.new.amount) * 100); // Convert to cents
+            
+            try {
+              const result = await tokensService.awardOrderTokens(
+                user.id,
+                tab.bar_id,
+                payload.new.id, // payment ID
+                orderValue
+              );
+              
+              if (result.success && result.tokensAwarded) {
+                console.log('🎉 Tokens awarded successfully:', result.tokensAwarded);
+                showNotification({
+                  type: 'earned',
+                  title: 'Tokens Earned!',
+                  message: `🎉 +${result.tokensAwarded} tokens earned from your payment!`,
+                  amount: result.tokensAwarded,
+                  autoHide: 5000, // Auto-hide after 5 seconds
+                  timestamp: new Date().toISOString()
                 });
                 
-                if (result.error) {
-                  console.error('Error sending acceptance message:', result.error);
+                // Refresh token balance immediately
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                  const balance = await tokensService.getBalance(user.id);
+                  setCurrentBalance(balance?.balance || 0);
+                  console.log('🪙 Updated token balance:', balance?.balance || 0);
                 }
-              } catch (error) {
-                console.error('Error sending acceptance message:', error);
-              }
-            }
-            
-            // Check if staff cancelled an order
-            const isStaffCancellation = (
-              payload.new?.status === 'cancelled' && 
-              payload.old?.status === 'pending' && 
-              payload.new?.cancelled_by === 'staff'
-            );
-
-            if (isStaffCancellation && !processedOrders.has(payload.new.id)) {
-              console.log(' CUSTOMER APP: Staff cancelled order - showing notification');
-              
-              // Mark as processed to avoid duplicates
-              setProcessedOrders(prev => new Set([...prev, payload.new.id]));
-              
-              // Trigger vibration and sound
-              buzz([200]);
-              
-              // Show cancellation toast
-              showToast({
-                type: 'error',
-                title: 'Order Cancelled',
-                message: `Order #${payload.new.order_number || '?'} was cancelled by staff: ${payload.new.rejection_reason || 'No reason provided'}`,
-                duration: 5000
-              });
-            }
-            
-            // Refresh orders data
-            const { data: ordersData, error } = await supabase
-              .from('tab_orders')
-              .select('*')
-              .eq('tab_id', tab.id)
-              .order('created_at', { ascending: false });
-            
-            if (!error && ordersData) {
-              setOrders(ordersData);
-            }
-          }
-        )
-        .subscribe();
-
-      // Add subscription for new orders created directly as confirmed
-      const newOrderSubscription = supabase
-        .channel(`customer-new-orders-${tab.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'tab_orders',
-            filter: `tab_id=eq.${tab.id}&initiated_by=eq.customer`
-          },
-          async (payload: any) => {
-            console.log('🆕 CUSTOMER APP: New order INSERT received:', {
-              eventType: payload.eventType,
-              new: payload.new
-            });
-            
-            // Check if order was created directly as confirmed
-            const isDirectConfirmation = (
-              payload.new?.status === 'confirmed' && 
-              payload.new?.initiated_by === 'customer'
-            );
-            
-            if (isDirectConfirmation && !processedOrders.has(payload.new.id)) {
-              console.log('🎉 CUSTOMER APP: Order created directly as confirmed - showing notification');
-              
-              // Mark as processed to avoid duplicates
-              setProcessedOrders(prev => new Set([...prev, payload.new.id]));
-              
-              // Trigger vibration and sound
-              buzz([200, 100, 200]);
-              playAcceptanceSound();
-              
-              // Show acceptance modal
-              setAcceptanceModal({
-                show: true,
-                orderTotal: payload.new.total,
-                message: 'Your order has been accepted and is being prepared'
-              });
-              
-              // ADD TOAST NOTIFICATION HERE
-              console.log('🔔 About to call showToast for direct confirmation...');
-              if (showToast) {
-                console.log('🔔 Calling showToast now...');
-                showToast({
-                  type: 'success',
-                  title: 'Order Confirmed! 🎉',
-                  message: `Your order #${payload.new.order_number || '?'} has been confirmed and is being prepared`,
-                  duration: 5000
-                });
-                console.log('🔔 showToast called successfully');
               } else {
-                console.error('🔔 showToast is not available!');
+                console.log('❌ Token awarding failed:', result);
               }
+            } catch (error) {
+              console.error('Error awarding tokens for payment:', error);
             }
           }
-        )
-        .subscribe();
-
-      // Add subscription for message updates (staff responses and acknowledgments)
-      const messageSubscription = supabase
-        .channel(`customer-message-updates-${tab.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'tab_telegram_messages',
-            filter: `tab_id=eq.${tab.id}`
-          },
-          async (payload: any) => {
-            console.log('📩 CUSTOMER APP: Message UPDATE received:', {
-              eventType: payload.eventType,
-              new: payload.new,
-              old: payload.old,
-              initiated_by: payload.new?.initiated_by
-            });
-            
-            // Show notification for staff acknowledgments
-            if (payload.new?.status === 'acknowledged' && 
-                payload.old?.status === 'pending' &&
-                payload.new?.staff_acknowledged_at) {
-              
-              console.log('✅ CUSTOMER APP: Staff acknowledged message - showing notification');
-              
-              buzz([200, 100, 200]);
-              playAcceptanceSound();
-              
-              setNewMessageAlert({
-                type: 'acknowledged',
-                message: 'Staff has acknowledged your message',
-                timestamp: new Date().toISOString()
-              });
-              
-              setTimeout(() => {
-                setNewMessageAlert(null);
-              }, 5000);
-            }
-            
-            // Refresh messages data
-            const { data: messages, error } = await supabase
-              .from('tab_telegram_messages')
-              .select('*')
-              .eq('tab_id', tab.id)
-              .order('created_at', { ascending: false });
-            
-            if (!error && messages) {
-              setTelegramMessages(messages);
-              
-              // Update unread count
-              const unreadCount = messages.filter((msg: any) => 
-                msg.initiated_by === 'staff' && 
-                msg.status === 'pending'
-              ).length;
-              setUnreadMessagesCount(unreadCount);
-            }
-          }
-        )
-        .subscribe();
-
-      // Also listen for new staff responses (INSERT)
-      const staffResponseSubscription = supabase
-        .channel(`staff-responses-${tab.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'tab_telegram_messages',
-            filter: `tab_id=eq.${tab.id}&initiated_by=eq.staff`
-          },
-          async (payload: any) => {
-            console.log('💬 CUSTOMER APP: Staff responded - showing notification');
+        }
+        
+        // Refresh payments data
+        const { data: paymentsData, error: paymentError } = await supabase
+          .from('tab_payments')
+          .select('*')
+          .eq('tab_id', tab?.id || '')
+          .order('created_at', { ascending: false });
+        
+        if (!paymentError && paymentsData) {
+          setPayments(paymentsData);
+        }
+      }
+    },
+    {
+      channelName: `tab-${tab?.id}`,
+      table: 'tab_telegram_messages',
+      filter: tab?.id ? `tab_id=eq.${tab.id}` : undefined,
+      event: '*' as const,
+      handler: async (payload: any) => {
+        console.log('📩 Telegram message real-time update:', {
+          event: payload.eventType,
+          new: payload.new,
+          old: payload.old
+        });
+        
+        // Refresh messages
+        const { data: messages, error } = await supabase
+          .from('tab_telegram_messages')
+          .select('*')
+          .eq('tab_id', tab?.id || '')
+          .order('created_at', { ascending: false });
+        
+        if (!error && messages) {
+          setTelegramMessages(messages);
+          
+          // Calculate and update unread messages count
+          const unreadCount = messages.filter((msg: any) => 
+            msg.initiated_by === 'staff' && 
+            msg.status === 'pending'
+          ).length;
+          setUnreadMessagesCount(unreadCount);
+          
+          // Show notification for new messages (when staff responds)
+          if (payload.new?.initiated_by === 'staff' && 
+              payload.eventType === 'INSERT') {
             
             buzz([200]);
             playAcceptanceSound();
@@ -748,95 +656,49 @@ export default function MenuPage() {
             setTimeout(() => {
               setNewMessageAlert(null);
             }, 5000);
-            
-            // Refresh messages data
-            const { data: messages, error } = await supabase
-              .from('tab_telegram_messages')
-              .select('*')
-              .eq('tab_id', tab.id)
-              .order('created_at', { ascending: false });
-            
-            if (!error && messages) {
-              setTelegramMessages(messages);
-            }
           }
-        )
-        .subscribe();
-
-      // Add subscription for payment updates
-      const paymentSubscription = supabase
-        .channel(`customer-payment-updates-${tab.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'tab_payments'
-          },
-          async (payload: any) => {
-            console.log('💳 CUSTOMER APP: Payment update received:', payload.eventType);
+          
+          // Show notification for staff acknowledgments
+          if (payload.new?.status === 'acknowledged' && 
+              payload.old?.status === 'pending' &&
+              payload.new?.staff_acknowledged_at) {
             
-            // Handle token awards for successful payments
-            if (payload.eventType === 'INSERT' && 
-                payload.new?.status === 'success') {
-              
-              const { data: { user } } = await supabase.auth.getUser();
-              if (user && tab?.bar_id) {
-                const orderValue = Math.round(parseFloat(payload.new.amount) * 100);
-                
-                try {
-                  const result = await tokensService.awardOrderTokens(
-                    user.id,
-                    tab.bar_id,
-                    payload.new.id,
-                    orderValue
-                  );
-                  
-                  if (result.success && result.tokensAwarded) {
-                    console.log('🎉 Tokens awarded:', result.tokensAwarded);
-                    showNotification({
-                      type: 'earned',
-                      title: 'Tokens Earned!',
-                      message: `🎉 +${result.tokensAwarded} tokens earned from your payment!`,
-                      amount: result.tokensAwarded,
-                      autoHide: 5000,
-                      timestamp: new Date().toISOString()
-                    });
-                    
-                    // Refresh token balance
-                    const balance = await tokensService.getBalance(user.id);
-                    setCurrentBalance(balance?.balance || 0);
-                  }
-                } catch (error) {
-                  console.error('Error awarding tokens:', error);
-                }
-              }
-            }
+            buzz([200, 100, 200]);
+            playAcceptanceSound();
             
-            // Refresh payments data
-            const { data: paymentsData, error } = await supabase
-              .from('tab_payments')
-              .select('*')
-              .eq('tab_id', tab.id)
-              .order('created_at', { ascending: false });
+            setNewMessageAlert({
+              type: 'acknowledged',
+              message: 'Staff has acknowledged your message',
+              timestamp: new Date().toISOString()
+            });
             
-            if (!error && paymentsData) {
-              setPayments(paymentsData);
-            }
+            setTimeout(() => {
+              setNewMessageAlert(null);
+            }, 5000);
           }
-        )
-        .subscribe();
-
-      return () => {
-        console.log('📡 CUSTOMER APP: Cleaning up subscriptions');
-        orderSubscription.unsubscribe();
-        messageSubscription.unsubscribe();
-        staffResponseSubscription.unsubscribe();
-        newOrderSubscription.unsubscribe();
-        paymentSubscription.unsubscribe();
-      };
+        }
+      }
     }
-  }, [tab?.id]);
+  ];
+
+  const { connectionStatus, retryCount, reconnect, isConnected } = useRealtimeSubscription(
+    realtimeConfigs,
+    [tab?.id, router, processedOrders],
+    {
+      maxRetries: 10,
+      retryDelay: [1000, 2000, 5000, 10000, 30000, 60000],
+      debounceMs: 300,
+      onConnectionChange: (status) => {
+        console.log('📡 Connection status changed:', status);
+        // Show connection status indicator when not connected
+        if (status === 'connected') {
+          setShowConnectionStatus(false);
+        } else {
+          setShowConnectionStatus(true);
+        }
+      }
+    }
+  );
 
   // Image zoom handlers
   const handleImageZoomIn = () => {
@@ -905,7 +767,7 @@ export default function MenuPage() {
   };
 
   const getPendingOrderTime = () => {
-    const pendingCustomerOrders = orders.filter(o => o.status === 'confirmed' && o.initiated_by === 'customer');
+    const pendingCustomerOrders = orders.filter(o => o.status === 'pending' && o.initiated_by === 'customer');
     if (pendingCustomerOrders.length === 0) {
       sessionStorage.removeItem('oldestPendingCustomerOrderTime');
       return null;
@@ -1588,7 +1450,6 @@ export default function MenuPage() {
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  // FIXED: Only show CONFIRMED orders in customer history (pending orders are not real orders)
   const tabTotal = orders.filter(order => order.status === 'confirmed').reduce((sum, order) => sum + parseFloat(order.total), 0);
   const paidTotal = payments.filter(payment => payment.status === 'success').reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
   const balance = tabTotal - paidTotal;
@@ -1654,57 +1515,30 @@ export default function MenuPage() {
               <p className="text-xs text-white text-opacity-90">{barName}</p>
             </div>
             
-            <div className="flex items-center gap-2">
-              {/* Average Response Time Badge */}
-              {averageResponseTime !== null && !responseTimeLoading && (
-                <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
-                  <Clock size={14} />
-                  ~{averageResponseTime}m
-                </div>
-              )}
-              {responseTimeLoading && (
-                <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
-                  <Clock size={14} className="animate-spin" />
-                </div>
-              )}
-              
-              {/* Online/Offline Status - MODIFIED */}
-              <div className={`rounded-full p-1.5 ${isOnline ? 'bg-green-500' : 'bg-white bg-opacity-80'}`}>
-                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-white' : 'bg-red-500 animate-pulse'}`}></div>
+            {/* Average Response Time Badge */}
+            {averageResponseTime !== null && !responseTimeLoading && (
+              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
+                <Clock size={14} />
+                ~{averageResponseTime}m response
               </div>
-              
-              {/* Debug Test Toast Button - Only in development */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => {
-                      showToast({
-                        type: 'success',
-                        title: 'Test Toast',
-                        message: 'This is a test toast notification',
-                        duration: 3000
-                      });
-                    }}
-                    className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium hover:bg-blue-600"
-                    title="Test Toast Notification"
-                  >
-                    Test
-                  </button>
-                  <button
-                    onClick={() => {
-                      clearAllToasts();
-                      console.log('🔔 All toasts cleared!');
-                    }}
-                    className="bg-red-500 text-white px-2 py-1 rounded text-xs font-medium hover:bg-red-600"
-                    title="Clear All Toasts"
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-              
-              {/* REMOVED: Connection Status Indicator */}
-            </div>
+            )}
+            {responseTimeLoading && (
+              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                Loading...
+              </div>
+            )}
+            
+            {/* Connection Status Indicator */}
+            {showConnectionStatus && (
+              <div className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                <ConnectionStatusIndicator 
+                  status={connectionStatus} 
+                  retryCount={retryCount}
+                  className="text-xs"
+                />
+              </div>
+            )}
           </div>
         </div>
         
@@ -1738,8 +1572,7 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Pending Order Timer - TEMPORARILY COMMENTED */}
-      {/* 
+      {/* Pending Order Timer */}
       {pendingOrderTime && (
         <div className="bg-gradient-to-r from-orange-600 to-red-700 text-white p-3 border-b border-orange-500">
           <div className="flex items-center justify-between">
@@ -1756,9 +1589,11 @@ export default function MenuPage() {
             </div>
           </div>
           
+          {/* Circular Timer */}
           <div className="flex items-center justify-center mt-3">
             <div className="relative w-20 h-20">
               <svg className="w-20 h-20 transform -rotate-90">
+                {/* Background circle */}
                 <circle
                   cx="40"
                   cy="40"
@@ -1767,6 +1602,7 @@ export default function MenuPage() {
                   strokeWidth="4"
                   fill="transparent"
                 />
+                {/* Progress circle */}
                 <circle
                   cx="40"
                   cy="40"
@@ -1775,7 +1611,7 @@ export default function MenuPage() {
                   strokeWidth="4"
                   fill="transparent"
                   strokeLinecap="round"
-                  strokeDasharray={226.08}
+                  strokeDasharray={226.08} // 2 * π * 36
                   strokeDashoffset={226.08 * (1 - Math.min(pendingOrderTime.elapsed * 0.5 / 100, 1))}
                 />
               </svg>
@@ -1785,15 +1621,15 @@ export default function MenuPage() {
             </div>
           </div>
           
+          {/* Linear progress bar (optional backup) */}
           <div className="w-full bg-orange-900 bg-opacity-30 rounded-full h-2 mt-3">
             <div 
               className="bg-orange-300 h-2 rounded-full transition-all duration-1000" 
               style={{ width: `${Math.min(pendingOrderTime.elapsed * 0.5, 100)}%` }}
-            />
+            ></div>
           </div>
         </div>
       )}
-      */}
 
       {/* Pending Staff Orders Alert */}
       {pendingStaffOrders > 0 && (
@@ -1819,17 +1655,17 @@ export default function MenuPage() {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                  <span className="text-gray-600">{telegramMessages.filter((m: any) => m.status === 'pending').length} Pending</span>
+                  <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'pending').length} Pending</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  <span className="text-gray-600">{telegramMessages.filter((m: any) => m.status === 'acknowledged').length} Acknowledged</span>
+                  <span className="text-gray-600">{telegramMessages.filter(m => m.status === 'acknowledged').length} Acknowledged</span>
                 </div>
               </div>
             </div>
             
             {/* Recent Messages Preview */}
-            {telegramMessages.slice(0, 2).map((msg: any) => (
+            {telegramMessages.slice(0, 2).map((msg) => (
               <div
                 key={msg.id} 
                 className={`p-3 rounded-lg mb-2 ${
@@ -1840,15 +1676,6 @@ export default function MenuPage() {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    {/* Add sender label */}
-                    <div className="flex items-center gap-2 mb-1">
-                      {msg.initiated_by === 'customer' ? (
-                        <span className="text-xs font-medium text-orange-700">You</span>
-                      ) : (
-                        <span className="text-xs font-medium text-blue-700">{barName || 'Restaurant'} Staff</span>
-                      )}
-                    </div>
-                    
                     <p className="text-sm text-gray-800">{msg.message}</p>
                     <p className={`text-xs mt-1 ${
                       msg.initiated_by === 'customer' ? 'text-orange-700' : 'text-blue-700'
@@ -1863,13 +1690,15 @@ export default function MenuPage() {
                       </span>
                     </p>
                   </div>
-                  <div className="ml-2">
-                    {msg.initiated_by === 'customer' ? (
-                      <User size={16} className="text-orange-600" />
-                    ) : (
-                      <UserCog size={16} className="text-blue-600" />
-                    )}
-                  </div>
+                  {msg.status === 'pending' && (
+                    <Clock size={16} className="text-yellow-500 flex-shrink-0" />
+                  )}
+                  {msg.status === 'acknowledged' && (
+                    <CheckCircle size={16} className="text-blue-500 flex-shrink-0" />
+                  )}
+                  {msg.status === 'completed' && (
+                    <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+                  )}
                 </div>
               </div>
             ))}
@@ -1918,14 +1747,13 @@ export default function MenuPage() {
           </div>
           
           <div 
-            ref={menuRef}
             className={`overflow-hidden transition-all duration-500 ease-in-out ${
               interactiveMenuCollapsed 
                 ? 'max-h-0 opacity-0' 
                 : 'max-h-[1000px] opacity-100'
             }`}
           >
-            <div className="relative overflow-hidden">
+            <div ref={menuRef} className="relative overflow-hidden">
               <div className="p-4 border-b">
                 <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
                   {categoryOptions.map((category) => (
@@ -2017,150 +1845,277 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Floating Cart Button */}
-    {cart.length > 0 && (
-      <button
-        onClick={toggleCart}
-        className="fixed bottom-6 right-6 z-50 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:from-blue-700 hover:to-indigo-800 hover:scale-110 active:scale-95 transition-all duration-200 animate-bounce-once"
-        style={{ 
-          animation: 'bounceOnce 0.5s ease-out',
-          boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5), 0 10px 10px -5px rgba(79, 70, 229, 0.2)'
-        }}
-      >
-        <div className="relative">
-          <ShoppingCart size={24} />
-          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-md">
-            {cartCount}
-          </span>
-        </div>
-      </button>
-    )}
+      {/* Cart Section - Only show when cart has items */}
+      {cart.length > 0 && (
+        <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 border-t border-orange-200">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-orange-600 uppercase tracking-wide">YOUR CART</h2>
+            <button
+              onClick={toggleCart}
+              className="text-orange-600 hover:text-orange-700 transition-colors"
+            >
+              {cartCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            </button>
+          </div>
 
-    {/* Cart Section - Only show when cart has items */}
-    {cart.length > 0 && (
-      <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-t border-blue-200">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-xs font-semibold text-blue-700 uppercase tracking-wide">YOUR CART</h2>
-          <button
-            onClick={toggleCart}
-            className="text-blue-600 hover:text-blue-800 transition-colors"
-          >
-            {cartCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-          </button>
-        </div>
-
-        {!cartCollapsed && (
-          <div className="bg-white rounded-xl shadow-lg border-2 border-blue-300 overflow-hidden">
-            {/* Cart Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <ShoppingCart size={20} className="text-blue-200" />
-                  <div>
-                    <h3 className="font-bold text-lg">Cart Items</h3>
-                    <p className="text-sm text-blue-200">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setCart([]);
-                    sessionStorage.removeItem('cart');
-                    showToast({
-                      type: 'info',
-                      title: 'Cart Cleared',
-                      message: 'All items have been removed from your cart'
-                    });
-                  }}
-                  className="p-2 bg-blue-800 bg-opacity-60 rounded-lg hover:bg-blue-900 transition-colors"
-                  title="Clear cart"
-                >
-                  <X size={18} className="text-white" />
-                </button>
-              </div>
-            </div>
-
-            {/* Cart Items */}
-            <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
-              {cart.map(item => (
-                <div key={item.bar_product_id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200 hover:border-blue-300 transition-colors">
-                  <div className="flex-1">
-                    <div className="mb-1">
-                      <span className="font-medium text-blue-900">{item.name}</span>
-                    </div>
-                    <p className="text-sm text-blue-600">{tempFormatCurrency(item.price)}</p>
-                  </div>
+          {!cartCollapsed && (
+            <div className="bg-white rounded-xl shadow-sm border border-orange-200 overflow-hidden">
+              {/* Cart Header */}
+              <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 bg-white border-2 border-blue-300 rounded-lg">
+                    <ShoppingCart size={20} />
+                    <div>
+                      <h3 className="font-bold text-lg">Cart Items</h3>
+                      <p className="text-sm text-orange-100">{cartCount} items • {tempFormatCurrency(cartTotal)}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setCart([])}
+                    className="p-2 bg-orange-700 bg-opacity-50 rounded-lg hover:bg-orange-800 transition-colors"
+                    title="Clear cart"
+                  >
+                    <X size={18} className="text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Cart Items */}
+              <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
+                {cart.map(item => (
+                  <div key={item.bar_product_id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-orange-900">{item.name}</span>
+                        <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
+                          {item.category}
+                        </span>
+                      </div>
+                      <p className="text-sm text-orange-600">{tempFormatCurrency(item.price)} each</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-lg">
+                        <button
+                          onClick={() => updateCartQuantity(item.bar_product_id, -1)}
+                          className="p-2 hover:bg-orange-200 transition-colors"
+                        >
+                          <Minus size={16} className="text-orange-700" />
+                        </button>
+                        <span className="font-bold w-8 text-center text-orange-900">{item.quantity}</span>
+                        <button
+                          onClick={() => updateCartQuantity(item.bar_product_id, 1)}
+                          className="p-2 hover:bg-orange-200 transition-colors"
+                        >
+                          <Plus size={16} className="text-orange-700" />
+                        </button>
+                      </div>
                       <button
-                        onClick={() => updateCartQuantity(item.bar_product_id, -1)}
-                        className="p-2 hover:bg-blue-100 transition-colors text-blue-700"
+                        onClick={() => {
+                          const newCart = cart.filter(cartItem => cartItem.bar_product_id !== item.bar_product_id);
+                          setCart(newCart);
+                          sessionStorage.setItem('cart', JSON.stringify(newCart));
+                        }}
+                        className="p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                        title="Remove from cart"
                       >
-                        <Minus size={16} />
-                      </button>
-                      <span className="font-bold w-8 text-center text-blue-900">{item.quantity}</span>
-                      <button
-                        onClick={() => updateCartQuantity(item.bar_product_id, 1)}
-                        className="p-2 hover:bg-blue-100 transition-colors text-blue-700"
-                      >
-                        <Plus size={16} />
+                        <X size={18} className="text-white" />
                       </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        const newCart = cart.filter(cartItem => cartItem.bar_product_id !== item.bar_product_id);
-                        setCart(newCart);
-                        sessionStorage.setItem('cart', JSON.stringify(newCart));
-                        showToast({
-                          type: 'info',
-                          title: 'Item Removed',
-                          message: `${item.name} has been removed from your cart`
-                        });
-                      }}
-                      className="p-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
-                      title="Remove from cart"
-                    >
-                      <X size={18} className="text-white" />
-                    </button>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Cart Footer */}
-            <div className="border-t-2 border-blue-200 p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm text-blue-700 font-semibold">Total Amount</p>
-                  <p className="text-2xl font-bold text-blue-900">{tempFormatCurrency(cartTotal)}</p>
-                </div>
-                <button
-                  onClick={confirmOrder}
-                  disabled={submittingOrder || cart.length === 0}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
-                >
-                  {submittingOrder ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={18} />
-                      Send Order
-                    </>
-                  )}
-                </button>
+                ))}
               </div>
-              <div className="text-center">
-                <p className="text-xs text-blue-600 font-medium">
-                  💡 Add more items or send this order to the staff
-                </p>
+
+              {/* Cart Footer */}
+              <div className="border-t border-orange-200 p-4 bg-orange-50">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm text-orange-600">Total</p>
+                    <p className="text-2xl font-bold text-orange-900">{tempFormatCurrency(cartTotal)}</p>
+                  </div>
+                  <button
+                    onClick={confirmOrder}
+                    disabled={submittingOrder || cart.length === 0}
+                    className="bg-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {submittingOrder ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send size={18} />
+                        Send Order
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Menu Viewer - RENAMED from "Static Menu" */}
+      {(staticMenuUrl || staticMenuType === 'slideshow') && (
+        <div className="p-4">
+          {/* Section Header - NEW */}
+          <div className="mb-3">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PROMOS</h2>
+          </div>
+          
+          <div className="bg-white border border-gray-100 overflow-hidden rounded-lg">
+            {/* Menu Header - UPDATED text */}
+            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-700">Specials</h2>
+              </div>
+              <button
+                onClick={toggleStaticMenu}
+                className="text-orange-600 hover:text-orange-700 p-2 transform transition-transform duration-200 hover:scale-110"
+              >
+                <ChevronDown 
+                  size={20} 
+                  className={`transform transition-transform duration-300 ease-in-out ${
+                    !showStaticMenu ? 'rotate-0' : 'rotate-180'
+                  }`}
+                />
+              </button>
+            </div>
+            
+            {/* Static Menu Content */}
+            <div 
+              className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                !showStaticMenu 
+                  ? 'max-h-0 opacity-0' 
+                  : 'max-h-[70vh] opacity-100'
+              }`}
+            >
+              <div className="relative z-10 bg-gray-900 bg-opacity-95 flex flex-col h-[70vh] min-h-[400px]">
+                {/* Content */}
+                <div className="flex-1 overflow-hidden">
+                  {/* PDF viewer temporarily disabled - only show images */}
+                  {staticMenuType === 'pdf' ? (
+                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                      <div className="text-center text-gray-600 p-8">
+                        <FileText size={48} className="mx-auto mb-4 text-gray-400" />
+                        <h3 className="text-lg font-semibold mb-2">PDF Viewer Temporarily Disabled</h3>
+                        <p className="text-sm">PDF menu viewing is currently unavailable. Please ask staff for assistance or use the interactive menu.</p>
+                      </div>
+                    </div>
+                  ) : staticMenuType === 'slideshow' ? (
+                    // Slideshow viewer - MANUAL ONLY (no auto-play)
+                    <div className="w-full h-full bg-gray-100 flex flex-col overflow-hidden">
+                      <div className="flex-1 overflow-hidden flex items-center justify-center p-4 relative">
+                        {slideshowImages.length === 0 ? (
+                          <div className="text-center text-gray-500">No slideshow images available</div>
+                        ) : (
+                          <>
+                            <div className="aspect-[4/5] max-w-[900px] w-full rounded-lg overflow-hidden shadow-lg transition-all duration-300">
+                              <img
+                                src={slideshowImages[currentSlideIndex]}
+                                alt={`Slide ${currentSlideIndex + 1}`}
+                                className="w-full h-full object-cover"
+                                style={{ transform: `scale(${imageScale})`, transformOrigin: 'center' }}
+                              />
+                            </div>
+
+                            {slideshowImages.length > 1 && (
+                              <>
+                                <button
+                                  onClick={() => setCurrentSlideIndex((idx) => (idx - 1 + slideshowImages.length) % slideshowImages.length)}
+                                  className="absolute left-3 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 shadow"
+                                >
+                                  ‹
+                                </button>
+                                <button
+                                  onClick={() => setCurrentSlideIndex((idx) => (idx + 1) % slideshowImages.length)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 shadow"
+                                >
+                                  ›
+                                </button>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {/* Footer: indicators & controls */}
+                      <div className="bg-white border-t border-gray-200 p-2 flex items-center justify-between gap-2 shrink-0">
+                        <div className="flex items-center gap-2">
+                          {slideshowImages.map((_, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setCurrentSlideIndex(i)}
+                              className={`w-2 h-2 rounded-full ${i === currentSlideIndex ? 'bg-orange-500' : 'bg-gray-300'}`}
+                              title={`Go to slide ${i + 1}`}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {/* Play/Pause button removed since slideshow is manual only */}
+                          <button
+                            onClick={handleImageFitWidth}
+                            className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                            title="Fit to width"
+                          >
+                            <Maximize2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    // Image viewer with zoom
+                    <div className="w-full h-full bg-gray-100 flex flex-col overflow-hidden">
+                      {/* Image Content */}
+                      <div className="flex-1 overflow-auto flex items-center justify-center p-4">
+                        <img 
+                          src={staticMenuUrl ?? undefined} 
+                          alt="Menu" 
+                          className="max-w-full max-h-full object-contain rounded-lg shadow-lg transition-all duration-300"
+                          style={{ 
+                            transform: `scale(${imageScale})`, 
+                            transformOrigin: 'center',
+                            filter: showStaticMenu ? 'brightness(1)' : 'brightness(0.8)'
+                          }}
+                        />
+                      </div>
+                      
+                      {/* Image Zoom Controls */}
+                      <div className="bg-white border-t border-gray-200 p-2 flex items-center justify-center gap-2 shrink-0">
+                        <button
+                          onClick={handleImageZoomOut}
+                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transform transition-all duration-200 hover:scale-110"
+                          title="Zoom out"
+                        >
+                          <ZoomOut size={14} />
+                        </button>
+                        <span className="text-xs text-gray-600 min-w-[40px] text-center">
+                          {Math.round(imageScale * 100)}%
+                        </span>
+                        <button
+                          onClick={handleImageZoomIn}
+                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transform transition-all duration-200 hover:scale-110"
+                          title="Zoom in"
+                        >
+                          <ZoomIn size={14} />
+                        </button>
+                        <button
+                          onClick={handleImageFitWidth}
+                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transform transition-all duration-200 hover:scale-110"
+                          title="Fit to width"
+                        >
+                          <Maximize2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
-    )}
+        </div>
+      )}
 
       <div ref={ordersRef} className="p-4">
         {/* Section Header - NEW */}
@@ -2183,76 +2138,72 @@ export default function MenuPage() {
           </div>
         )}
         <div className="bg-white rounded-lg border border-gray-100 p-4 space-y-0">
-          {/* FIXED: Only show CONFIRMED orders in customer history, not pending orders */}
-          {orders.filter((order: any) => order.status === 'confirmed').length === 0 ? (
+          {orders.length === 0 ? (
             <div className="text-center py-8 text-gray-500"><p>No orders yet</p></div>
           ) : (
-            <div className="space-y-0">
-              {/* FIXED: Only show CONFIRMED orders in customer history */}
-              {orders.filter((order: any) => order.status === 'confirmed').map((order: any, index: number) => {
-                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-                const initiatedBy = order.initiated_by || 'customer';
-                const isStaffOrder = initiatedBy === 'staff';
-                const needsApproval = order.status === 'pending' && isStaffOrder;
-                
-                // ✅ FIXED: Use database order_number directly
-                const orderNumber = order.order_number || '?';
-                
-                return (
-                  <div key={order.id}>
-                    <div className="py-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-sm font-medium text-gray-900">Order #{orderNumber}</span>
-                          <span className="text-xs text-gray-400">{timeAgo(order.created_at)}</span>
-                        </div>
-                        <p className="text-sm font-medium text-gray-900">{tempFormatCurrency(order.total)}</p>
+            orders.filter(order => order.status !== 'cancelled').map((order, index) => {
+              const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+              const initiatedBy = order.initiated_by || 'customer';
+              const isStaffOrder = initiatedBy === 'staff';
+              const needsApproval = order.status === 'pending' && isStaffOrder;
+              
+              // ✅ FIXED: Use database order_number directly
+              const orderNumber = order.order_number || '?';
+              
+              return (
+                <div key={order.id}>
+                  <div className="py-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-medium text-gray-900">Order #{orderNumber}</span>
+                        <span className="text-xs text-gray-400">{timeAgo(order.created_at)}</span>
                       </div>
-                      <div className="space-y-1">
-                        {items.map((item: any, i: number) => (
-                          <div key={i} className="flex justify-between">
-                            <p className="text-xs text-gray-600">{item.quantity}x {item.name}</p>
-                            <p className="text-xs text-gray-500">{tempFormatCurrency(item.total)}</p>
-                          </div>
-                        ))}
-                      </div>
-                      {needsApproval && (
-                        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mt-3">
-                          <div className="flex items-start gap-2 mb-3">
-                            <UserCog size={20} className="text-yellow-700 flex-shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-sm font-semibold text-yellow-900 mb-1">Staff Member Added This Order</p>
-                              <p className="text-xs text-yellow-800">Please review and approve or reject</p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => handleApproveOrder(order.id)} disabled={approvingOrder === order.id} className="flex-1 bg-green-500 text-white py-3 rounded-lg text-sm font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2">
-                              <ThumbsUp size={16} />
-                              {approvingOrder === order.id ? 'Approving...' : 'Approve'}
-                            </button>
-                            <button onClick={() => handleRejectOrder(order.id)} disabled={approvingOrder === order.id} className="flex-1 bg-red-500 text-white py-3 rounded-lg text-sm font-semibold hover:bg-red-600 disabled:bg-gray-300 flex items-center justify-center gap-2">
-                              <X size={16} />
-                              {approvingOrder === order.id ? 'Rejecting...' : 'Reject'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      {order.status === 'pending' && !isStaffOrder && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mt-3">
-                          <p className="text-xs text-yellow-700 flex items-center gap-1">
-                            <Clock size={12} />
-                            Waiting for staff confirmation...
-                          </p>
-                        </div>
-                      )}
+                      <p className="text-sm font-medium text-gray-900">{tempFormatCurrency(order.total)}</p>
                     </div>
-                    {index < orders.filter((order: any) => order.status === 'confirmed').length - 1 && (
-                      <div className="border-b border-gray-100"></div>
+                    <div className="space-y-1">
+                      {items.map((item: any, i: number) => (
+                        <div key={i} className="flex justify-between">
+                          <p className="text-xs text-gray-600">{item.quantity}x {item.name}</p>
+                          <p className="text-xs text-gray-500">{tempFormatCurrency(item.total)}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {needsApproval && (
+                      <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mt-3">
+                        <div className="flex items-start gap-2 mb-3">
+                          <UserCog size={20} className="text-yellow-700 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-yellow-900 mb-1">Staff Member Added This Order</p>
+                            <p className="text-xs text-yellow-800">Please review and approve or reject</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleApproveOrder(order.id)} disabled={approvingOrder === order.id} className="flex-1 bg-green-500 text-white py-3 rounded-lg text-sm font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2">
+                            <ThumbsUp size={16} />
+                            {approvingOrder === order.id ? 'Approving...' : 'Approve'}
+                          </button>
+                          <button onClick={() => handleRejectOrder(order.id)} disabled={approvingOrder === order.id} className="flex-1 bg-red-500 text-white py-3 rounded-lg text-sm font-semibold hover:bg-red-600 disabled:bg-gray-300 flex items-center justify-center gap-2">
+                            <X size={16} />
+                            {approvingOrder === order.id ? 'Rejecting...' : 'Reject'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {order.status === 'pending' && !isStaffOrder && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mt-3">
+                        <p className="text-xs text-yellow-700 flex items-center gap-1">
+                          <Clock size={12} />
+                          Waiting for staff confirmation...
+                        </p>
+                      </div>
                     )}
                   </div>
-                );
-              })}
-            </div>
+                  {index < orders.length - 1 && (
+                    <div className="border-b border-gray-100"></div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </div>
@@ -2455,7 +2406,7 @@ export default function MenuPage() {
         </div>
       )}
       
-      {balance === 0 && orders.filter((order: any) => order.status === 'confirmed').length > 0 && (
+      {balance === 0 && orders.filter(order => order.status === 'confirmed').length > 0 && (
         <div className="bg-white p-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">All Paid! 🎉</h2>
           <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-4 text-center">
@@ -2746,7 +2697,7 @@ export default function MenuPage() {
             setShowCloseConfirm(true);
           }}
           className={`w-full py-3 rounded-xl font-medium transition ${
-            orders.filter((order: any) => order.status === 'confirmed').length === 0 
+            orders.filter(order => order.status === 'confirmed').length === 0 
               ? 'text-green-600 hover:bg-green-50' 
               : balance > 0 
                 ? 'text-red-600 hover:bg-red-50'
@@ -2794,21 +2745,6 @@ export default function MenuPage() {
         initialMessages={telegramMessages}
         onMessageSent={loadTelegramMessages}
       />
-      
-      <style jsx global>{`
-        @keyframes slideUp {
-          from {
-            transform: translateY(100%);
-          }
-          to {
-            transform: translateY(0);
-          }
-        }
-        
-        .animate-slideUp {
-          animation: slideUp 0.3s ease-out;
-        }
-      `}</style>
     </div>
   );
 }
