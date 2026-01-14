@@ -761,13 +761,13 @@ export default function TabsPage() {
                     onClick={() => router.push(`/tabs/${tab.id}`)}
                     className={`rounded-xl p-4 shadow-sm hover:shadow-lg cursor-pointer transition transform hover:scale-105 ${
                       hasPendingOrders 
-                        ? 'bg-gray-100 border-2 animate-flash-red' 
+                        ? 'bg-gray-900 border-2 animate-flash-red text-white' 
                         : 'bg-white border border-transparent'
                     }`}
 >
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-lg font-bold text-gray-800 truncate">{getDisplayName(tab)}</h3>
+                        <h3 className={`text-lg font-bold truncate ${hasPendingOrders ? 'text-white' : 'text-gray-800'}`}>{getDisplayName(tab)}</h3>
                         <div className="flex items-center gap-2">
                           {tab.unreadMessages > 0 && (
                             <div className="bg-blue-500 text-white rounded-lg p-1 relative">
@@ -784,39 +784,34 @@ export default function TabsPage() {
                           )}
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500">Opened {timeAgo(tab.opened_at)}</p>
+                      <p className={`text-xs ${hasPendingOrders ? 'text-gray-300' : 'text-gray-500'}`}>Opened {timeAgo(tab.opened_at)}</p>
                     </div>
 
                     {/* Balance section - changed from rounded-lg to rounded */}
-                    <div className="text-center py-4 bg-orange-50 rounded mb-3 border border-orange-100">
-                      <p className={`text-2xl font-bold ${balance > 0 ? 'text-orange-700' : 'text-green-600'}`}>
+                    <div className={`text-center py-4 rounded-lg mb-3 ${
+                      hasPendingOrders ? 'bg-gray-800' : 'bg-orange-50'
+                    }`}>
+                      <p className={`text-2xl font-bold ${
+                        hasPendingOrders 
+                          ? 'text-white' 
+                          : balance > 0 ? 'text-orange-700' : 'text-green-600'
+                      }`}>
                         {formatCurrency(balance)}
                       </p>
-                      <p className="text-xs text-gray-500">Balance</p>
+                      <p className={`text-xs ${hasPendingOrders ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Balance
+                      </p>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-gray-600 pt-3 border-t border-gray-100">
-                      <span className="font-medium">{tab.orders?.length || 0} orders</span>
-                      <div className="text-right">
-                        {hasPending ? (
-                          <div className="text-amber-600 font-medium">
-                            <div className="flex items-center gap-1">
-                              <AlertCircle size={10} />
-                              <span className="font-mono text-xs">
-                                {calculatePendingWaitTime([{
-                                  orders: tab.orders?.filter((o: any) => o.status === 'pending') || [],
-                                  unreadMessages: tab.unreadMessages || 0
-                                }], currentTime)}
-                              </span>
-                            </div>
-                            <div className="text-xs font-medium">
-                              {(tab.orders?.filter((o: any) => o.status === 'pending').length || 0) + (tab.unreadMessages || 0)} pending
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-green-600 font-medium">No pending</span>
-                        )}
-                      </div>
+                    <div className={`flex items-center justify-between text-xs pt-3 border-t ${
+                      hasPendingOrders 
+                        ? 'text-gray-300 border-gray-700' 
+                        : 'text-gray-600 border-gray-100'
+                    }`}>
+                      <span>{tab.orders?.length || 0} orders</span>
+                      <span className={hasPendingOrders ? 'text-yellow-300 font-medium' : 'text-yellow-600 font-medium'}>
+                        {tab.orders?.filter((o: any) => o.status === 'pending').length || 0} pending
+                      </span>
                     </div>
                   </div>
                 );
