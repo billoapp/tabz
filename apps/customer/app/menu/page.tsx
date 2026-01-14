@@ -1265,7 +1265,11 @@ export default function MenuPage() {
 
   const confirmRejectOrder = async () => {
     if (!rejectingOrderId || !selectedRejectionReason) {
-      alert('Please select a reason for rejection');
+      showToast({
+        type: 'error',
+        title: 'Missing Reason',
+        message: 'Please select a reason for rejection'
+      });
       return;
     }
 
@@ -1278,22 +1282,38 @@ export default function MenuPage() {
           cancelled_at: new Date().toISOString(),
           rejection_reason: selectedRejectionReason,
           cancelled_by: 'customer'
-        })
+        } as any)
         .eq('id', rejectingOrderId);
 
-      if (error) {
-        console.error('Error rejecting order:', error);
-        alert('Failed to reject order');
-        return;
-      }
-    } catch (error) {
-      console.error('Error in confirmRejectOrder:', error);
-      alert('An error occurred while rejecting order');
-    } finally {
-      setApprovingOrder(null);
+      if (error) throw error;
+    
+      // Show success message
+      showToast({
+        type: 'success',
+        title: 'Order Rejected',
+        message: 'The staff order has been rejected'
+      });
+      
+      // Close modal immediately
       setShowRejectModal(false);
       setRejectingOrderId(null);
       setSelectedRejectionReason('');
+      
+      // Mark this order as processed
+      setProcessedOrders(prev => new Set([...prev, rejectingOrderId]));
+      
+      // Reload data
+      await loadTabData();
+      
+    } catch (error) {
+      console.error('Error in confirmRejectOrder:', error);
+      showToast({
+        type: 'error',
+        title: 'Rejection Failed',
+        message: 'An error occurred while rejecting order'
+      });
+    } finally {
+      setApprovingOrder(null);
     }
   };
 
@@ -1530,7 +1550,9 @@ export default function MenuPage() {
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const tabTotal = orders.filter(order => order.status === 'confirmed').reduce((sum, order) => sum + parseFloat(order.total), 0);
+  const tabTotal = orders
+    .filter(order => order.status === 'confirmed' && order.status !== 'cancelled')
+    .reduce((sum, order) => sum + parseFloat(order.total), 0);
   const paidTotal = payments.filter(payment => payment.status === 'success').reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
   const balance = tabTotal - paidTotal;
   const pendingStaffOrders = orders.filter(o => o.status === 'pending' && o.initiated_by === 'staff').length;

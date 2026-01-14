@@ -205,30 +205,6 @@ const HighVisibilityAlert = ({
               Auto-hides in: <span className="countdown">{count}</span>s
             </p>
           </div>
-          <style jsx global>{`
-            .hide-scrollbar::-webkit-scrollbar {
-              display: none;
-            }
-            .hide-scrollbar {
-              -ms-overflow-style: none;
-              scrollbar-width: none;
-            }
-            
-            @keyframes flash-red {
-              0%, 100% { 
-                border-color: #ef4444;
-                box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
-              }
-              50% { 
-                border-color: #dc2626;
-                box-shadow: 0 0 16px rgba(220, 38, 38, 0.6);
-              }
-            }
-            
-            .animate-flash-red {
-              animation: flash-red 1.5s ease-in-out infinite;
-            }
-          `}</style>
           
           {/* Instructions */}
           <div className="bg-white bg-opacity-20 rounded-xl p-4">
@@ -271,7 +247,6 @@ export default function TabsPage() {
   // Alert state
   const [showAlert, setShowAlert] = useState(false);
   const [alertType, setAlertType] = useState<'order' | 'message'>('order');
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     return () => {
@@ -477,6 +452,83 @@ export default function TabsPage() {
           }
         )
         .subscribe();
+
+      // 🔥 CRITICAL FIX: Add subscription for customer cancellations
+      const customerCancellationSubscription = supabase
+        .channel(`customer-cancellation-updates-${bar.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'tab_orders',
+            filter: `initiated_by=eq.staff` // Only staff-initiated orders
+          },
+          async (payload: any) => {
+            console.log('🔄 Staff order update:', {
+              eventType: payload.eventType,
+              new: payload.new,
+              old: payload.old
+            });
+            
+            // Check if customer cancelled a staff order
+            const isCustomerCancellation = (
+              payload.new?.status === 'cancelled' && 
+              payload.old?.status === 'pending' &&
+              payload.new?.cancelled_by === 'customer'
+            );
+            
+            if (isCustomerCancellation) {
+              console.log('❌ Customer cancelled staff order:', payload.new.id);
+              
+              // Show toast notification to staff
+              // You would need to implement a toast system or show a banner
+              console.log('📢 NOTIFY STAFF: Customer rejected your order');
+              
+              // Refresh tabs data
+              await loadTabs();
+            }
+          }
+        )
+        .subscribe();
+
+      // 🔥 CRITICAL FIX: Add subscription for staff cancellations
+      const staffCancellationSubscription = supabase
+        .channel(`staff-cancellation-updates-${bar.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'tab_orders',
+            filter: `initiated_by=eq.customer` // Only customer-initiated orders
+          },
+          async (payload: any) => {
+            console.log('🔄 Customer order update:', {
+              eventType: payload.eventType,
+              new: payload.new,
+              old: payload.old
+            });
+            
+            // Check if staff cancelled a customer order
+            const isStaffCancellation = (
+              payload.new?.status === 'cancelled' && 
+              payload.old?.status !== 'cancelled' &&
+              payload.new?.cancelled_by === 'staff'
+            );
+            
+            if (isStaffCancellation) {
+              console.log('❌ Staff cancelled customer order:', payload.new.id);
+              
+              // Refresh tabs data to remove cancelled order from UI
+              await loadTabs();
+              
+              // Show toast notification to staff (optional)
+              console.log('📢 Staff: Order cancelled successfully');
+            }
+          }
+        )
+        .subscribe();
     
       return () => {
         clearInterval(interval);
@@ -484,6 +536,8 @@ export default function TabsPage() {
         telegramAckSubscription.unsubscribe();
         customerOrderSubscription.unsubscribe();
         staffOrderSubscription.unsubscribe();
+        customerCancellationSubscription.unsubscribe();
+        staffCancellationSubscription.unsubscribe();
       };
     }
   }, [bar]);
@@ -522,7 +576,9 @@ export default function TabsPage() {
   };
 
   const getTabBalance = (tab: any) => {
-    const ordersTotal = tab.orders?.reduce((sum: number, order: any) => 
+    // Only count non-cancelled orders
+    const validOrders = tab.orders?.filter((o: any) => o.status !== 'cancelled') || [];
+    const ordersTotal = validOrders.reduce((sum: number, order: any) => 
       sum + parseFloat(order.total), 0) || 0;
     const paymentsTotal = tab.payments?.filter((p: any) => p.status === 'success')
       .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
@@ -545,14 +601,24 @@ export default function TabsPage() {
                          tab.owner_identifier?.includes(searchQuery);
     const matchesFilter = filterStatus === 'all' || tab.status === filterStatus;
     
-    const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending' && o.status !== 'cancelled');
+    // Filter out cancelled orders when checking for pending
+    const hasPendingOrders = tab.orders?.some((o: any) => 
+      o.status === 'pending' && 
+      o.status !== 'cancelled'
+    );
     const hasPendingMessages = (tab.unreadMessages || 0) > 0;
     const matchesPendingFilter = filterStatus !== 'pending' || hasPendingOrders || hasPendingMessages;
     
     return matchesSearch && matchesFilter && matchesPendingFilter;
   }).sort((a, b) => {
-    const aHasPendingOrders = a.orders?.some((o: any) => o.status === 'pending' && o.status !== 'cancelled');
-    const bHasPendingOrders = b.orders?.some((o: any) => o.status === 'pending' && o.status !== 'cancelled');
+    const aHasPendingOrders = a.orders?.some((o: any) => 
+      o.status === 'pending' && 
+      o.status !== 'cancelled'
+    );
+    const bHasPendingOrders = b.orders?.some((o: any) => 
+      o.status === 'pending' && 
+      o.status !== 'cancelled'
+    );
     const aHasPendingMessages = (a.unreadMessages || 0) > 0;
     const bHasPendingMessages = (b.unreadMessages || 0) > 0;
     
@@ -573,10 +639,16 @@ export default function TabsPage() {
 
   const stats = {
     totalTabs: tabs.filter(t => t.status === 'open').length,
-    totalRevenue: tabs.reduce((sum, tab) => 
-      sum + (tab.orders?.reduce((s: number, o: any) => s + parseFloat(o.total), 0) || 0), 0),
+    totalRevenue: tabs.reduce((sum, tab) => {
+      // Only count non-cancelled orders for revenue
+      const validOrders = tab.orders?.filter((o: any) => o.status !== 'cancelled') || [];
+      return sum + (validOrders.reduce((s: number, o: any) => s + parseFloat(o.total), 0) || 0);
+    }, 0),
     pendingOrders: tabs.reduce((sum, tab) => 
-      sum + (tab.orders?.filter((o: any) => o.status === 'pending' && o.status !== 'cancelled').length || 0), 0),
+      sum + (tab.orders?.filter((o: any) => 
+        o.status === 'pending' && 
+        o.status !== 'cancelled'
+      ).length || 0), 0),
     pendingMessages: tabs.reduce((sum, tab) => 
       sum + (tab.unreadMessages || 0), 0),
   };
@@ -649,7 +721,7 @@ export default function TabsPage() {
                 <DollarSign size={16} className="text-orange-200" />
                 <span className="text-sm text-orange-200">Orders</span>
               </div>
-              <p className="text-2xl font-bold text-white">{tabs.reduce((sum, tab) => sum + (tab.orders?.length || 0), 0)}</p>
+              <p className="text-2xl font-bold text-white">{tabs.reduce((sum, tab) => sum + (tab.orders?.filter((o: any) => o.status !== 'cancelled').length || 0), 0)}</p>
             </div>
             <div className="bg-gradient-to-r from-amber-600 to-amber-700 rounded-lg p-4 border-2 border-amber-400 shadow-lg shadow-amber-500/25">
               <div className="flex items-center gap-2 mb-1">
@@ -751,7 +823,10 @@ export default function TabsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredTabs.map(tab => {
                 const balance = getTabBalance(tab);
-                const hasPendingOrders = tab.orders?.some((o: any) => o.status === 'pending' && o.status !== 'cancelled');
+                const hasPendingOrders = tab.orders?.some((o: any) => 
+                  o.status === 'pending' && 
+                  o.status !== 'cancelled'
+                );
                 const hasPendingMessages = (tab.unreadMessages || 0) > 0;
                 const hasPending = hasPendingOrders || hasPendingMessages;
                 
@@ -759,12 +834,12 @@ export default function TabsPage() {
                   <div 
                     key={tab.id} 
                     onClick={() => router.push(`/tabs/${tab.id}`)}
-                    className={`rounded-xl p-4 shadow-sm hover:shadow-lg cursor-pointer transition transform hover:scale-105 ${
+                    className={`rounded-lg p-4 shadow-sm hover:shadow-lg cursor-pointer transition transform hover:scale-105 ${
                       hasPendingOrders 
-                        ? 'bg-gray-900 border-2 animate-flash-red text-white' 
-                        : 'bg-white border border-transparent'
+                        ? 'bg-gradient-to-br from-red-900 to-red-800 border-2 border-red-500 animate-pulse text-white' 
+                        : 'bg-white border border-gray-200'
                     }`}
->
+                  >
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className={`text-lg font-bold truncate ${hasPendingOrders ? 'text-white' : 'text-gray-800'}`}>{getDisplayName(tab)}</h3>
@@ -787,7 +862,7 @@ export default function TabsPage() {
                       <p className={`text-xs ${hasPendingOrders ? 'text-gray-300' : 'text-gray-500'}`}>Opened {timeAgo(tab.opened_at)}</p>
                     </div>
 
-                    {/* Balance section - changed from rounded-lg to rounded */}
+                    {/* Balance section */}
                     <div className={`text-center py-4 rounded-lg mb-3 ${
                       hasPendingOrders ? 'bg-gray-800' : 'bg-orange-50'
                     }`}>
@@ -808,9 +883,9 @@ export default function TabsPage() {
                         ? 'text-gray-300 border-gray-700' 
                         : 'text-gray-600 border-gray-100'
                     }`}>
-                      <span>{tab.orders?.length || 0} orders</span>
+                      <span>{tab.orders?.filter((o: any) => o.status !== 'cancelled').length || 0} orders</span>
                       <span className={hasPendingOrders ? 'text-yellow-300 font-medium' : 'text-yellow-600 font-medium'}>
-                        {tab.orders?.filter((o: any) => o.status === 'pending').length || 0} pending
+                        {tab.orders?.filter((o: any) => o.status === 'pending' && o.status !== 'cancelled').length || 0} pending
                       </span>
                     </div>
                   </div>
@@ -826,6 +901,51 @@ export default function TabsPage() {
           type={alertType}
           onDismiss={() => setShowAlert(false)}
         />
+
+        {/* CSS Animations */}
+        <style jsx global>{`
+          .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+          .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+          
+          @keyframes flash-red {
+            0%, 100% { 
+              border-color: #ef4444;
+              box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+            }
+            50% { 
+              border-color: #dc2626;
+              box-shadow: 0 0 16px rgba(220, 38, 38, 0.6);
+            }
+          }
+          
+          .animate-flash-red {
+            animation: flash-red 1.5s ease-in-out infinite;
+          }
+          
+          @keyframes flash {
+            0%, 100% { background-color: rgba(0, 0, 0, 0.9); }
+            50% { background-color: rgba(220, 38, 38, 0.9); }
+          }
+          
+          @keyframes borderPulse {
+            0%, 100% { border-color: rgba(245, 158, 11, 0.5); }
+            50% { border-color: rgba(245, 158, 11, 1); }
+          }
+          
+          @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 150px rgba(255, 100, 0, 0.5); }
+            50% { box-shadow: 0 0 200px rgba(255, 100, 0, 1); }
+          }
+          
+          .countdown {
+            font-variant-numeric: tabular-nums;
+          }
+        `}</style>
       </div>
     </div>
   );
