@@ -205,6 +205,30 @@ const HighVisibilityAlert = ({
               Auto-hides in: <span className="countdown">{count}</span>s
             </p>
           </div>
+          <style jsx global>{`
+            .hide-scrollbar::-webkit-scrollbar {
+              display: none;
+            }
+            .hide-scrollbar {
+              -ms-overflow-style: none;
+              scrollbar-width: none;
+            }
+            
+            @keyframes flash-red {
+              0%, 100% { 
+                border-color: #ef4444;
+                box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+              }
+              50% { 
+                border-color: #dc2626;
+                box-shadow: 0 0 16px rgba(220, 38, 38, 0.6);
+              }
+            }
+            
+            .animate-flash-red {
+              animation: flash-red 1.5s ease-in-out infinite;
+            }
+          `}</style>
           
           {/* Instructions */}
           <div className="bg-white bg-opacity-20 rounded-xl p-4">
@@ -735,8 +759,12 @@ export default function TabsPage() {
                   <div 
                     key={tab.id} 
                     onClick={() => router.push(`/tabs/${tab.id}`)}
-                    className="bg-white rounded-lg p-4 shadow-sm hover:shadow-lg cursor-pointer transition border border-gray-100 hover:border-orange-200"
-                  >
+                    className={`rounded-xl p-4 shadow-sm hover:shadow-lg cursor-pointer transition transform hover:scale-105 ${
+                      hasPendingOrders 
+                        ? 'bg-gray-100 border-2 animate-flash-red' 
+                        : 'bg-white border border-transparent'
+                    }`}
+>
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-lg font-bold text-gray-800 truncate">{getDisplayName(tab)}</h3>
