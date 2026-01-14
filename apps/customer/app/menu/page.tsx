@@ -1339,6 +1339,9 @@ export default function MenuPage() {
     setCart(newCart);
     sessionStorage.setItem('cart', JSON.stringify(newCart));
     
+    // Auto-open cart when items are added
+    setCartCollapsed(false);
+    
     // Show toast notification for cart addition
     showToast({
       type: 'success',
@@ -2031,6 +2034,25 @@ export default function MenuPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Floating Cart Button */}
+      {cart.length > 0 && (
+        <button
+          onClick={toggleCart}
+          className="fixed bottom-6 right-6 z-50 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:from-blue-700 hover:to-indigo-800 hover:scale-110 active:scale-95 transition-all duration-200 animate-bounce-once"
+          style={{ 
+            animation: 'bounceOnce 0.5s ease-out',
+            boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.5), 0 10px 10px -5px rgba(79, 70, 229, 0.2)'
+          }}
+        >
+          <div className="relative">
+            <ShoppingCart size={24} />
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-md">
+              {cartCount}
+            </span>
+          </div>
+        </button>
       )}
 
       {/* Menu Viewer - RENAMED from "Static Menu" */}
