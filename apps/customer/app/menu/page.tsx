@@ -170,7 +170,7 @@ export default function MenuPage() {
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
 
   // THREE COLLAPSIBLE SECTIONS - all start closed
-  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(true);
+  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(false);
   const [cartCollapsed, setCartCollapsed] = useState(true);
   const [paymentCollapsed, setPaymentCollapsed] = useState(true);
 
