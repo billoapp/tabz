@@ -527,6 +527,45 @@ export default function TabDetailPage() {
     }
   };
 
+  const handleCancelOrder = async (orderId: string, initiatedBy: string) => {
+    if (initiatedBy === 'staff') {
+      showToast({
+        type: 'warning',
+        title: 'Cannot Cancel',
+        message: 'Staff orders cannot be cancelled after submission'
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('tab_orders')
+        .update({ 
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      loadTabData();
+      
+      showToast({
+        type: 'success',
+        title: 'Order Cancelled',
+        message: 'Customer order has been cancelled'
+      });
+      
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      showToast({
+        type: 'error',
+        title: 'Failed to Cancel Order',
+        message: 'Please try again'
+      });
+    }
+  };
+
   const handleAddCashPayment = async () => {
     const amount = prompt('Enter cash amount:');
     if (!amount || isNaN(Number(amount))) return;
@@ -1392,12 +1431,20 @@ export default function TabDetailPage() {
                       {order.status === 'pending' && (
                         <>
                           {initiatedBy === 'customer' ? (
-                            <button
-                              onClick={() => handleMarkServed(order.id, initiatedBy)}
-                              className="w-full bg-green-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-600"
-                            >
-                              Mark as Served
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleCancelOrder(order.id, initiatedBy)}
+                                className="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-600"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleMarkServed(order.id, initiatedBy)}
+                                className="flex-1 bg-green-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-600"
+                              >
+                                Mark as Served
+                              </button>
+                            </div>
                           ) : (
                             <div className="w-full bg-blue-50 border border-blue-200 text-blue-700 py-2 rounded-lg text-sm font-medium text-center">
                               ⏳ Waiting for customer approval
