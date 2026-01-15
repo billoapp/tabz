@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/Toast';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 import PDFViewer from '../../../../components/PDFViewer'; 
 import MessagePanel from './MessagePanel';
+import { playCustomerNotification } from '@/lib/notifications'; // ADDED MISSING IMPORT
 
 // Temporary format function to bypass import issue
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -58,6 +59,10 @@ interface Tab {
   bar_id: string;
   tab_number?: string;
   notes?: string;
+  // Added notification columns
+  notifications_enabled?: boolean;
+  sound_enabled?: boolean;
+  vibration_enabled?: boolean;
   bar?: {
     id: string;
     name: string;
@@ -421,6 +426,111 @@ export default function MenuPage() {
     }
   }, [tab?.bar_id]);
 
+  // Customer notification preferences
+  const [notificationPrefs, setNotificationPrefs] = useState({
+    notificationsEnabled: true,
+    soundEnabled: true,
+    vibrationEnabled: true
+  });
+
+  // Load notification preferences when tab loads - FIXED VERSION
+  // Load notification preferences when tab loads - FIXED VERSION
+  const loadNotificationPrefs = async () => {
+    if (!tab) return;
+    
+    try {
+      // Only query columns that exist in the database
+      const { data, error } = await supabase
+        .from('tabs')
+        .select('sound_enabled, vibration_enabled, notes')
+        .eq('id', tab.id)
+        .single();
+      
+      if (error) {
+        console.error('Error loading notification preferences:', error);
+        // Use defaults on error
+        setNotificationPrefs({
+          notificationsEnabled: true,
+          soundEnabled: true,
+          vibrationEnabled: true
+        });
+        return;
+      }
+      
+      // Type assertion to handle the data
+      const tabData = data as {
+        sound_enabled?: boolean;
+        vibration_enabled?: boolean;
+        notes?: string;
+      };
+      
+      if (!tabData) {
+        // Use defaults if no data
+        setNotificationPrefs({
+          notificationsEnabled: true,
+          soundEnabled: true,
+          vibrationEnabled: true
+        });
+        return;
+      }
+      
+      // Extract values from database columns
+      const soundEnabled = tabData.sound_enabled ?? true;
+      const vibrationEnabled = tabData.vibration_enabled ?? true;
+      
+      // For notifications_enabled, we need to check if both sound AND vibration are enabled
+      // or check in notes, or default to true
+      let notificationsEnabled = true;
+      
+      if (tabData.notes) {
+        try {
+          const notes = JSON.parse(tabData.notes);
+          // Check if notifications_enabled exists in notes (legacy storage)
+          if (typeof notes.notifications_enabled !== 'undefined') {
+            notificationsEnabled = notes.notifications_enabled;
+          } else {
+            // If not in notes, determine based on sound and vibration
+            notificationsEnabled = soundEnabled || vibrationEnabled;
+          }
+        } catch (e) {
+          // If JSON parse fails, determine based on sound and vibration
+          notificationsEnabled = soundEnabled || vibrationEnabled;
+        }
+      } else {
+        // No notes, determine based on sound and vibration
+        notificationsEnabled = soundEnabled || vibrationEnabled;
+      }
+      
+      setNotificationPrefs({
+        notificationsEnabled,
+        soundEnabled,
+        vibrationEnabled
+      });
+      
+      console.log('🔔 Loaded notification preferences:', {
+        notificationsEnabled,
+        soundEnabled,
+        vibrationEnabled,
+        fromNotes: !!tabData.notes
+      });
+    } catch (error) {
+      console.error('Error loading notification preferences:', error);
+      // Use defaults on error
+      setNotificationPrefs({
+        notificationsEnabled: true,
+        soundEnabled: true,
+        vibrationEnabled: true
+      });
+    }
+  };
+
+  // Load notification preferences when tab loads
+  useEffect(() => {
+    if (tab?.id) {
+      loadNotificationPrefs();
+    }
+  }, [tab?.id]);
+
   // Set up real-time subscriptions with improved error handling and debouncing
   const realtimeConfigs = [
     {
@@ -701,8 +811,8 @@ export default function MenuPage() {
           if (payload.new?.initiated_by === 'staff' && 
               payload.eventType === 'INSERT') {
             
-            buzz([200]);
-            playAcceptanceSound();
+            // FIXED: Use the imported playCustomerNotification function
+            playCustomerNotification(notificationPrefs.soundEnabled, notificationPrefs.vibrationEnabled);
             
             setNewMessageAlert({
               type: 'acknowledged',
