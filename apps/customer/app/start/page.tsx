@@ -208,7 +208,7 @@ function ConsentContent() {
   }, []);
 
   useEffect(() => {
-    const initDebugDeviceId = () => {
+    const initDebugDeviceId = async () => {
       const id = getDeviceId();
       setDebugDeviceId(id.slice(0, 20));
     };
@@ -246,7 +246,7 @@ function ConsentContent() {
         return;
       }
       
-      // Get device ID first - FIXED: remove supabase parameter
+      // Get device ID first
       const deviceId = getDeviceId();
       
       // Get bar slug from URL or sessionStorage
@@ -272,7 +272,6 @@ function ConsentContent() {
       setLoading(false);
     }
   };
-
   const loadBarInfo = async (slug: string) => {
     try {
       console.log('🔍 Loading bar info for slug:', slug);
@@ -313,7 +312,7 @@ function ConsentContent() {
       // Check if bar is currently open for business BEFORE showing consent form
       try {
         // First check if user has existing overdue tabs for this bar
-        const deviceId = getDeviceId(); // FIXED: remove supabase parameter
+        const deviceId = getDeviceId();
         const barDeviceKey = getBarDeviceKey(bar.id);
         
         const { data: existingTabs } = await (supabase as any)
@@ -422,13 +421,13 @@ function ConsentContent() {
               // Check if opening time is later today or tomorrow
               if (currentHour < openHour) {
                 // Opens later today
-                nextOpenTime = `today at ${bar.business_hours_simple.openTime} am`;
+                nextOpenTime = `today at ${bar.business_hours_simple.openTime}`;
               } else {
                 // Opens tomorrow
                 const tomorrow = new Date();
                 tomorrow.setDate(tomorrow.getDate() + 1);
                 tomorrow.setHours(openHour, openMinute, 0, 0);
-                nextOpenTime = `tomorrow at ${bar.business_hours_simple.openTime} am`;
+                nextOpenTime = `tomorrow at ${bar.business_hours_simple.openTime}`;
               }
             }
 
@@ -478,12 +477,12 @@ function ConsentContent() {
 
     setCreating(true);
 
-    const deviceId = getDeviceId(); // FIXED: remove supabase parameter
-    const barDeviceKey = getBarDeviceKey(barId); // FIXED: use getBarDeviceKey instead of getBarDeviceKeySync
-    
     try {
-      // Check for existing tab one more time (safety check)
-      const { data: existingTab } = await (supabase as any)
+      // First check if user has existing overdue tabs for this bar
+      const deviceId = getDeviceId();
+      const barDeviceKey = getBarDeviceKey(barId);
+
+      const { data: existingTab, error } = await (supabase as any)
         .from('tabs')
         .select('*')
         .eq('bar_id', barId)
@@ -533,10 +532,22 @@ function ConsentContent() {
         return;
       }
 
-      // Create new tab
-      let displayName: string;
-      let tabNumber: number | null;
+      // Get next tab number
+      const { data: existingTabs } = await (supabase as any)
+        .from('tabs')
+        .select('tab_number')
+        .eq('bar_id', barId)
+        .not('tab_number', 'is', null)
+        .order('tab_number', { ascending: true })
+        .limit(1);
+
+      const nextNumber = existingTabs && existingTabs.length > 0 
+        ? existingTabs[0].tab_number + 1 
+        : 1;
       
+      let displayName = `Tab ${nextNumber}`;
+      let tabNumber = nextNumber;
+
       if (nickname.trim()) {
         // Check for nickname conflicts
         const { data: existingNicknames } = await (supabase as any)
@@ -595,22 +606,6 @@ function ConsentContent() {
         
         displayName = finalNickname;
         tabNumber = null;
-      } else {
-        // Get next tab number
-        const { data: existingTabs } = await (supabase as any)
-          .from('tabs')
-          .select('tab_number')
-          .eq('bar_id', barId)
-          .not('tab_number', 'is', null)
-          .order('tab_number', { ascending: false })
-          .limit(1);
-
-        const nextNumber = existingTabs && existingTabs.length > 0 
-          ? existingTabs[0].tab_number + 1 
-          : 1;
-        
-        displayName = `Tab ${nextNumber}`;
-        tabNumber = nextNumber;
       }
 
       // Create tab in database
@@ -683,7 +678,7 @@ function ConsentContent() {
       showToast({
         type: 'error',
         title: 'Tab Creation Failed',
-        message: error.message || 'Please try again or contact staff'
+        message: error?.message || 'Please try again or contact staff'
       });
       setCreating(false);
     }
@@ -990,7 +985,7 @@ function ConsentContent() {
       </div>
     </>
   );
-};
+}
 
 export default function ConsentPage() {
   return (

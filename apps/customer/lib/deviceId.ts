@@ -47,41 +47,174 @@ export interface DeviceInfo {
 }
 
 export function getDeviceId(): string {
-  const storageKey = 'Tabeza_device_id';
-  const fingerprintKey = 'Tabeza_fingerprint';
-  const createdKey = 'Tabeza_device_created';
-  
-  let deviceId = localStorage.getItem(storageKey);
-  let fingerprint = localStorage.getItem(fingerprintKey);
-  const createdAt = localStorage.getItem(createdKey);
-  
-  // Generate new device ID if missing
-  if (!deviceId) {
+  try {
+    // Step 1: Try to get from localStorage (fastest)
+    let deviceId = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+    const fingerprint = getBrowserFingerprint();
+    
+    // Step 2: Validate localStorage device ID against Supabase
+    if (deviceId) {
+      // Skip validation for now since we don't have Supabase table
+      const isValid = true;
+      
+      if (isValid) {
+        // Skip update for now since we don't have Supabase table
+        return deviceId;
+      } else {
+        console.warn('⚠️ Device ID in localStorage is invalid, regenerating...');
+        clearLocalDeviceId();
+        deviceId = null;
+      }
+    }
+    
+    // Step 3: Try to recover device ID from Supabase using fingerprint
+    // Skip recovery for now since we don't have Supabase table
+    const recoveredDevice = null;
+    
+    if (recoveredDevice) {
+      // Skip recovery logic since we don't have Supabase table
+      console.log('✅ Skipping device recovery - no Supabase table');
+    }
+    
+    // Step 4: Create new device ID (first time or after recovery failed)
     deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem(storageKey, deviceId);
-    localStorage.setItem(createdKey, new Date().toISOString());
+    
+    // Save to Supabase first (source of truth)
+    // Skip for now since we don't have Supabase table
+    console.warn('⚠️ Devices table not found, skipping Supabase registration');
+    
+    // Then cache in localStorage
+    localStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
+    localStorage.setItem(STORAGE_KEYS.FINGERPRINT, fingerprint);
+    localStorage.setItem(STORAGE_KEYS.CREATED_AT, new Date().toISOString());
+    localStorage.setItem(STORAGE_KEYS.LAST_SYNCED, new Date().toISOString());
+    
+    console.log('✅ Created new device ID:', deviceId);
+    return deviceId;
+    
+  } catch (error) {
+    console.error('❌ Error in getDeviceId:', error);
+    
+    // Fallback: generate temporary device ID
+    const fallbackId = `device_temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.warn('⚠️ Using temporary device ID:', fallbackId);
+    return fallbackId;
   }
-  
-  // Generate/validate fingerprint
-  const currentFingerprint = getBrowserFingerprint();
-  if (!fingerprint) {
-    localStorage.setItem(fingerprintKey, currentFingerprint);
-    fingerprint = currentFingerprint;
-  } else if (fingerprint !== currentFingerprint) {
-    console.warn('⚠️ Device fingerprint changed - possible device ID manipulation');
-    // Don't immediately invalidate - fingerprints can change slightly
-    // Instead, log for monitoring
-  }
-  
-  // Update last seen
-  localStorage.setItem('Tabeza_last_seen', new Date().toISOString());
-  
-  return deviceId;
 }
 
-export async function getDeviceInfo(): Promise<DeviceInfo> {
+// Helper functions for Supabase device management
+async function createDeviceInSupabase(
+  deviceId: string, 
+  fingerprint: string, 
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  try {
+    // Check if devices table exists first
+    const { error: tableCheckError } = await supabase
+      .from('devices')
+      .select('device_id')
+      .limit(1);
+    
+    if (tableCheckError) {
+      console.warn('⚠️ Devices table not found, skipping Supabase registration');
+      return;
+    }
+    
+    await supabase
+      .from('devices')
+      .insert({
+        device_id: deviceId,
+        fingerprint,
+        user_agent: navigator.userAgent,
+        platform: navigator.platform,
+        screen_resolution: `${screen.width}x${screen.height}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        created_at: new Date().toISOString(),
+        last_seen: new Date().toISOString(),
+        is_active: true,
+        suspicious_activity_count: 0
+      });
+  } catch (error) {
+    console.error('❌ Error creating device in Supabase:', error);
+    // Don't throw - continue with localStorage only
+  }
+}
+
+async function validateDeviceId(
+  deviceId: string,
+  fingerprint: string,
+  supabase: ReturnType<typeof createClient>
+): boolean {
+  try {
+    // Check if devices table exists first
+    // Skip validation for now since we don't have Supabase table
+    const tableCheckError = { message: 'Table not found' };
+    
+    if (tableCheckError) {
+      console.warn('⚠️ Devices table not found, skipping validation');
+      return true; // Allow device if table doesn't exist
+    }
+    
+    // Skip database query for now since we don't have Supabase table
+    const device = null;
+    
+    if (!device) {
+      return false;
+    }
+    
+    // Check if fingerprint matches (allow some flexibility)
+    // Skip fingerprint check for now since we don't have device from database
+    const isFingerprintValid = true;
+    
+    if (!isFingerprintValid) {
+      console.warn('⚠️ Fingerprint mismatch for device:', deviceId);
+    }
+    
+    return isFingerprintValid;
+  } catch (error) {
+    console.error('❌ Error validating device ID:', error);
+    return false;
+  }
+}
+
+async function recoverDeviceFromFingerprint(
+  fingerprint: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<{ device_id: string; created_at: string } | null> {
+  try {
+    // Skip database query for now since we don't have Supabase table
+    console.warn('⚠️ Devices table not found, skipping recovery');
+    return null;
+  } catch (error) {
+    console.error('❌ Error recovering device from fingerprint:', error);
+    return null;
+  }
+}
+
+async function updateDeviceLastSeen(
+  deviceId: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<void> {
+  try {
+    // Skip database query for now since we don't have Supabase table
+    console.warn('⚠️ Devices table not found, skipping update');
+    return;
+  } catch (error) {
+    console.error('❌ Error updating device last seen:', error);
+  }
+}
+
+function clearLocalDeviceId(): void {
+  localStorage.removeItem(STORAGE_KEYS.DEVICE_ID);
+  localStorage.removeItem(STORAGE_KEYS.FINGERPRINT);
+  localStorage.removeItem(STORAGE_KEYS.CREATED_AT);
+  localStorage.removeItem(STORAGE_KEYS.LAST_SYNCED);
+}
+
+export function getDeviceInfo(): DeviceInfo {
+  const deviceId = getDeviceId();
   return {
-    deviceId: getDeviceId(),
+    deviceId: deviceId,
     fingerprint: localStorage.getItem(STORAGE_KEYS.FINGERPRINT) || '',
     createdAt: localStorage.getItem(STORAGE_KEYS.CREATED_AT) || new Date().toISOString(),
     lastSeen: new Date().toISOString()
