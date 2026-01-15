@@ -109,31 +109,34 @@ async function createDeviceInSupabase(
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
   try {
+    // TODO: Uncomment when devices table is created
     // Check if devices table exists first
-    const { error: tableCheckError } = await supabase
-      .from('devices')
-      .select('device_id')
-      .limit(1);
+    // const { error: tableCheckError } = await supabase
+    //   .from('devices')
+    //   .select('device_id')
+    //   .limit(1);
     
-    if (tableCheckError) {
-      console.warn('⚠️ Devices table not found, skipping Supabase registration');
-      return;
-    }
+    // if (tableCheckError) {
+    //   console.warn('⚠️ Devices table not found, skipping Supabase registration');
+    //   return;
+    // }
     
-    await supabase
-      .from('devices')
-      .insert({
-        device_id: deviceId,
-        fingerprint,
-        user_agent: navigator.userAgent,
-        platform: navigator.platform,
-        screen_resolution: `${screen.width}x${screen.height}`,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        created_at: new Date().toISOString(),
-        last_seen: new Date().toISOString(),
-        is_active: true,
-        suspicious_activity_count: 0
-      });
+    // await supabase
+    //   .from('devices')
+    //   .insert({
+    //     device_id: deviceId,
+    //     fingerprint,
+    //     user_agent: navigator.userAgent,
+    //     platform: navigator.platform,
+    //     screen_resolution: `${screen.width}x${screen.height}`,
+    //     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    //     created_at: new Date().toISOString(),
+    //     last_seen: new Date().toISOString(),
+    //     is_active: true,
+    //     suspicious_activity_count: 0
+    //   });
+    
+    console.warn('⚠️ Devices table not implemented yet, skipping Supabase registration');
   } catch (error) {
     console.error('❌ Error creating device in Supabase:', error);
     // Don't throw - continue with localStorage only
@@ -144,33 +147,35 @@ async function validateDeviceId(
   deviceId: string,
   fingerprint: string,
   supabase: ReturnType<typeof createClient>
-): boolean {
+): Promise<boolean> {
   try {
+    // TODO: Uncomment when devices table is created
     // Check if devices table exists first
     // Skip validation for now since we don't have Supabase table
-    const tableCheckError = { message: 'Table not found' };
+    // const tableCheckError = { message: 'Table not found' };
     
-    if (tableCheckError) {
-      console.warn('⚠️ Devices table not found, skipping validation');
-      return true; // Allow device if table doesn't exist
-    }
+    // if (tableCheckError) {
+    //   console.warn('⚠️ Devices table not found, skipping validation');
+    //   return true; // Allow device if table doesn't exist
+    // }
     
     // Skip database query for now since we don't have Supabase table
-    const device = null;
+    // const device = null;
     
-    if (!device) {
-      return false;
-    }
+    // if (!device) {
+    //   return false;
+    // }
     
     // Check if fingerprint matches (allow some flexibility)
     // Skip fingerprint check for now since we don't have device from database
-    const isFingerprintValid = true;
+    // const isFingerprintValid = true;
     
-    if (!isFingerprintValid) {
-      console.warn('⚠️ Fingerprint mismatch for device:', deviceId);
-    }
+    // if (!isFingerprintValid) {
+    //   console.warn('⚠️ Fingerprint mismatch for device:', deviceId);
+    // }
     
-    return isFingerprintValid;
+    console.warn('⚠️ Devices table not implemented yet, skipping validation');
+    return true; // Allow all devices until table is implemented
   } catch (error) {
     console.error('❌ Error validating device ID:', error);
     return false;
@@ -182,8 +187,9 @@ async function recoverDeviceFromFingerprint(
   supabase: ReturnType<typeof createClient>
 ): Promise<{ device_id: string; created_at: string } | null> {
   try {
+    // TODO: Uncomment when devices table is created
     // Skip database query for now since we don't have Supabase table
-    console.warn('⚠️ Devices table not found, skipping recovery');
+    console.warn('⚠️ Devices table not implemented yet, skipping recovery');
     return null;
   } catch (error) {
     console.error('❌ Error recovering device from fingerprint:', error);
@@ -196,8 +202,9 @@ async function updateDeviceLastSeen(
   supabase: ReturnType<typeof createClient>
 ): Promise<void> {
   try {
+    // TODO: Uncomment when devices table is created
     // Skip database query for now since we don't have Supabase table
-    console.warn('⚠️ Devices table not found, skipping update');
+    console.warn('⚠️ Devices table not implemented yet, skipping update');
     return;
   } catch (error) {
     console.error('❌ Error updating device last seen:', error);
@@ -211,8 +218,14 @@ function clearLocalDeviceId(): void {
   localStorage.removeItem(STORAGE_KEYS.LAST_SYNCED);
 }
 
-export function getDeviceInfo(): DeviceInfo {
+export async function getDeviceInfo(): Promise<DeviceInfo> {
   const deviceId = getDeviceId();
+  
+  // TODO: Add async Supabase operations here when devices table is ready
+  // - Validate device ID against database
+  // - Update last seen timestamp
+  // - Sync device fingerprint
+  
   return {
     deviceId: deviceId,
     fingerprint: localStorage.getItem(STORAGE_KEYS.FINGERPRINT) || '',

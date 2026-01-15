@@ -25,7 +25,7 @@ const nextConfig = {
   transpilePackages: ['@/components', '@/lib'],
   
   // Handle static assets from root public directory
-  output: 'standalone',
+  // output: 'standalone', // Disabled due to Windows symlink permission issues
   
   // Ensure proper image optimization
   images: {

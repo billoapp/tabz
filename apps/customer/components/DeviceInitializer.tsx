@@ -17,7 +17,7 @@ export default function DeviceInitializer({ children, supabase }: DeviceInitiali
       try {
         console.log('🔧 Starting device initialization...');
         
-        const device = await getDeviceInfo(supabase);
+        const device = await getDeviceInfo();
         
         console.log('✅ Device initialized:', {
           id: device.deviceId,
