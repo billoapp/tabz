@@ -104,6 +104,7 @@ export default function PWAInstallPrompt({
       // Show banner if not dismissed in this session and not already installed
       const { isInstalled } = detectInstallationStatus();
       if (!isInstalled && !dismissedSession) {
+        console.log('🔔 Showing banner due to beforeinstallprompt event');
         setShowInstallBanner(true);
       }
     };
@@ -198,23 +199,32 @@ export default function PWAInstallPrompt({
         } else {
           console.log('❌ Not showing banner:', { isInstalled, dismissedSession });
         }
-      }, 3000); // Increased delay to 3 seconds for better visibility
+      }, 1000); // Reduced to 1 second for faster testing
     }
 
     // ANDROID SPECIFIC: Also try to show banner on Android even without beforeinstallprompt
     const isAndroid = navigator.userAgent.toLowerCase().includes('android');
     if (isAndroid && !state.isInstalled) {
-      console.log('📱 Android detected - will show manual install instructions');
+      console.log('📱 Android detected - checking for install capability');
+      
+      // Wait a bit for beforeinstallprompt to potentially fire
       setTimeout(() => {
         if (!dismissedSession && !detectInstallationStatus().isInstalled) {
-          console.log('📱 Android: Showing manual install banner');
+          console.log('📱 Android: Showing install banner');
           setShowInstallBanner(true);
-          setState(prev => ({
-            ...prev,
-            canInstall: false, // No native prompt on Android sometimes
-          }));
+          
+          // Check if we have a deferred prompt, if not, we'll show manual instructions
+          if (!state.deferredPrompt) {
+            console.log('📱 Android: No deferred prompt available, will show manual instructions');
+          } else {
+            console.log('📱 Android: Deferred prompt available, will use native install');
+            setState(prev => ({
+              ...prev,
+              canInstall: true,
+            }));
+          }
         }
-      }, 2000);
+      }, 500); // Check after 500ms
     }
 
     // Initial installation status check
@@ -228,7 +238,7 @@ export default function PWAInstallPrompt({
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, [detectInstallationStatus, dismissedSession, onInstallSuccess]);
+  }, [detectInstallationStatus, dismissedSession, onInstallSuccess, state.deferredPrompt, state.isInstalled, showInstallBanner]);
 
   // Handle installation process
   const handleInstallClick = async () => {
@@ -385,7 +395,7 @@ export default function PWAInstallPrompt({
   }
 
   return (
-    <div className={`fixed bottom-4 left-4 right-4 z-50 p-2 ${className}`}>
+    <div className={`fixed top-1/3 left-4 right-4 z-50 p-2 ${className}`}>
       <div className="bg-white border border-gray-200 text-gray-800 rounded-lg shadow-lg p-3 max-w-sm mx-auto">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -427,8 +437,8 @@ export default function PWAInstallPrompt({
         )}
         
         <div className="flex gap-2">
-          {/* Install button - show for testing or if browser supports it */}
-          {(state.canInstall || process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))) && (
+          {/* Install button - only show if we have native install capability */}
+          {state.canInstall && state.deferredPrompt && (
             <button
               onClick={handleInstallClick}
               disabled={state.isInstalling}
@@ -446,6 +456,19 @@ export default function PWAInstallPrompt({
                 </>
               )}
             </button>
+          )}
+          
+          {/* If no native install, show manual instructions */}
+          {(!state.canInstall || !state.deferredPrompt) && (
+            <div className="flex-1 text-xs text-gray-600">
+              {state.platform === 'android' ? (
+                <span>Tap Chrome menu (⋮) → Add to Home screen</span>
+              ) : state.platform === 'ios' ? (
+                <span>Safari → Share → Add to Home Screen</span>
+              ) : (
+                <span>Browser menu → Install app</span>
+              )}
+            </div>
           )}
           
           <button
