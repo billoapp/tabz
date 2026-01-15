@@ -6,10 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Bell, Store, AlertCircle, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { 
-  getDeviceId, 
-  getBarDeviceKey, 
-  storeActiveTab
-} from '@/lib/device-identity';
+  getDeviceId,
+  getBarDeviceKey,
+  storeActiveTab,
+  getActiveTab,
+  clearActiveTab
+} from '@/lib/deviceId';
 import { useToast } from '@/components/ui/Toast';
 import { TokensService, TOKENS_CONFIG } from '../../../../packages/shared/tokens-service';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
@@ -206,7 +208,11 @@ function ConsentContent() {
   }, []);
 
   useEffect(() => {
-    getDeviceId().then(id => setDebugDeviceId(id.slice(0, 20)));
+    const initDebugDeviceId = () => {
+      const id = getDeviceId();
+      setDebugDeviceId(id.slice(0, 20));
+    };
+    initDebugDeviceId();
   }, []);
 
   useEffect(() => {
@@ -239,6 +245,9 @@ function ConsentContent() {
         setLoading(false);
         return;
       }
+      
+      // Get device ID first - FIXED: remove supabase parameter
+      const deviceId = getDeviceId();
       
       // Get bar slug from URL or sessionStorage
       let slug = searchParams?.get('bar') || searchParams?.get('slug');
@@ -304,8 +313,8 @@ function ConsentContent() {
       // Check if bar is currently open for business BEFORE showing consent form
       try {
         // First check if user has existing overdue tabs for this bar
-        const deviceId = await getDeviceId();
-        const barDeviceKey = await getBarDeviceKey(bar.id);
+        const deviceId = getDeviceId(); // FIXED: remove supabase parameter
+        const barDeviceKey = getBarDeviceKey(bar.id);
         
         const { data: existingTabs } = await (supabase as any)
           .from('tabs')
@@ -469,8 +478,8 @@ function ConsentContent() {
 
     setCreating(true);
 
-    const deviceId = await getDeviceId();
-    const barDeviceKey = await getBarDeviceKey(barId);
+    const deviceId = getDeviceId(); // FIXED: remove supabase parameter
+    const barDeviceKey = getBarDeviceKey(barId); // FIXED: use getBarDeviceKey instead of getBarDeviceKeySync
     
     try {
       // Check for existing tab one more time (safety check)
