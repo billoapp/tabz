@@ -12,7 +12,7 @@ export default function TokensPage() {
   const [activeTab, setActiveTab] = useState<'balance' | 'rewards'>('balance');
   const [loading, setLoading] = useState(true);
 
-  const tokensService = new TokensService(supabase);
+  const tokensService = new TokensService(supabase.client);
 
   useEffect(() => {
     loadData();

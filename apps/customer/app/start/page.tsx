@@ -29,7 +29,7 @@ function ConsentContent() {
   const customerOrigin = process.env.NEXT_PUBLIC_CUSTOMER_ORIGIN || 'https://app.tabeza.co.ke';
   
   // Token service and notifications
-  const tokensService = new TokensService(supabase);
+  const tokensService = new TokensService(supabase.client);
   const { showNotification } = useTokenNotifications();
   
   // Form states

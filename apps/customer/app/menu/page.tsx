@@ -1628,7 +1628,7 @@ export default function MenuPage() {
     if (!tab) return;
     
     try {
-      const telegram = telegramMessageQueries(supabase);
+      const telegram = telegramMessageQueries(supabase.client);
       const { data, error } = await telegram.getTabMessages(tab.id);
       
       if (!error && data) {
