@@ -98,17 +98,54 @@ const calculatePendingWaitTime = (tabs: any[], currentTime?: number): string => 
   }
 };
 
+// Play alert sound function
+const playAlertSound = (customAudioUrl: string, soundEnabled: boolean) => {
+  if (!soundEnabled) return;
+  
+  try {
+    if (customAudioUrl) {
+      // Play custom audio
+      const audio = new Audio(customAudioUrl);
+      audio.play().catch(() => console.log('Custom audio playback failed'));
+    } else {
+      // Play default bell sound
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      // Bell-like sound
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.5);
+      
+      // Volume envelope
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.1);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1);
+      
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 1);
+    }
+  } catch (error) {
+    console.log('Could not play sound:', error);
+  }
+};
+
 // HIGH-VISIBILITY ALERT OVERLAY
 const HighVisibilityAlert = ({ 
   isVisible, 
   type = 'order',
-  onDismiss
+  onDismiss,
+  timeout = 5
 }: { 
   isVisible: boolean; 
   type: 'order' | 'message';
   onDismiss: () => void;
+  timeout: number;
 }) => {
-  const [count, setCount] = useState(3);
+  const [count, setCount] = useState(timeout);
   
   useEffect(() => {
     if (!isVisible) return;
@@ -243,16 +280,50 @@ export default function TabsPage() {
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(Date.now());
-  
+
   // Alert state
   const [showAlert, setShowAlert] = useState(false);
   const [alertType, setAlertType] = useState<'order' | 'message'>('order');
+  const [alertSettings, setAlertSettings] = useState({
+    timeout: 5,
+    soundEnabled: true,
+    customAudioUrl: ''
+  });
 
   useEffect(() => {
     return () => {
       mounted.current = false;
     };
   }, []);
+
+  // Load alert settings
+  useEffect(() => {
+    const loadAlertSettings = async () => {
+      if (!bar) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('bars')
+          .select('alert_timeout, alert_sound_enabled, alert_custom_audio_url')
+          .eq('id', bar.id)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          setAlertSettings({
+            timeout: data.alert_timeout ?? 5,
+            soundEnabled: data.alert_sound_enabled ?? true,
+            customAudioUrl: data.alert_custom_audio_url ?? ''
+          });
+        }
+      } catch (error) {
+        console.error('Error loading alert settings:', error);
+      }
+    };
+
+    loadAlertSettings();
+  }, [bar]);
 
   // Handle ESC key to dismiss alert
   useEffect(() => {
@@ -351,15 +422,16 @@ export default function TabsPage() {
             if (payload.new?.initiated_by === 'customer') {
               console.log('🚨 STAFF APP: Customer message detected - triggering MESSAGE alert');
               if (mounted.current) {
+                playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled);
                 setAlertType('message');
                 setShowAlert(true);
                 
-                // Auto-hide after 5 seconds
+                // Auto-hide after configured timeout
                 setTimeout(() => {
                   if (mounted.current) {
                     setShowAlert(false);
                   }
-                }, 5000);
+                }, alertSettings.timeout * 1000);
               }
             } else {
               console.log('ℹ️ STAFF APP: Message not from customer, ignoring:', payload.new?.initiated_by);
@@ -411,15 +483,16 @@ export default function TabsPage() {
             if (payload.new?.initiated_by === 'customer') {
               console.log('🚨 Triggering ORDER alert');
               if (mounted.current) {
+                playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled);
                 setAlertType('order');
                 setShowAlert(true);
                 
-                // Auto-hide after 5 seconds
+                // Auto-hide after configured timeout
                 setTimeout(() => {
                   if (mounted.current) {
                     setShowAlert(false);
                   }
-                }, 5000);
+                }, alertSettings.timeout * 1000);
               }
             }
             
@@ -686,12 +759,13 @@ export default function TabsPage() {
               <button 
                 onClick={() => {
                   console.log('🚨 Test button clicked!');
+                  playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled);
                   setAlertType('order');
                   setShowAlert(true);
                   
                   setTimeout(() => {
                     setShowAlert(false);
-                  }, 5000);
+                  }, alertSettings.timeout * 1000);
                 }}
                 className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition"
                 title="Test Alert"
@@ -899,6 +973,7 @@ export default function TabsPage() {
         <HighVisibilityAlert 
           isVisible={showAlert} 
           type={alertType}
+          timeout={alertSettings.timeout}
           onDismiss={() => setShowAlert(false)}
         />
 

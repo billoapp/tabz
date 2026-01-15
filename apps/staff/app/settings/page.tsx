@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle, CreditCard, Phone, DollarSign, Send, Clock, Calendar, Sun, Moon } from 'lucide-react';
+import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle, CreditCard, Phone, DollarSign, Send, Clock, Calendar, Sun, Moon, BellRing } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -66,6 +66,15 @@ export default function SettingsPage() {
   // Pro feature modal state
   const [showProModal, setShowProModal] = useState(false);
   const [proFeature, setProFeature] = useState('');
+
+  // Alert settings state
+  const [alertSettings, setAlertSettings] = useState({
+    timeout: 5,
+    soundEnabled: true,
+    customAudioUrl: ''
+  });
+  const [savingAlertSettings, setSavingAlertSettings] = useState(false);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
 
   // Business Hours State
   const [businessHoursMode, setBusinessHoursMode] = useState<BusinessHoursMode>('simple');
@@ -173,6 +182,13 @@ export default function SettingsPage() {
         newOrders: data.notification_new_orders ?? false,
         pendingApprovals: data.notification_pending_approvals ?? false,
         payments: data.notification_payments ?? false
+      });
+
+      // Load alert settings
+      setAlertSettings({
+        timeout: data.alert_timeout ?? 5,
+        soundEnabled: data.alert_sound_enabled ?? true,
+        customAudioUrl: data.alert_custom_audio_url ?? ''
       });
 
       // Load business hours
@@ -421,6 +437,128 @@ export default function SettingsPage() {
   const handleProFeature = (feature: string) => {
     setProFeature(feature);
     setShowProModal(true);
+  };
+
+  const handleSaveAlertSettings = async () => {
+    setSavingAlertSettings(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        router.push('/login');
+        return;
+      }
+
+      const userBarId = user.user_metadata.bar_id;
+
+      const { error } = await supabase
+        .from('bars')
+        .update({
+          alert_timeout: alertSettings.timeout,
+          alert_sound_enabled: alertSettings.soundEnabled,
+          alert_custom_audio_url: alertSettings.customAudioUrl
+        })
+        .eq('id', userBarId);
+
+      if (error) throw error;
+
+      alert('✅ Alert settings saved successfully!');
+    } catch (error) {
+      console.error('Error saving alert settings:', error);
+      alert('Failed to save alert settings. Please try again.');
+    } finally {
+      setSavingAlertSettings(false);
+    }
+  };
+
+  const handleAudioUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('audio/')) {
+      alert('Please select an audio file (MP3, WAV, etc.)');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Audio file must be less than 5MB');
+      return;
+    }
+
+    setUploadingAudio(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        return;
+      }
+
+      const userBarId = user.user_metadata.bar_id;
+      const fileName = `alert-audio-${userBarId}-${Date.now()}.${file.name.split('.').pop()}`;
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('alert-audio')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('alert-audio')
+        .getPublicUrl(fileName);
+
+      // Update settings with new audio URL
+      setAlertSettings(prev => ({ ...prev, customAudioUrl: publicUrl }));
+      
+      // Save to database
+      const { error: updateError } = await supabase
+        .from('bars')
+        .update({ alert_custom_audio_url: publicUrl })
+        .eq('id', userBarId);
+
+      if (updateError) throw updateError;
+
+      alert('✅ Custom alert sound uploaded successfully!');
+    } catch (error) {
+      console.error('Error uploading audio:', error);
+      alert('Failed to upload audio file. Please try again.');
+    } finally {
+      setUploadingAudio(false);
+    }
+  };
+
+  const handleRemoveCustomAudio = async () => {
+    if (!confirm('Are you sure you want to remove the custom alert sound?')) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        return;
+      }
+
+      const userBarId = user.user_metadata.bar_id;
+
+      // Remove from database
+      const { error } = await supabase
+        .from('bars')
+        .update({ alert_custom_audio_url: '' })
+        .eq('id', userBarId);
+
+      if (error) throw error;
+
+      setAlertSettings(prev => ({ ...prev, customAudioUrl: '' }));
+      alert('✅ Custom alert sound removed successfully!');
+    } catch (error) {
+      console.error('Error removing audio:', error);
+      alert('Failed to remove custom audio. Please try again.');
+    }
   };
 
   const handleSendFeedback = async () => {
@@ -1272,6 +1410,133 @@ export default function SettingsPage() {
               >
                 <Save size={20} />
                 Save Notification Settings
+              </button>
+            </div>
+          )}
+
+          {/* Alert Settings Section */}
+          {!isNewUser && (
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <BellRing size={20} className="text-red-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Alert Settings</h3>
+                  <p className="text-sm text-gray-500">Configure order and message alerts</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Alert Timeout */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Alert Duration (seconds)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="3"
+                      max="15"
+                      value={alertSettings.timeout}
+                      onChange={(e) => setAlertSettings({...alertSettings, timeout: parseInt(e.target.value)})}
+                      className="flex-1"
+                    />
+                    <div className="w-16 text-center">
+                      <span className="text-lg font-bold text-orange-600">{alertSettings.timeout}s</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>3s (Quick)</span>
+                    <span>15s (Long)</span>
+                  </div>
+                </div>
+
+                {/* Sound Settings */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Alert Sound
+                  </label>
+                  
+                  <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition mb-3">
+                    <div className="flex items-center gap-3">
+                      <Bell size={18} className="text-blue-600" />
+                      <div>
+                        <span className="text-sm font-medium text-gray-700">Enable Sound</span>
+                        <p className="text-xs text-gray-500">Play sound when alerts appear</p>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={alertSettings.soundEnabled}
+                      onChange={(e) => setAlertSettings({...alertSettings, soundEnabled: e.target.checked})}
+                      className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                    />
+                  </label>
+
+                  {alertSettings.soundEnabled && (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-800 font-medium mb-2">Custom Alert Sound</p>
+                        
+                        {alertSettings.customAudioUrl ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <audio controls className="flex-1 h-8">
+                                <source src={alertSettings.customAudioUrl} type="audio/mpeg" />
+                                <source src={alertSettings.customAudioUrl} type="audio/wav" />
+                                Your browser does not support audio playback.
+                              </audio>
+                              <button
+                                onClick={handleRemoveCustomAudio}
+                                className="px-3 py-1 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                            <p className="text-xs text-gray-600">Custom alert sound is active</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="file"
+                                accept="audio/*"
+                                onChange={handleAudioUpload}
+                                disabled={uploadingAudio}
+                                className="hidden"
+                                id="audio-upload"
+                              />
+                              <label
+                                htmlFor="audio-upload"
+                                className="flex-1 px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 transition cursor-pointer text-center disabled:bg-gray-300"
+                              >
+                                {uploadingAudio ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white inline-block mr-2"></div>
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  '📤 Upload Custom Sound'
+                                )}
+                              </label>
+                            </label>
+                            <p className="text-xs text-gray-600">MP3, WAV files (max 5MB)</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={handleSaveAlertSettings}
+                disabled={savingAlertSettings}
+                className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+              >
+                <Save size={20} />
+                {savingAlertSettings ? 'Saving...' : 'Save Alert Settings'}
               </button>
             </div>
           )}
