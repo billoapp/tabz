@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { X, Download, Smartphone, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Download, Smartphone, AlertCircle, Loader2 } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -161,31 +161,60 @@ export default function PWAInstallPrompt({
         hasBeforeInstallPrompt: 'onbeforeinstallprompt' in window,
         isStandalone: window.matchMedia('(display-mode: standalone)').matches,
         hasValidIcons: true, // We'll assume this is true since we have icons in manifest
+        isAndroid: navigator.userAgent.toLowerCase().includes('android'),
+        isChrome: navigator.userAgent.toLowerCase().includes('chrome') && !navigator.userAgent.toLowerCase().includes('edg'),
       };
       
       console.log('🔍 PWA Install Criteria Check:', pwaChecks);
       
-      // Force show banner after delay for testing, regardless of criteria
+      // For Android: Force show banner after delay, even without beforeinstallprompt
       setTimeout(() => {
-        const { isInstalled } = detectInstallationStatus();
+        const { isInstalled, platform } = detectInstallationStatus();
         console.log('🔍 After timeout check:', { 
           isInstalled, 
           dismissedSession,
+          platform,
           pwaChecks,
-          willShowBanner: !isInstalled && !dismissedSession
+          willShowBanner: !isInstalled && !dismissedSession,
+          currentShowInstallBanner: showInstallBanner
         });
         
         if (!isInstalled && !dismissedSession) {
           console.log('✅ Forcing install banner display for testing');
+          console.log('🔍 Setting showInstallBanner to true and canInstall to true');
           setShowInstallBanner(true);
           setState(prev => ({
             ...prev,
             canInstall: true, // Force enable for testing
           }));
+          
+          // Double-check after state update
+          setTimeout(() => {
+            console.log('🔍 State after forced update:', {
+              showInstallBanner: true, // This should be true now
+              canInstall: true
+            });
+          }, 100);
         } else {
           console.log('❌ Not showing banner:', { isInstalled, dismissedSession });
         }
       }, 3000); // Increased delay to 3 seconds for better visibility
+    }
+
+    // ANDROID SPECIFIC: Also try to show banner on Android even without beforeinstallprompt
+    const isAndroid = navigator.userAgent.toLowerCase().includes('android');
+    if (isAndroid && !state.isInstalled) {
+      console.log('📱 Android detected - will show manual install instructions');
+      setTimeout(() => {
+        if (!dismissedSession && !detectInstallationStatus().isInstalled) {
+          console.log('📱 Android: Showing manual install banner');
+          setShowInstallBanner(true);
+          setState(prev => ({
+            ...prev,
+            canInstall: false, // No native prompt on Android sometimes
+          }));
+        }
+      }, 2000);
     }
 
     // Initial installation status check
@@ -216,23 +245,23 @@ export default function PWAInstallPrompt({
       if (state.platform === 'ios') {
         setState(prev => ({ 
           ...prev, 
-          error: 'iOS: Use Safari → Share → Add to Home Screen' 
+          error: 'Use Safari → Share → Add to Home Screen' 
         }));
       } else if (state.platform === 'android') {
         setState(prev => ({ 
           ...prev, 
-          error: 'Android: Chrome menu → Add to Home screen' 
+          error: 'Tap Chrome menu (⋮) → Add to Home screen' 
         }));
       } else {
         // For desktop or other platforms
         setState(prev => ({ 
           ...prev, 
-          error: 'Try: Browser menu → Install app (or Add to Home screen)' 
+          error: 'Try: Browser menu → Install app' 
         }));
       }
       
-      // Clear error after 8 seconds
-      setTimeout(() => setState(prev => ({ ...prev, error: null })), 8000);
+      // Clear error after 5 seconds
+      setTimeout(() => setState(prev => ({ ...prev, error: null })), 5000);
       return;
     }
 
@@ -305,6 +334,18 @@ export default function PWAInstallPrompt({
     </div>
   );
 
+  // Provide installation guidance for Android
+  const getAndroidInstallInstructions = () => (
+    <div className="text-sm text-blue-100 mt-2">
+      <p>To install on Android:</p>
+      <ol className="list-decimal list-inside mt-1 space-y-1">
+        <li>Tap the menu (⋮) in Chrome</li>
+        <li>Tap "Add to Home screen" or "Install app"</li>
+        <li>Tap "Add" or "Install" to confirm</li>
+      </ol>
+    </div>
+  );
+
   // Don't show if already installed
   if (state.isInstalled) {
     console.log('❌ PWA Install Prompt: Already installed, not showing banner');
@@ -317,10 +358,22 @@ export default function PWAInstallPrompt({
       showInstallBanner, 
       dismissedSession,
       canInstall: state.canInstall,
-      deferredPrompt: !!state.deferredPrompt
+      deferredPrompt: !!state.deferredPrompt,
+      isDevOrPreview: process.env.NODE_ENV === 'development' || 
+                     window.location.hostname.includes('vercel.app') ||
+                     window.location.hostname.includes('netlify.app') ||
+                     window.location.hostname.includes('preview')
     });
     return null;
   }
+
+  console.log('✅ PWA Install Prompt: Rendering banner', {
+    showInstallBanner,
+    canInstall: state.canInstall,
+    platform: state.platform,
+    isInstalled: state.isInstalled,
+    dismissedSession
+  });
 
   // Custom trigger mode
   if (customTrigger) {
@@ -332,60 +385,64 @@ export default function PWAInstallPrompt({
   }
 
   return (
-    <div className={`fixed top-4 left-4 right-4 z-50 p-4 ${className}`}>
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg shadow-xl p-4 max-w-md mx-auto">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <Smartphone size={24} className="text-blue-100" />
+    <div className={`fixed bottom-4 left-4 right-4 z-50 p-2 ${className}`}>
+      <div className="bg-white border border-gray-200 text-gray-800 rounded-lg shadow-lg p-3 max-w-sm mx-auto">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Download size={16} className="text-gray-600" />
             <div>
-              <h3 className="font-bold text-lg">Install Tabeza App</h3>
-              <p className="text-sm text-blue-100">
-                {state.platform === 'ios' 
-                  ? 'Add to your home screen for quick access'
-                  : 'Get instant access to your tabs'
-                }
+              <h3 className="font-medium text-sm">Install App</h3>
+              <p className="text-xs text-gray-600">
+                Add to home screen
               </p>
             </div>
           </div>
           <button
             onClick={handleDismiss}
-            className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded-full transition-colors"
+            className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
             disabled={state.isInstalling}
           >
-            <X size={20} />
+            <X size={16} />
           </button>
         </div>
 
         {/* Error display */}
         {state.error && (
-          <div className="flex items-center gap-2 mb-3 p-2 bg-red-500 bg-opacity-20 rounded">
-            <AlertCircle size={16} />
-            <span className="text-sm">{state.error}</span>
+          <div className="flex items-center gap-2 mb-2 p-2 bg-red-50 border border-red-200 rounded text-red-700">
+            <AlertCircle size={14} />
+            <span className="text-xs">{state.error}</span>
           </div>
         )}
 
-        {/* iOS specific instructions */}
-        {state.platform === 'ios' && !state.canInstall && getIOSInstallInstructions()}
+        {/* Platform-specific instructions */}
+        {state.platform === 'ios' && !state.canInstall && (
+          <div className="text-xs text-gray-600 mb-2">
+            <p>Safari → Share → Add to Home Screen</p>
+          </div>
+        )}
+        {state.platform === 'android' && !state.canInstall && (
+          <div className="text-xs text-gray-600 mb-2">
+            <p>Chrome menu (⋮) → Add to Home screen</p>
+          </div>
+        )}
         
-        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+        <div className="flex gap-2">
           {/* Install button - show for testing or if browser supports it */}
           {(state.canInstall || process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))) && (
             <button
               onClick={handleInstallClick}
               disabled={state.isInstalling}
-              className="flex-1 bg-white text-blue-600 font-semibold py-3 px-4 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-blue-600 text-white font-medium py-2 px-3 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {state.isInstalling ? (
                 <>
-                  <Loader2 size={20} className="animate-spin" />
+                  <Loader2 size={14} className="animate-spin" />
                   <span>Installing...</span>
                 </>
               ) : (
                 <>
-                  <Download size={20} />
-                  <span>
-                    {state.canInstall ? 'Install App' : 'Add to Home Screen'}
-                  </span>
+                  <Download size={14} />
+                  <span>Install</span>
                 </>
               )}
             </button>
@@ -394,15 +451,15 @@ export default function PWAInstallPrompt({
           <button
             onClick={handleDismiss}
             disabled={state.isInstalling}
-            className="px-4 py-3 text-blue-100 hover:text-white transition-colors disabled:opacity-50"
+            className="px-3 py-2 text-gray-500 hover:text-gray-700 transition-colors text-sm disabled:opacity-50"
           >
-            Maybe Later
+            Later
           </button>
         </div>
 
-        {/* Platform info for debugging */}
-        {(process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))) && (
-          <div className="mt-2 text-xs text-blue-200 opacity-75 space-y-1">
+        {/* Platform info for debugging - only in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-2 text-xs text-gray-500 opacity-75 space-y-1 border-t pt-2">
             <div>Platform: {state.platform} | Can Install: {state.canInstall ? 'Yes' : 'No'}</div>
             <div>URL: {typeof window !== 'undefined' ? window.location.hostname : 'unknown'}</div>
             <div>Deferred Prompt: {state.deferredPrompt ? 'Available' : 'Not Available'}</div>
