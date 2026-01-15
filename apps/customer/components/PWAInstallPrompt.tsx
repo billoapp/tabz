@@ -34,6 +34,8 @@ export default function PWAInstallPrompt({
   onInstallError,
   customTrigger 
 }: PWAInstallPromptProps) {
+  console.log('🔧 PWAInstallPrompt component rendered');
+  
   const [state, setState] = useState<InstallationState>({
     canInstall: false,
     isInstalled: false,
@@ -66,6 +68,14 @@ export default function PWAInstallPrompt({
     } else if (userAgent.includes('mac')) {
       platform = 'macos';
     }
+
+    console.log('🔍 Installation status check:', {
+      isStandalone,
+      isIOSStandalone,
+      isInstalled,
+      platform,
+      userAgent: userAgent.substring(0, 50) + '...'
+    });
 
     setState(prev => ({
       ...prev,
@@ -124,19 +134,58 @@ export default function PWAInstallPrompt({
       isLocalhost: window.location.hostname === 'localhost',
     });
 
-    // DEVELOPMENT: Force show banner for testing
-    if (process.env.NODE_ENV === 'development' || window.location.hostname.includes('vercel.app')) {
-      console.log('🧪 Development/Preview mode - showing install banner for testing');
+    // DEVELOPMENT/PREVIEW: Enhanced debugging and forced display
+    const isDevOrPreview = process.env.NODE_ENV === 'development' || 
+                          window.location.hostname.includes('vercel.app') ||
+                          window.location.hostname.includes('netlify.app') ||
+                          window.location.hostname.includes('preview');
+    
+    if (isDevOrPreview) {
+      console.log('🧪 Development/Preview mode detected');
+      console.log('🔍 Environment details:', {
+        nodeEnv: process.env.NODE_ENV,
+        hostname: window.location.hostname,
+        href: window.location.href,
+        protocol: window.location.protocol,
+        isHTTPS: window.location.protocol === 'https:',
+        userAgent: navigator.userAgent.substring(0, 100) + '...',
+        dismissedSession,
+        isInstalled: detectInstallationStatus().isInstalled
+      });
+      
+      // Check PWA install criteria
+      const pwaChecks = {
+        isHTTPS: window.location.protocol === 'https:' || window.location.hostname === 'localhost',
+        hasManifest: document.querySelector('link[rel="manifest"]') !== null,
+        hasServiceWorker: 'serviceWorker' in navigator,
+        hasBeforeInstallPrompt: 'onbeforeinstallprompt' in window,
+        isStandalone: window.matchMedia('(display-mode: standalone)').matches,
+        hasValidIcons: true, // We'll assume this is true since we have icons in manifest
+      };
+      
+      console.log('🔍 PWA Install Criteria Check:', pwaChecks);
+      
+      // Force show banner after delay for testing, regardless of criteria
       setTimeout(() => {
         const { isInstalled } = detectInstallationStatus();
+        console.log('🔍 After timeout check:', { 
+          isInstalled, 
+          dismissedSession,
+          pwaChecks,
+          willShowBanner: !isInstalled && !dismissedSession
+        });
+        
         if (!isInstalled && !dismissedSession) {
+          console.log('✅ Forcing install banner display for testing');
           setShowInstallBanner(true);
           setState(prev => ({
             ...prev,
             canInstall: true, // Force enable for testing
           }));
+        } else {
+          console.log('❌ Not showing banner:', { isInstalled, dismissedSession });
         }
-      }, 2000); // Show after 2 seconds for testing
+      }, 3000); // Increased delay to 3 seconds for better visibility
     }
 
     // Initial installation status check
@@ -154,26 +203,37 @@ export default function PWAInstallPrompt({
 
   // Handle installation process
   const handleInstallClick = async () => {
-    // If no deferred prompt available (common on Vercel preview), show instructions
+    console.log('🔘 Install button clicked', { 
+      hasDeferredPrompt: !!state.deferredPrompt, 
+      platform: state.platform,
+      canInstall: state.canInstall 
+    });
+
+    // If no deferred prompt available, provide platform-specific guidance
     if (!state.deferredPrompt) {
+      console.log('⚠️ No deferred prompt available, showing manual instructions');
+      
       if (state.platform === 'ios') {
-        // iOS instructions are already shown above
-        return;
+        setState(prev => ({ 
+          ...prev, 
+          error: 'iOS: Use Safari → Share → Add to Home Screen' 
+        }));
       } else if (state.platform === 'android') {
         setState(prev => ({ 
           ...prev, 
-          error: 'To install: Open Chrome menu → "Add to Home screen"' 
+          error: 'Android: Chrome menu → Add to Home screen' 
         }));
-        setTimeout(() => setState(prev => ({ ...prev, error: null })), 5000);
-        return;
       } else {
+        // For desktop or other platforms
         setState(prev => ({ 
           ...prev, 
-          error: 'Installation not available on this browser/platform' 
+          error: 'Try: Browser menu → Install app (or Add to Home screen)' 
         }));
-        setTimeout(() => setState(prev => ({ ...prev, error: null })), 3000);
-        return;
       }
+      
+      // Clear error after 8 seconds
+      setTimeout(() => setState(prev => ({ ...prev, error: null })), 8000);
+      return;
     }
 
     if (state.isInstalling) return;
@@ -181,19 +241,20 @@ export default function PWAInstallPrompt({
     setState(prev => ({ ...prev, isInstalling: true, error: null }));
 
     try {
+      console.log('🚀 Showing install prompt...');
       // Show the install prompt
       await state.deferredPrompt.prompt();
       
       // Wait for the user's choice
       const choiceResult = await state.deferredPrompt.userChoice;
       
-      console.log('PWA install choice:', choiceResult);
+      console.log('📊 PWA install choice result:', choiceResult);
 
       if (choiceResult.outcome === 'accepted') {
-        console.log('User accepted the install prompt');
+        console.log('✅ User accepted the install prompt');
         // The 'appinstalled' event will handle success state
       } else {
-        console.log('User dismissed the install prompt');
+        console.log('❌ User dismissed the install prompt');
         setState(prev => ({
           ...prev,
           isInstalling: false,
@@ -203,22 +264,22 @@ export default function PWAInstallPrompt({
         setShowInstallBanner(false);
       }
     } catch (error) {
-      console.error('PWA install error:', error);
+      console.error('💥 PWA install error:', error);
       const installError = error instanceof Error ? error : new Error('Installation failed');
       
       setState(prev => ({
         ...prev,
         isInstalling: false,
-        error: installError.message,
+        error: `Install failed: ${installError.message}`,
       }));
       
       onInstallError?.(installError);
       
-      // Show error for a few seconds then hide banner
+      // Show error for longer, then hide banner
       setTimeout(() => {
         setShowInstallBanner(false);
         setState(prev => ({ ...prev, error: null }));
-      }, 3000);
+      }, 5000);
     }
   };
 
@@ -245,10 +306,21 @@ export default function PWAInstallPrompt({
   );
 
   // Don't show if already installed
-  if (state.isInstalled) return null;
+  if (state.isInstalled) {
+    console.log('❌ PWA Install Prompt: Already installed, not showing banner');
+    return null;
+  }
 
   // Don't show if dismissed or no install capability
-  if (!showInstallBanner) return null;
+  if (!showInstallBanner) {
+    console.log('❌ PWA Install Prompt: Banner not shown', { 
+      showInstallBanner, 
+      dismissedSession,
+      canInstall: state.canInstall,
+      deferredPrompt: !!state.deferredPrompt
+    });
+    return null;
+  }
 
   // Custom trigger mode
   if (customTrigger) {
@@ -334,6 +406,8 @@ export default function PWAInstallPrompt({
             <div>Platform: {state.platform} | Can Install: {state.canInstall ? 'Yes' : 'No'}</div>
             <div>URL: {typeof window !== 'undefined' ? window.location.hostname : 'unknown'}</div>
             <div>Deferred Prompt: {state.deferredPrompt ? 'Available' : 'Not Available'}</div>
+            <div>Show Banner: {showInstallBanner ? 'Yes' : 'No'} | Dismissed: {dismissedSession ? 'Yes' : 'No'}</div>
+            <div>Is Installed: {state.isInstalled ? 'Yes' : 'No'}</div>
           </div>
         )}
       </div>
