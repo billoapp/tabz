@@ -119,7 +119,25 @@ export default function PWAInstallPrompt({
       serviceWorker: hasServiceWorker,
       beforeinstallprompt: hasBeforeInstallPrompt,
       userAgent: navigator.userAgent,
+      url: window.location.href,
+      isHTTPS: window.location.protocol === 'https:',
+      isLocalhost: window.location.hostname === 'localhost',
     });
+
+    // DEVELOPMENT: Force show banner for testing
+    if (process.env.NODE_ENV === 'development' || window.location.hostname.includes('vercel.app')) {
+      console.log('🧪 Development/Preview mode - showing install banner for testing');
+      setTimeout(() => {
+        const { isInstalled } = detectInstallationStatus();
+        if (!isInstalled && !dismissedSession) {
+          setShowInstallBanner(true);
+          setState(prev => ({
+            ...prev,
+            canInstall: true, // Force enable for testing
+          }));
+        }
+      }, 2000); // Show after 2 seconds for testing
+    }
 
     // Initial installation status check
     detectInstallationStatus();
@@ -136,7 +154,29 @@ export default function PWAInstallPrompt({
 
   // Handle installation process
   const handleInstallClick = async () => {
-    if (!state.deferredPrompt || state.isInstalling) return;
+    // If no deferred prompt available (common on Vercel preview), show instructions
+    if (!state.deferredPrompt) {
+      if (state.platform === 'ios') {
+        // iOS instructions are already shown above
+        return;
+      } else if (state.platform === 'android') {
+        setState(prev => ({ 
+          ...prev, 
+          error: 'To install: Open Chrome menu → "Add to Home screen"' 
+        }));
+        setTimeout(() => setState(prev => ({ ...prev, error: null })), 5000);
+        return;
+      } else {
+        setState(prev => ({ 
+          ...prev, 
+          error: 'Installation not available on this browser/platform' 
+        }));
+        setTimeout(() => setState(prev => ({ ...prev, error: null })), 3000);
+        return;
+      }
+    }
+
+    if (state.isInstalling) return;
 
     setState(prev => ({ ...prev, isInstalling: true, error: null }));
 
@@ -256,8 +296,8 @@ export default function PWAInstallPrompt({
         {state.platform === 'ios' && !state.canInstall && getIOSInstallInstructions()}
         
         <div className="flex flex-col sm:flex-row gap-3 mt-4">
-          {/* Install button - only show if browser supports it */}
-          {state.canInstall && (
+          {/* Install button - show for testing or if browser supports it */}
+          {(state.canInstall || process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))) && (
             <button
               onClick={handleInstallClick}
               disabled={state.isInstalling}
@@ -271,7 +311,9 @@ export default function PWAInstallPrompt({
               ) : (
                 <>
                   <Download size={20} />
-                  <span>Install App</span>
+                  <span>
+                    {state.canInstall ? 'Install App' : 'Add to Home Screen'}
+                  </span>
                 </>
               )}
             </button>
@@ -287,9 +329,11 @@ export default function PWAInstallPrompt({
         </div>
 
         {/* Platform info for debugging */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-2 text-xs text-blue-200 opacity-75">
-            Platform: {state.platform} | Can Install: {state.canInstall ? 'Yes' : 'No'}
+        {(process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))) && (
+          <div className="mt-2 text-xs text-blue-200 opacity-75 space-y-1">
+            <div>Platform: {state.platform} | Can Install: {state.canInstall ? 'Yes' : 'No'}</div>
+            <div>URL: {typeof window !== 'undefined' ? window.location.hostname : 'unknown'}</div>
+            <div>Deferred Prompt: {state.deferredPrompt ? 'Available' : 'Not Available'}</div>
           </div>
         )}
       </div>
