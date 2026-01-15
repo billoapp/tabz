@@ -71,7 +71,9 @@ export default function SettingsPage() {
   const [alertSettings, setAlertSettings] = useState({
     timeout: 5,
     soundEnabled: true,
-    customAudioUrl: ''
+    customAudioUrl: '',
+    customAudioName: '',
+    volume: 0.8
   });
   const [savingAlertSettings, setSavingAlertSettings] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
@@ -188,7 +190,9 @@ export default function SettingsPage() {
       setAlertSettings({
         timeout: data.alert_timeout ?? 5,
         soundEnabled: data.alert_sound_enabled ?? true,
-        customAudioUrl: data.alert_custom_audio_url ?? ''
+        customAudioUrl: data.alert_custom_audio_url ?? '',
+        customAudioName: data.alert_custom_audio_name ?? '',
+        volume: data.alert_volume ?? 0.8
       });
 
       // Load business hours
@@ -457,7 +461,9 @@ export default function SettingsPage() {
         .update({
           alert_timeout: alertSettings.timeout,
           alert_sound_enabled: alertSettings.soundEnabled,
-          alert_custom_audio_url: alertSettings.customAudioUrl
+          alert_custom_audio_url: alertSettings.customAudioUrl,
+          alert_custom_audio_name: alertSettings.customAudioName,
+          alert_volume: alertSettings.volume
         })
         .eq('id', userBarId);
 
@@ -512,13 +518,20 @@ export default function SettingsPage() {
         .from('alert-audio')
         .getPublicUrl(fileName);
 
-      // Update settings with new audio URL
-      setAlertSettings(prev => ({ ...prev, customAudioUrl: publicUrl }));
+      // Update settings with new audio URL and name
+      setAlertSettings(prev => ({ 
+        ...prev, 
+        customAudioUrl: publicUrl,
+        customAudioName: file.name
+      }));
       
       // Save to database
       const { error: updateError } = await supabase
         .from('bars')
-        .update({ alert_custom_audio_url: publicUrl })
+        .update({ 
+          alert_custom_audio_url: publicUrl,
+          alert_custom_audio_name: file.name
+        })
         .eq('id', userBarId);
 
       if (updateError) throw updateError;
@@ -548,12 +561,19 @@ export default function SettingsPage() {
       // Remove from database
       const { error } = await supabase
         .from('bars')
-        .update({ alert_custom_audio_url: '' })
+        .update({ 
+          alert_custom_audio_url: '',
+          alert_custom_audio_name: ''
+        })
         .eq('id', userBarId);
 
       if (error) throw error;
 
-      setAlertSettings(prev => ({ ...prev, customAudioUrl: '' }));
+      setAlertSettings(prev => ({ 
+        ...prev, 
+        customAudioUrl: '',
+        customAudioName: ''
+      }));
       alert('✅ Custom alert sound removed successfully!');
     } catch (error) {
       console.error('Error removing audio:', error);
@@ -1476,6 +1496,29 @@ export default function SettingsPage() {
 
                   {alertSettings.soundEnabled && (
                     <div className="space-y-3">
+                      {/* Volume Control */}
+                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-sm font-medium text-gray-700 mb-3">Alert Volume</p>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value={alertSettings.volume}
+                            onChange={(e) => setAlertSettings({...alertSettings, volume: parseFloat(e.target.value)})}
+                            className="flex-1"
+                          />
+                          <div className="w-12 text-center">
+                            <span className="text-sm font-bold text-blue-600">{Math.round(alertSettings.volume * 100)}%</span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>🔇 Silent</span>
+                          <span>🔊 Max</span>
+                        </div>
+                      </div>
+                      
                       <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                         <p className="text-sm text-blue-800 font-medium mb-2">Custom Alert Sound</p>
                         
@@ -1494,7 +1537,9 @@ export default function SettingsPage() {
                                 Remove
                               </button>
                             </div>
-                            <p className="text-xs text-gray-600">Custom alert sound is active</p>
+                            <p className="text-xs text-gray-600">
+                              {alertSettings.customAudioName || 'Custom alert sound is active'}
+                            </p>
                           </div>
                         ) : (
                           <div className="space-y-2">

@@ -98,38 +98,46 @@ const calculatePendingWaitTime = (tabs: any[], currentTime?: number): string => 
   }
 };
 
-// Play alert sound function
-const playAlertSound = (customAudioUrl: string, soundEnabled: boolean) => {
-  if (!soundEnabled) return;
-  
+// Play alert sound function with mobile support
+const playAlertSound = (customAudioUrl: string, soundEnabled: boolean, volume: number = 0.8, vibrationEnabled: boolean = true) => {
   try {
-    if (customAudioUrl) {
-      // Play custom audio
-      const audio = new Audio(customAudioUrl);
-      audio.play().catch(() => console.log('Custom audio playback failed'));
-    } else {
-      // Play default bell sound
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+    // Vibrate for mobile devices (works for all users including anon)
+    if (vibrationEnabled && 'vibrate' in navigator) {
+      // Vibration pattern: [duration, pause, duration, pause, ...]
+      navigator.vibrate([200, 100, 200, 100, 200]); // 3 short buzzes
+    }
+    
+    if (soundEnabled) {
+      if (customAudioUrl) {
+        // Play custom audio
+        const audio = new Audio(customAudioUrl);
+        audio.volume = Math.min(Math.max(volume, 0), 1); // Clamp between 0 and 1
+        audio.play().catch(() => console.log('Custom audio playback failed'));
+      } else {
+        // Play default bell sound
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
 
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
 
-      // Bell-like sound
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-      oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.5);
-      
-      // Volume envelope
-      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.1);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1);
-      
-      oscillator.start();
-      oscillator.stop(audioContext.currentTime + 1);
+        // Bell-like sound
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.5);
+        
+        // Volume envelope with configurable volume
+        const clampedVolume = Math.min(Math.max(volume, 0), 1);
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.3 * clampedVolume, audioContext.currentTime + 0.1);
+        gainNode.gain.exponentialRampToValueAtTime(0.001 * clampedVolume, audioContext.currentTime + 1);
+        
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 1);
+      }
     }
   } catch (error) {
-    console.log('Could not play sound:', error);
+    console.log('Could not play alert:', error);
   }
 };
 
@@ -287,13 +295,22 @@ export default function TabsPage() {
   const [alertSettings, setAlertSettings] = useState({
     timeout: 5,
     soundEnabled: true,
-    customAudioUrl: ''
+    customAudioUrl: '',
+    customAudioName: '',
+    volume: 0.8,
+    vibrationEnabled: true
   });
+  const [vibrationSupported, setVibrationSupported] = useState(false);
 
   useEffect(() => {
     return () => {
       mounted.current = false;
     };
+  }, []);
+
+  // Check vibration support
+  useEffect(() => {
+    setVibrationSupported('vibrate' in navigator);
   }, []);
 
   // Load alert settings
@@ -304,7 +321,7 @@ export default function TabsPage() {
       try {
         const { data, error } = await supabase
           .from('bars')
-          .select('alert_timeout, alert_sound_enabled, alert_custom_audio_url')
+          .select('alert_timeout, alert_sound_enabled, alert_custom_audio_url, alert_custom_audio_name, alert_volume, alert_vibration_enabled')
           .eq('id', bar.id)
           .single();
 
@@ -314,7 +331,10 @@ export default function TabsPage() {
           setAlertSettings({
             timeout: data.alert_timeout ?? 5,
             soundEnabled: data.alert_sound_enabled ?? true,
-            customAudioUrl: data.alert_custom_audio_url ?? ''
+            customAudioUrl: data.alert_custom_audio_url ?? '',
+            customAudioName: data.alert_custom_audio_name ?? '',
+            volume: data.alert_volume ?? 0.8,
+            vibrationEnabled: data.alert_vibration_enabled ?? true
           });
         }
       } catch (error) {
@@ -422,7 +442,7 @@ export default function TabsPage() {
             if (payload.new?.initiated_by === 'customer') {
               console.log('🚨 STAFF APP: Customer message detected - triggering MESSAGE alert');
               if (mounted.current) {
-                playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled);
+                playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled, alertSettings.volume);
                 setAlertType('message');
                 setShowAlert(true);
                 
@@ -483,7 +503,7 @@ export default function TabsPage() {
             if (payload.new?.initiated_by === 'customer') {
               console.log('🚨 Triggering ORDER alert');
               if (mounted.current) {
-                playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled);
+                playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled, alertSettings.volume);
                 setAlertType('order');
                 setShowAlert(true);
                 
@@ -759,7 +779,7 @@ export default function TabsPage() {
               <button 
                 onClick={() => {
                   console.log('🚨 Test button clicked!');
-                  playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled);
+                  playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled, alertSettings.volume, alertSettings.vibrationEnabled);
                   setAlertType('order');
                   setShowAlert(true);
                   

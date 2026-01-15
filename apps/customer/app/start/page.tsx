@@ -37,6 +37,8 @@ function ConsentContent() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [nickname, setNickname] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [creating, setCreating] = useState(false);
   
   // QR Scanner states
@@ -599,6 +601,8 @@ function ConsentContent() {
             has_nickname: !!nickname.trim(),
             device_id: deviceId,
             notifications_enabled: notificationsEnabled,
+            sound_enabled: soundEnabled,
+            vibration_enabled: vibrationEnabled,
             terms_accepted: termsAccepted,
             accepted_at: new Date().toISOString(),
             bar_name: barName,
@@ -840,10 +844,11 @@ function ConsentContent() {
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-2">
               <Bell size={20} className="text-gray-600" />
-              <span className="text-sm font-medium text-gray-700">Notifications</span>
+              <span className="text-sm font-medium text-gray-700">Notifications & Alerts</span>
             </div>
             
-            <label className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition">
+            {/* Main notifications toggle */}
+            <label className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition mb-3">
               <input
                 type="checkbox"
                 checked={notificationsEnabled}
@@ -853,7 +858,7 @@ function ConsentContent() {
               />
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-700 mb-1">
-                  Allow message notifications
+                  Enable notifications
                 </p>
                 <ul className="text-xs text-gray-600 space-y-1">
                   <li>• Order updates from {barName}</li>
@@ -862,6 +867,41 @@ function ConsentContent() {
                 </ul>
               </div>
             </label>
+
+            {/* Sound and vibration options - only show if notifications enabled */}
+            {notificationsEnabled && (
+              <div className="ml-8 space-y-2">
+                {/* Sound option */}
+                <label className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition">
+                  <input
+                    type="checkbox"
+                    checked={soundEnabled}
+                    onChange={(e) => setSoundEnabled(e.target.checked)}
+                    disabled={creating}
+                    className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500 disabled:cursor-not-allowed"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-700">🔊 Sound alerts</p>
+                    <p className="text-xs text-gray-600">Play sound for new orders and messages</p>
+                  </div>
+                </label>
+
+                {/* Vibration option */}
+                <label className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg cursor-pointer hover:bg-purple-100 transition">
+                  <input
+                    type="checkbox"
+                    checked={vibrationEnabled}
+                    onChange={(e) => setVibrationEnabled(e.target.checked)}
+                    disabled={creating}
+                    className="w-4 h-4 text-purple-500 rounded focus:ring-purple-500 disabled:cursor-not-allowed"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-700">📳 Vibration alerts</p>
+                    <p className="text-xs text-gray-600">Vibrate for new orders and messages</p>
+                  </div>
+                </label>
+              </div>
+            )}
           </div>
 
           <div className="mb-6">
