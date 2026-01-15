@@ -204,27 +204,34 @@ export default function PWAInstallPrompt({
 
     // ANDROID SPECIFIC: Also try to show banner on Android even without beforeinstallprompt
     const isAndroid = navigator.userAgent.toLowerCase().includes('android');
-    if (isAndroid && !state.isInstalled) {
-      console.log('📱 Android detected - checking for install capability');
-      
-      // Wait a bit for beforeinstallprompt to potentially fire
+    if (isAndroid) {
+      console.log('📱 Android detected - will show install banner');
       setTimeout(() => {
         if (!dismissedSession && !detectInstallationStatus().isInstalled) {
           console.log('📱 Android: Showing install banner');
           setShowInstallBanner(true);
-          
-          // Check if we have a deferred prompt, if not, we'll show manual instructions
-          if (!state.deferredPrompt) {
-            console.log('📱 Android: No deferred prompt available, will show manual instructions');
-          } else {
-            console.log('📱 Android: Deferred prompt available, will use native install');
-            setState(prev => ({
-              ...prev,
-              canInstall: true,
-            }));
-          }
+          setState(prev => ({
+            ...prev,
+            canInstall: true, // Always allow install attempt on Android
+          }));
         }
-      }, 500); // Check after 500ms
+      }, 500);
+    }
+
+    // DESKTOP: Also show on desktop browsers
+    const isDesktop = !isAndroid && !navigator.userAgent.toLowerCase().includes('iphone') && !navigator.userAgent.toLowerCase().includes('ipad');
+    if (isDesktop) {
+      console.log('💻 Desktop detected - will show install banner');
+      setTimeout(() => {
+        if (!dismissedSession && !detectInstallationStatus().isInstalled) {
+          console.log('💻 Desktop: Showing install banner');
+          setShowInstallBanner(true);
+          setState(prev => ({
+            ...prev,
+            canInstall: true, // Always allow install attempt on desktop
+          }));
+        }
+      }, 1000);
     }
 
     // Initial installation status check
@@ -437,39 +444,24 @@ export default function PWAInstallPrompt({
         )}
         
         <div className="flex gap-2">
-          {/* Install button - only show if we have native install capability */}
-          {state.canInstall && state.deferredPrompt && (
-            <button
-              onClick={handleInstallClick}
-              disabled={state.isInstalling}
-              className="flex-1 bg-blue-600 text-white font-medium py-2 px-3 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {state.isInstalling ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>Installing...</span>
-                </>
-              ) : (
-                <>
-                  <Download size={14} />
-                  <span>Install</span>
-                </>
-              )}
-            </button>
-          )}
-          
-          {/* If no native install, show manual instructions */}
-          {(!state.canInstall || !state.deferredPrompt) && (
-            <div className="flex-1 text-xs text-gray-600">
-              {state.platform === 'android' ? (
-                <span>Tap Chrome menu (⋮) → Add to Home screen</span>
-              ) : state.platform === 'ios' ? (
-                <span>Safari → Share → Add to Home Screen</span>
-              ) : (
-                <span>Browser menu → Install app</span>
-              )}
-            </div>
-          )}
+          {/* Install button - show if we have native capability OR for manual instructions */}
+          <button
+            onClick={handleInstallClick}
+            disabled={state.isInstalling}
+            className="flex-1 bg-blue-600 text-white font-medium py-2 px-3 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {state.isInstalling ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                <span>Installing...</span>
+              </>
+            ) : (
+              <>
+                <Download size={14} />
+                <span>Install</span>
+              </>
+            )}
+          </button>
           
           <button
             onClick={handleDismiss}
