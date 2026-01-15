@@ -757,6 +757,19 @@ function ConsentContent() {
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
+        {/* Back arrow button */}
+        <button
+          onClick={() => {
+            sessionStorage.clear();
+            router.replace('/');
+          }}
+          className="absolute top-4 left-4 p-2 bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/30 transition"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        
         <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
           <div className="text-center mb-6 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl border border-orange-200">
             <div className="flex items-center justify-center gap-2 mb-2">
