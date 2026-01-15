@@ -10,33 +10,43 @@ const STORAGE_KEYS = {
 
 // Generate browser fingerprint for additional validation
 function getBrowserFingerprint(): string {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.textBaseline = 'top';
-    ctx.font = '14px Arial';
-    ctx.fillText('fingerprint', 2, 2);
+  // Check if we're in a browser environment
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return 'server-side-fallback';
   }
   
-  const fingerprint = {
-    userAgent: navigator.userAgent,
-    language: navigator.language,
-    platform: navigator.platform,
-    hardwareConcurrency: navigator.hardwareConcurrency,
-    deviceMemory: (navigator as any).deviceMemory,
-    screenResolution: `${screen.width}x${screen.height}`,
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    canvasFingerprint: canvas.toDataURL(),
-  };
-  
-  const str = JSON.stringify(fingerprint);
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillText('fingerprint', 2, 2);
+    }
+    
+    const fingerprint = {
+      userAgent: navigator.userAgent,
+      language: navigator.language,
+      platform: navigator.platform,
+      hardwareConcurrency: navigator.hardwareConcurrency,
+      deviceMemory: (navigator as any).deviceMemory,
+      screenResolution: `${screen.width}x${screen.height}`,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      canvasFingerprint: canvas.toDataURL(),
+    };
+    
+    const str = JSON.stringify(fingerprint);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString(36);
+  } catch (error) {
+    console.warn('Error generating browser fingerprint:', error);
+    return 'fingerprint-error';
   }
-  return hash.toString(36);
 }
 
 export interface DeviceInfo {
@@ -47,6 +57,11 @@ export interface DeviceInfo {
 }
 
 export function getDeviceId(): string {
+  // Check if we're in a browser environment
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return 'server-side-temp-id';
+  }
+  
   try {
     // Step 1: Try to get from localStorage (fastest)
     let deviceId = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);

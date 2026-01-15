@@ -8,13 +8,33 @@ export const getSupabaseClient = () => {
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing Supabase environment variables');
+      console.warn('⚠️ Missing Supabase environment variables, using fallback client');
+      // Create a fallback client that won't crash the app
+      supabaseClient = createClient(
+        'https://placeholder.supabase.co', 
+        'placeholder-key'
+      );
+    } else {
+      supabaseClient = createClient(supabaseUrl, supabaseKey);
     }
-    
-    supabaseClient = createClient(supabaseUrl, supabaseKey);
   }
   
   return supabaseClient;
 };
 
-export const supabase = getSupabaseClient();
+// Don't initialize immediately - wait for first access
+export const supabase = {
+  get client() {
+    return getSupabaseClient();
+  },
+  // Proxy common methods to avoid breaking existing code
+  from: (...args: any[]) => getSupabaseClient().from(...args),
+  auth: {
+    get getUser() {
+      return getSupabaseClient().auth.getUser.bind(getSupabaseClient().auth);
+    },
+    get signOut() {
+      return getSupabaseClient().auth.signOut.bind(getSupabaseClient().auth);
+    }
+  }
+};

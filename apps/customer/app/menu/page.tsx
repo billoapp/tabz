@@ -141,7 +141,7 @@ export default function MenuPage() {
   const { showToast } = useToast();
   
   // Token service instance
-  const tokensService = new TokensService(supabase);
+  const tokensService = new TokensService(supabase.client);
   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
   const { showNotification } = useTokenNotifications();
 

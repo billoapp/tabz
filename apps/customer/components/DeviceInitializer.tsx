@@ -5,10 +5,9 @@ import { getDeviceInfo } from '@/lib/deviceId';
 
 interface DeviceInitializerProps {
   children: React.ReactNode;
-  supabase: any; // Add supabase prop
 }
 
-export default function DeviceInitializer({ children, supabase }: DeviceInitializerProps) {
+export default function DeviceInitializer({ children }: DeviceInitializerProps) {
   const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

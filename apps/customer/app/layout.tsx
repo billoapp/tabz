@@ -6,9 +6,6 @@ import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import PWADebugInfo from '@/components/PWADebugInfo';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Analytics } from '@vercel/analytics/next';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient('https://your-supabase-instance.supabase.co', 'your-supabase-key');
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +61,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <DeviceInitializer supabase={supabase}>
+        <DeviceInitializer>
           <ToastProvider>
             <PWAInstallPrompt />
             {children}

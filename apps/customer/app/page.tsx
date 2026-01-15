@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle, Zap, DollarSign, Bell, Shield } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import Logo from '@/components/Logo';
 import { getAllOpenTabs, hasOpenTabAtBar, validateDeviceForNewTab, storeActiveTab } from '@/lib/deviceId';
@@ -71,6 +71,7 @@ function LandingContent() {
 
   const loadAllOpenTabs = async () => {
     try {
+      const supabase = getSupabaseClient();
       const tabs = await getAllOpenTabs(supabase as any);
       
       if (tabs.length > 0) {
@@ -88,6 +89,7 @@ function LandingContent() {
       setCheckingTab(true);
       console.log('🔍 Checking for existing tab at:', barSlug);
       
+      const supabase = getSupabaseClient();
       const { data: bar, error: barError } = await (supabase as any)
         .from('bars')
         .select('id, name, active, slug')

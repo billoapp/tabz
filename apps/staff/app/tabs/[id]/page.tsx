@@ -377,7 +377,7 @@ export default function TabDetailPage() {
             // Generate a truly unique ID for each new item
             const uniqueItem = {
               ...newItem,
-              id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}` 
+              id: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}` 
             };
             mergedItems.push(uniqueItem);
           });
@@ -401,7 +401,7 @@ export default function TabDetailPage() {
       // Create a truly unique ID for this item
       const uniqueItem = {
         ...item,
-        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}` 
+        id: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}` 
       };
       
       console.log('🛒 Previous cart items:', prev);
