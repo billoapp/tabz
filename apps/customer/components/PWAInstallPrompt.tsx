@@ -135,104 +135,18 @@ export default function PWAInstallPrompt({
       isLocalhost: window.location.hostname === 'localhost',
     });
 
-    // DEVELOPMENT/PREVIEW: Enhanced debugging and forced display
-    const isDevOrPreview = process.env.NODE_ENV === 'development' || 
-                          window.location.hostname.includes('vercel.app') ||
-                          window.location.hostname.includes('netlify.app') ||
-                          window.location.hostname.includes('preview');
-    
-    if (isDevOrPreview) {
-      console.log('🧪 Development/Preview mode detected');
-      console.log('🔍 Environment details:', {
-        nodeEnv: process.env.NODE_ENV,
-        hostname: window.location.hostname,
-        href: window.location.href,
-        protocol: window.location.protocol,
-        isHTTPS: window.location.protocol === 'https:',
-        userAgent: navigator.userAgent.substring(0, 100) + '...',
-        dismissedSession,
-        isInstalled: detectInstallationStatus().isInstalled
-      });
-      
-      // Check PWA install criteria
-      const pwaChecks = {
-        isHTTPS: window.location.protocol === 'https:' || window.location.hostname === 'localhost',
-        hasManifest: document.querySelector('link[rel="manifest"]') !== null,
-        hasServiceWorker: 'serviceWorker' in navigator,
-        hasBeforeInstallPrompt: 'onbeforeinstallprompt' in window,
-        isStandalone: window.matchMedia('(display-mode: standalone)').matches,
-        hasValidIcons: true, // We'll assume this is true since we have icons in manifest
-        isAndroid: navigator.userAgent.toLowerCase().includes('android'),
-        isChrome: navigator.userAgent.toLowerCase().includes('chrome') && !navigator.userAgent.toLowerCase().includes('edg'),
-      };
-      
-      console.log('🔍 PWA Install Criteria Check:', pwaChecks);
-      
-      // For Android: Force show banner after delay, even without beforeinstallprompt
-      setTimeout(() => {
-        const { isInstalled, platform } = detectInstallationStatus();
-        console.log('🔍 After timeout check:', { 
-          isInstalled, 
-          dismissedSession,
-          platform,
-          pwaChecks,
-          willShowBanner: !isInstalled && !dismissedSession,
-          currentShowInstallBanner: showInstallBanner
-        });
-        
-        if (!isInstalled && !dismissedSession) {
-          console.log('✅ Forcing install banner display for testing');
-          console.log('🔍 Setting showInstallBanner to true and canInstall to true');
-          setShowInstallBanner(true);
-          setState(prev => ({
-            ...prev,
-            canInstall: true, // Force enable for testing
-          }));
-          
-          // Double-check after state update
-          setTimeout(() => {
-            console.log('🔍 State after forced update:', {
-              showInstallBanner: true, // This should be true now
-              canInstall: true
-            });
-          }, 100);
-        } else {
-          console.log('❌ Not showing banner:', { isInstalled, dismissedSession });
-        }
-      }, 1000); // Reduced to 1 second for faster testing
-    }
-
-    // ANDROID SPECIFIC: Also try to show banner on Android even without beforeinstallprompt
-    const isAndroid = navigator.userAgent.toLowerCase().includes('android');
-    if (isAndroid) {
-      console.log('📱 Android detected - will show install banner');
-      setTimeout(() => {
-        if (!dismissedSession && !detectInstallationStatus().isInstalled) {
-          console.log('📱 Android: Showing install banner');
-          setShowInstallBanner(true);
-          setState(prev => ({
-            ...prev,
-            canInstall: true, // Always allow install attempt on Android
-          }));
-        }
-      }, 500);
-    }
-
-    // DESKTOP: Also show on desktop browsers
-    const isDesktop = !isAndroid && !navigator.userAgent.toLowerCase().includes('iphone') && !navigator.userAgent.toLowerCase().includes('ipad');
-    if (isDesktop) {
-      console.log('💻 Desktop detected - will show install banner');
-      setTimeout(() => {
-        if (!dismissedSession && !detectInstallationStatus().isInstalled) {
-          console.log('💻 Desktop: Showing install banner');
-          setShowInstallBanner(true);
-          setState(prev => ({
-            ...prev,
-            canInstall: true, // Always allow install attempt on desktop
-          }));
-        }
-      }, 1000);
-    }
+    // Show banner after a delay regardless of beforeinstallprompt
+    setTimeout(() => {
+      const { isInstalled } = detectInstallationStatus();
+      if (!isInstalled && !dismissedSession) {
+        console.log('⏰ Showing install banner after timeout');
+        setShowInstallBanner(true);
+        setState(prev => ({
+          ...prev,
+          canInstall: true, // Allow install attempt
+        }));
+      }
+    }, 2000);
 
     // Initial installation status check
     detectInstallationStatus();
@@ -245,7 +159,7 @@ export default function PWAInstallPrompt({
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, [detectInstallationStatus, dismissedSession, onInstallSuccess, state.deferredPrompt, state.isInstalled, showInstallBanner]);
+  }, [detectInstallationStatus, dismissedSession, onInstallSuccess]);
 
   // Handle installation process
   const handleInstallClick = async () => {
@@ -255,60 +169,55 @@ export default function PWAInstallPrompt({
       canInstall: state.canInstall 
     });
 
-    // If no deferred prompt available, provide platform-specific guidance
-    if (!state.deferredPrompt) {
-      console.log('⚠️ No deferred prompt available, showing manual instructions');
-      
-      if (state.platform === 'ios') {
-        setState(prev => ({ 
-          ...prev, 
-          error: 'Use Safari → Share → Add to Home Screen' 
-        }));
-      } else if (state.platform === 'android') {
-        setState(prev => ({ 
-          ...prev, 
-          error: 'Tap Chrome menu (⋮) → Add to Home screen' 
-        }));
-      } else {
-        // For desktop or other platforms
-        setState(prev => ({ 
-          ...prev, 
-          error: 'Try: Browser menu → Install app' 
-        }));
-      }
-      
-      // Clear error after 5 seconds
-      setTimeout(() => setState(prev => ({ ...prev, error: null })), 5000);
-      return;
-    }
-
-    if (state.isInstalling) return;
-
     setState(prev => ({ ...prev, isInstalling: true, error: null }));
 
     try {
-      console.log('🚀 Showing install prompt...');
-      // Show the install prompt
-      await state.deferredPrompt.prompt();
-      
-      // Wait for the user's choice
-      const choiceResult = await state.deferredPrompt.userChoice;
-      
-      console.log('📊 PWA install choice result:', choiceResult);
+      // Try native install first if available
+      if (state.deferredPrompt) {
+        console.log('🚀 Using native install prompt...');
+        await state.deferredPrompt.prompt();
+        
+        const choiceResult = await state.deferredPrompt.userChoice;
+        console.log('📊 PWA install choice result:', choiceResult);
 
-      if (choiceResult.outcome === 'accepted') {
-        console.log('✅ User accepted the install prompt');
-        // The 'appinstalled' event will handle success state
-      } else {
-        console.log('❌ User dismissed the install prompt');
-        setState(prev => ({
-          ...prev,
-          isInstalling: false,
-          canInstall: false,
-          deferredPrompt: null,
-        }));
-        setShowInstallBanner(false);
+        if (choiceResult.outcome === 'accepted') {
+          console.log('✅ User accepted the install prompt');
+          // The 'appinstalled' event will handle success state
+          return;
+        } else {
+          console.log('❌ User dismissed the install prompt');
+          setState(prev => ({
+            ...prev,
+            isInstalling: false,
+            canInstall: false,
+            deferredPrompt: null,
+          }));
+          setShowInstallBanner(false);
+          return;
+        }
       }
+
+      // Fallback: Show platform-specific manual instructions
+      console.log('⚠️ No native install available, showing manual instructions');
+      
+      let instructionMessage = '';
+      if (state.platform === 'ios') {
+        instructionMessage = 'Use Safari → Share → Add to Home Screen';
+      } else if (state.platform === 'android') {
+        instructionMessage = 'Tap Chrome menu (⋮) → Add to Home screen';
+      } else {
+        instructionMessage = 'Try: Browser menu → Install app';
+      }
+      
+      setState(prev => ({ 
+        ...prev, 
+        isInstalling: false,
+        error: instructionMessage 
+      }));
+      
+      // Clear error after 5 seconds
+      setTimeout(() => setState(prev => ({ ...prev, error: null })), 5000);
+      
     } catch (error) {
       console.error('💥 PWA install error:', error);
       const installError = error instanceof Error ? error : new Error('Installation failed');
