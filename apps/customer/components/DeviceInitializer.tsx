@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getDeviceInfo } from '@/lib/device-identity';
+import { getDeviceInfo } from '@/lib/deviceId';
 
 interface DeviceInitializerProps {
   children: React.ReactNode;
@@ -19,15 +19,11 @@ export default function DeviceInitializer({ children }: DeviceInitializerProps) 
         const device = await getDeviceInfo();
         
         console.log('✅ Device initialized:', {
-          id: device.id,
+          id: device.deviceId,
           fingerprint: device.fingerprint.slice(0, 10) + '...',
-          integrityScore: device.integrity.score,
-          warnings: device.integrity.warnings.length
+          createdAt: device.createdAt,
+          lastSeen: device.lastSeen
         });
-        
-        if (device.integrity.warnings.length > 0) {
-          console.warn('⚠️ Device initialization warnings:', device.integrity.warnings);
-        }
         
         // Update last seen timestamp in legacy storage for compatibility
         try {

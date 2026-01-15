@@ -79,7 +79,7 @@ export function getDeviceId(): string {
   return deviceId;
 }
 
-export function getDeviceInfo(): DeviceInfo {
+export async function getDeviceInfo(): Promise<DeviceInfo> {
   return {
     deviceId: getDeviceId(),
     fingerprint: localStorage.getItem(STORAGE_KEYS.FINGERPRINT) || '',

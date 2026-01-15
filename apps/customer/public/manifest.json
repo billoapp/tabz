@@ -8,6 +8,10 @@
   "theme_color": "#ea580c",
   "orientation": "portrait",
   "scope": "/",
+  "id": "tabeza-customer-app",
+  "prefer_related_applications": false,
+  "lang": "en",
+  "dir": "ltr",
   "icons": [
     {
       "src": "/icons/icon-72.png",
@@ -69,9 +73,6 @@
     }
   ],
   "categories": ["business", "food", "lifestyle"],
-  "lang": "en",
-  "dir": "ltr",
-  "prefer_related_applications": false,
   "permissions": [
     "vibration",
     "notifications", 
