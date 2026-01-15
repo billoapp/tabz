@@ -74,7 +74,7 @@ export function getDeviceIdSync(): string {
     if (fromOld) return fromOld;
     
     // Generate a temporary ID
-    return `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `temp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   } catch (error) {
     return `temp_error_${Date.now()}`;
   }

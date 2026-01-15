@@ -77,7 +77,7 @@ export function getDeviceId(): string {
     }
     
     // Step 4: Create new device ID (first time or after recovery failed)
-    deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     
     // Save to Supabase first (source of truth)
     // Skip for now since we don't have Supabase table
@@ -96,7 +96,7 @@ export function getDeviceId(): string {
     console.error('❌ Error in getDeviceId:', error);
     
     // Fallback: generate temporary device ID
-    const fallbackId = `device_temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const fallbackId = `device_temp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     console.warn('⚠️ Using temporary device ID:', fallbackId);
     return fallbackId;
   }

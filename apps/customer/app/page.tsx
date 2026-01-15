@@ -6,7 +6,7 @@ import { AlertCircle, Zap, DollarSign, Bell, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import Logo from '@/components/Logo';
-import { getAllOpenTabs, hasOpenTabAtBar, validateDeviceIntegrity, storeActiveTab } from '@/lib/device-identity';
+import { getAllOpenTabs, hasOpenTabAtBar, validateDeviceForNewTab, storeActiveTab } from '@/lib/deviceId';
 
 export default function LandingPage() {
   return (

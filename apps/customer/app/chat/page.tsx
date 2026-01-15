@@ -74,7 +74,7 @@ export default function ChatPage() {
     if (!inputMessage.trim()) return;
 
     const userMsg = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).substring(2, 11),
       text: inputMessage,
       sender: 'user',
       timestamp: new Date()
@@ -102,7 +102,7 @@ export default function ChatPage() {
         const total = foundItems.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0);
         
         const staffMsg = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: Math.random().toString(36).substring(2, 11),
           text: `Perfect! I've added ${itemsList} to your cart. Total: KSh ${total}. Coming right up! 🍺`,
           sender: 'staff',
           timestamp: new Date()
@@ -110,7 +110,7 @@ export default function ChatPage() {
         setMessages(prev => [...prev, staffMsg]);
       } else {
         const staffMsg = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: Math.random().toString(36).substring(2, 11),
           text: "Sorry, I didn't catch that. Could you try again? You can say things like '2 Tusker' or 'one whiskey coke' 😊",
           sender: 'staff',
           timestamp: new Date()
