@@ -71,5 +71,14 @@
   "categories": ["business", "food", "lifestyle"],
   "lang": "en",
   "dir": "ltr",
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "permissions": [
+    "vibration",
+    "notifications", 
+    "audio"
+  ],
+  "features": [
+    "vibration",
+    "notifications"
+  ]
 }

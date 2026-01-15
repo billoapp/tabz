@@ -15,6 +15,8 @@ import { TokensService, TOKENS_CONFIG } from '../../../../packages/shared/tokens
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 import QrScanner from 'qr-scanner';
 import { BarClosedSlideIn } from '../../components/BarClosedSlideIn';
+import { playCustomerNotification, requestVibrationPermission, isVibrationSupported } from '@/lib/notifications';
+import { requestSystemPermissions, checkPermissions } from '@/lib/permissions';
 
 function ConsentContent() {
   const router = useRouter();
@@ -34,6 +36,8 @@ function ConsentContent() {
   const [barSlug, setBarSlug] = useState<string | null>(null);
   const [barId, setBarId] = useState<string | null>(null);
   const [barName, setBarName] = useState<string>('Default Bar Name');
+  const [permissionRequested, setPermissionRequested] = useState(false);
+  const [systemPermissions, setSystemPermissions] = useState<any>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [nickname, setNickname] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -188,6 +192,18 @@ function ConsentContent() {
     setIsScannerMode(false);
     loadBarInfo(extractedSlug);
   };
+
+  useEffect(() => {
+    const requestPermissions = async () => {
+      const perms = await requestSystemPermissions();
+      setSystemPermissions(perms);
+      console.log('📋 System permissions requested:', perms);
+      setPermissionRequested(true);
+    };
+    
+    // Request permissions after a short delay to allow UI to load
+    setTimeout(requestPermissions, 1000);
+  }, []);
 
   useEffect(() => {
     getDeviceId().then(id => setDebugDeviceId(id.slice(0, 20)));
