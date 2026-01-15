@@ -19,7 +19,15 @@ interface Tab {
   status: string;
   bar_id: string;
   opened_at: string;
-  bar: Bar;
+  bar: Bar & {
+    business_hours_advanced?: {
+      [key: string]: {
+        open: string;
+        close: string;
+        closeNextDay?: boolean;
+      };
+    };
+  };
 }
 
 interface Order {

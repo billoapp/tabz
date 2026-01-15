@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/Toast';
 import { TokensService, TOKENS_CONFIG } from '../../../../packages/shared/tokens-service';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 import QrScanner from 'qr-scanner';
+import { BarClosedSlideIn } from '../../components/BarClosedSlideIn';
 
 function ConsentContent() {
   const router = useRouter();
@@ -44,6 +45,18 @@ function ConsentContent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   
   const [debugDeviceId, setDebugDeviceId] = useState<string>('');
+  
+  // Bar closed slide-in state
+  const [showBarClosed, setShowBarClosed] = useState(false);
+  const [barClosedInfo, setBarClosedInfo] = useState<{
+    barName: string;
+    nextOpenTime: string;
+    businessHours?: any;
+  }>({
+    barName: '',
+    nextOpenTime: '',
+    businessHours: undefined
+  });
 
   // IMPROVED QR CODE EXTRACTION
   const extractSlugFromQRCode = (qrCode: string): string | null => {
@@ -299,123 +312,145 @@ function ConsentContent() {
 
     // Check if bar is currently open for business
     try {
-      const { data: bar, error: barError } = await (supabase as any)
-        .from('bars')
-        .select('business_hours_mode, business_hours_simple, business_hours_advanced, business_24_hours')
-        .eq('id', barId)
-        .single();
+      // First check if user has existing overdue tabs for this bar
+      const deviceId = await getDeviceId();
+      const barDeviceKey = await getBarDeviceKey(barId);
+      
+      const { data: existingTabs } = await (supabase as any)
+        .from('tabs')
+        .select('status, opened_at')
+        .eq('bar_id', barId)
+        .eq('owner_identifier', barDeviceKey)
+        .in('status', ['open', 'overdue']);
 
-      if (barError) throw barError;
+      // Allow access if user has existing tabs (open or overdue) - they need to pay!
+      const hasExistingTab = existingTabs && existingTabs.length > 0;
+      
+      if (hasExistingTab) {
+        console.log('✅ User has existing tab, allowing access regardless of business hours');
+        // Continue with tab creation flow (will show existing tab instead of creating new one)
+      } else {
+        // Check business hours only for new customers
+        const { data: bar, error: barError } = await (supabase as any)
+          .from('bars')
+          .select('business_hours_mode, business_hours_simple, business_hours_advanced, business_24_hours')
+          .eq('id', barId)
+          .single();
 
-      // Business hours check function
-      const isWithinBusinessHours = (barData: any) => {
-        try {
-          // Handle 24 hours mode
-          if (barData.business_24_hours === true) {
-            return true;
-          }
-          
-          // If no business hours configured, always open
-          if (!barData.business_hours_mode) {
-            return true;
-          }
-          
-          const now = new Date();
-          const currentHour = now.getHours();
-          const currentMinute = now.getMinutes();
-          const currentTotalMinutes = currentHour * 60 + currentMinute;
-          
-          // Get current day of week (0 = Sunday, 1 = Monday, etc.)
-          const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-          const currentDay = dayNames[now.getDay()];
-          
-          if (barData.business_hours_mode === 'simple') {
-            // Simple mode: same hours every day
-            if (!barData.business_hours_simple) {
+        if (barError) throw barError;
+
+        // Business hours check function
+        const isWithinBusinessHours = (barData: any) => {
+          try {
+            // Handle 24 hours mode
+            if (barData.business_24_hours === true) {
               return true;
             }
             
-            // Parse open time (format: "HH:MM")
-            const [openHour, openMinute] = barData.business_hours_simple.openTime.split(':').map(Number);
-            const openTotalMinutes = openHour * 60 + openMinute;
+            // If no business hours configured, always open
+            if (!barData.business_hours_mode) {
+              return true;
+            }
             
-            // Parse close time
-            const [closeHour, closeMinute] = barData.business_hours_simple.closeTime.split(':').map(Number);
-            const closeTotalMinutes = closeHour * 60 + closeMinute;
+            const now = new Date();
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            const currentTotalMinutes = currentHour * 60 + currentMinute;
             
-            // Handle overnight hours (e.g., 20:00 to 04:00)
-            if (barData.business_hours_simple.closeNextDay || closeTotalMinutes < openTotalMinutes) {
-              // Venue is open overnight: current time >= open OR current time <= close
-              return currentTotalMinutes >= openTotalMinutes || currentTotalMinutes <= closeTotalMinutes;
+            // Get current day of week (0 = Sunday, 1 = Monday, etc.)
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const currentDay = dayNames[now.getDay()];
+            
+            if (barData.business_hours_mode === 'simple') {
+              // Simple mode: same hours every day
+              if (!barData.business_hours_simple) {
+                return true;
+              }
+              
+              // Parse open time (format: "HH:MM")
+              const [openHour, openMinute] = barData.business_hours_simple.openTime.split(':').map(Number);
+              const openTotalMinutes = openHour * 60 + openMinute;
+              
+              // Parse close time
+              const [closeHour, closeMinute] = barData.business_hours_simple.closeTime.split(':').map(Number);
+              const closeTotalMinutes = closeHour * 60 + closeMinute;
+              
+              // Handle overnight hours (e.g., 20:00 to 04:00)
+              if (barData.business_hours_simple.closeNextDay || closeTotalMinutes < openTotalMinutes) {
+                // Venue is open overnight: current time >= open OR current time <= close
+                return currentTotalMinutes >= openTotalMinutes || currentTotalMinutes <= closeTotalMinutes;
+              } else {
+                // Normal hours: current time between open and close
+                return currentTotalMinutes >= openTotalMinutes && currentTotalMinutes <= closeTotalMinutes;
+              }
+              
+            } else if (barData.business_hours_mode === 'advanced') {
+              // Advanced mode: different hours per day
+              if (!barData.business_hours_advanced || !barData.business_hours_advanced[currentDay]) {
+                return true; // Default to open if no hours for this day
+              }
+              
+              const dayHours = barData.business_hours_advanced[currentDay];
+              if (!dayHours.open || !dayHours.close) {
+                return true; // Default to open if missing open/close times
+              }
+              
+              // Parse open time
+              const [openHour, openMinute] = dayHours.open.split(':').map(Number);
+              const openTotalMinutes = openHour * 60 + openMinute;
+              
+              // Parse close time
+              const [closeHour, closeMinute] = dayHours.close.split(':').map(Number);
+              const closeTotalMinutes = closeHour * 60 + closeMinute;
+              
+              // Handle overnight hours
+              if (dayHours.closeNextDay || closeTotalMinutes < openTotalMinutes) {
+                // Venue is open overnight: current time >= open OR current time <= close
+                return currentTotalMinutes >= openTotalMinutes || currentTotalMinutes <= closeTotalMinutes;
+              } else {
+                // Normal hours: current time between open and close
+                return currentTotalMinutes >= openTotalMinutes && currentTotalMinutes <= closeTotalMinutes;
+              }
+            }
+          } catch (error) {
+            console.error('Error checking business hours:', error);
+            return true; // Default to open on error
+          }
+        };
+
+        const isOpen = isWithinBusinessHours(bar);
+        
+        if (!isOpen) {
+          // Calculate next opening time
+          let nextOpenTime = 'tomorrow';
+          if (bar.business_hours_simple) {
+            const [openHour, openMinute] = bar.business_hours_simple.openTime.split(':').map(Number);
+            const now = new Date();
+            const currentHour = now.getHours();
+            
+            // Check if opening time is later today or tomorrow
+            if (currentHour < openHour) {
+              // Opens later today
+              nextOpenTime = `today at ${bar.business_hours_simple.openTime} am`;
             } else {
-              // Normal hours: current time between open and close
-              return currentTotalMinutes >= openTotalMinutes && currentTotalMinutes <= closeTotalMinutes;
-            }
-            
-          } else if (barData.business_hours_mode === 'advanced') {
-            // Advanced mode: different hours per day
-            if (!barData.business_hours_advanced || !barData.business_hours_advanced[currentDay]) {
-              return true; // Default to open if no hours for this day
-            }
-            
-            const dayHours = barData.business_hours_advanced[currentDay];
-            if (!dayHours.open || !dayHours.close) {
-              return true; // Default to open if missing open/close times
-            }
-            
-            // Parse open time
-            const [openHour, openMinute] = dayHours.open.split(':').map(Number);
-            const openTotalMinutes = openHour * 60 + openMinute;
-            
-            // Parse close time
-            const [closeHour, closeMinute] = dayHours.close.split(':').map(Number);
-            const closeTotalMinutes = closeHour * 60 + closeMinute;
-            
-            // Handle overnight hours
-            if (dayHours.closeNextDay || closeTotalMinutes < openTotalMinutes) {
-              // Venue is open overnight: current time >= open OR current time <= close
-              return currentTotalMinutes >= openTotalMinutes || currentTotalMinutes <= closeTotalMinutes;
-            } else {
-              // Normal hours: current time between open and close
-              return currentTotalMinutes >= openTotalMinutes && currentTotalMinutes <= closeTotalMinutes;
+              // Opens tomorrow
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              tomorrow.setHours(openHour, openMinute, 0, 0);
+              nextOpenTime = `tomorrow at ${bar.business_hours_simple.openTime} am`;
             }
           }
-        } catch (error) {
-          console.error('Error checking business hours:', error);
-          return true; // Default to open on error
-        }
-      };
 
-      const isOpen = isWithinBusinessHours(bar);
-      
-      if (!isOpen) {
-        // Calculate next opening time
-        let nextOpenTime = 'tomorrow';
-        if (bar.business_hours_simple) {
-          const [openHour, openMinute] = bar.business_hours_simple.openTime.split(':').map(Number);
-          const now = new Date();
-          const currentHour = now.getHours();
-          
-          // Check if opening time is later today or tomorrow
-          if (currentHour < openHour) {
-            // Opens later today
-            nextOpenTime = `today at ${bar.business_hours_simple.openTime} am`;
-          } else {
-            // Opens tomorrow
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            tomorrow.setHours(openHour, openMinute, 0, 0);
-            nextOpenTime = `tomorrow at ${bar.business_hours_simple.openTime} am`;
-          }
+          // Show slide-in instead of toast
+          setBarClosedInfo({
+            barName,
+            nextOpenTime,
+            businessHours: bar.business_hours_advanced || undefined
+          });
+          setShowBarClosed(true);
+          setCreating(false);
+          return;
         }
-
-        showToast({
-          type: 'error',
-          title: 'Bar Currently Closed',
-          message: `${barName} is currently closed. Please try again ${nextOpenTime}.`
-        });
-        setCreating(false);
-        return;
       }
     } catch (error) {
       console.error('Error checking business hours:', error);
@@ -720,133 +755,144 @@ function ConsentContent() {
 
   // Main consent form
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-        <div className="text-center mb-6 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl border border-orange-200">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <Store size={20} className="text-orange-600" />
-            <p className="text-sm font-medium text-orange-700">You're at</p>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">{barName}</h2>
-          <p className="text-sm text-gray-600">Ready to start your tab</p>
-        </div>
-
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield size={32} className="text-green-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Anonymous Tab</h1>
-          <p className="text-gray-700 leading-relaxed">
-            You're anonymous here. We don't collect names, phone numbers, or emails.
-          </p>
-        </div>
-
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Nickname <span className="text-gray-400">(optional)</span>
-          </label>
-          <input
-            type="text"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="Mary or John"
-            maxLength={20}
-            disabled={creating}
-            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            If left blank, we'll assign you a tab number
-          </p>
-        </div>
-
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <Bell size={20} className="text-gray-600" />
-            <span className="text-sm font-medium text-gray-700">Notifications</span>
-          </div>
-          
-          <label className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition">
-            <input
-              type="checkbox"
-              checked={notificationsEnabled}
-              onChange={(e) => setNotificationsEnabled(e.target.checked)}
-              disabled={creating}
-              className="mt-0.5 w-5 h-5 text-orange-500 rounded focus:ring-orange-500 disabled:cursor-not-allowed"
-            />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-gray-700 mb-1">
-                Allow message notifications
-              </p>
-              <ul className="text-xs text-gray-600 space-y-1">
-                <li>• Order updates from {barName}</li>
-                <li>• Staff messages</li>
-                <li>• Bill ready alerts</li>
-              </ul>
+    <>
+      <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
+          <div className="text-center mb-6 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl border border-orange-200">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Store size={20} className="text-orange-600" />
+              <p className="text-sm font-medium text-orange-700">You're at</p>
             </div>
-          </label>
-        </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-1">{barName}</h2>
+            <p className="text-sm text-gray-600">Ready to start your tab</p>
+          </div>
 
-        <div className="mb-6">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={termsAccepted}
-              onChange={(e) => setTermsAccepted(e.target.checked)}
-              disabled={creating}
-              className="mt-0.5 w-5 h-5 text-orange-500 rounded focus:ring-orange-500 disabled:cursor-not-allowed"
-            />
-            <div className="flex-1">
-              <p className="text-sm text-gray-700">
-                I agree to the{' '}
-                <button 
-                  onClick={() => window.open('/terms', '_blank')}
-                  className="text-orange-600 underline hover:text-orange-700"
-                  type="button"
-                >
-                  Terms of Use
-                </button>
-                {' '}and{' '}
-                <button 
-                  onClick={() => window.open('/privacy', '_blank')}
-                  className="text-orange-600 underline hover:text-orange-700"
-                  type="button"
-                >
-                  Privacy Policy
-                </button>
-              </p>
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Shield size={32} className="text-green-600" />
             </div>
-          </label>
-        </div>
-
-        <button
-          onClick={handleStartTab}
-          disabled={!termsAccepted || creating}
-          className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-red-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition shadow-lg"
-        >
-          {creating ? (
-            <>
-              <span className="animate-spin inline-block mr-2">⟳</span>
-              Creating Your Tab...
-            </>
-          ) : (
-            `Start My Tab at ${barName}`
-          )}
-        </button>
-
-        <div className="text-center mt-6 pt-4 border-t border-gray-100">
-          <p className="text-xs text-gray-500">
-            🔒 Your privacy is protected
-          </p>
-          {process.env.NODE_ENV === 'development' && (
-            <p className="text-xs text-gray-400 mt-2 font-mono">
-              Device: {debugDeviceId}...
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">Anonymous Tab</h1>
+            <p className="text-gray-700 leading-relaxed">
+              You're anonymous here. We don't collect names, phone numbers, or emails.
             </p>
-          )}
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nickname <span className="text-gray-400">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="Mary or John"
+              maxLength={20}
+              disabled={creating}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              If left blank, we'll assign you a tab number
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Bell size={20} className="text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">Notifications</span>
+            </div>
+            
+            <label className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition">
+              <input
+                type="checkbox"
+                checked={notificationsEnabled}
+                onChange={(e) => setNotificationsEnabled(e.target.checked)}
+                disabled={creating}
+                className="mt-0.5 w-5 h-5 text-orange-500 rounded focus:ring-orange-500 disabled:cursor-not-allowed"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-700 mb-1">
+                  Allow message notifications
+                </p>
+                <ul className="text-xs text-gray-600 space-y-1">
+                  <li>• Order updates from {barName}</li>
+                  <li>• Staff messages</li>
+                  <li>• Bill ready alerts</li>
+                </ul>
+              </div>
+            </label>
+          </div>
+
+          <div className="mb-6">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                disabled={creating}
+                className="mt-0.5 w-5 h-5 text-orange-500 rounded focus:ring-orange-500 disabled:cursor-not-allowed"
+              />
+              <div className="flex-1">
+                <p className="text-sm text-gray-700">
+                  I agree to the{' '}
+                  <button 
+                    onClick={() => window.open('/terms', '_blank')}
+                    className="text-orange-600 underline hover:text-orange-700"
+                    type="button"
+                  >
+                    Terms of Use
+                  </button>
+                  {' '}and{' '}
+                  <button 
+                    onClick={() => window.open('/privacy', '_blank')}
+                    className="text-orange-600 underline hover:text-orange-700"
+                    type="button"
+                  >
+                    Privacy Policy
+                  </button>
+                </p>
+              </div>
+            </label>
+          </div>
+
+          <button
+            onClick={handleStartTab}
+            disabled={!termsAccepted || creating}
+            className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-red-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition shadow-lg"
+          >
+            {creating ? (
+              <>
+                <span className="animate-spin inline-block mr-2">⟳</span>
+                Creating Your Tab...
+              </>
+            ) : (
+              `Start My Tab at ${barName}`
+            )}
+          </button>
+
+          <div className="text-center mt-6 pt-4 border-t border-gray-100">
+            <p className="text-xs text-gray-500">
+              🔒 Your privacy is protected
+            </p>
+            {process.env.NODE_ENV === 'development' && (
+              <p className="text-xs text-gray-400 mt-2 font-mono">
+                Device: {debugDeviceId}...
+              </p>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      
+      {/* Bar Closed Slide-in */}
+      <BarClosedSlideIn
+        isOpen={showBarClosed}
+        onClose={() => setShowBarClosed(false)}
+        barName={barClosedInfo.barName}
+        nextOpenTime={barClosedInfo.nextOpenTime}
+        businessHours={barClosedInfo.businessHours}
+      />
+    </>
   );
-}
+};
 
 export default function ConsentPage() {
   return (
