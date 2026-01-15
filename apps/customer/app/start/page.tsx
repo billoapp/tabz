@@ -32,24 +32,17 @@ function ConsentContent() {
   const [error, setError] = useState<string | null>(null);
   const [barSlug, setBarSlug] = useState<string | null>(null);
   const [barId, setBarId] = useState<string | null>(null);
-  const [barName, setBarName] = useState<string>('');
+  const [barName, setBarName] = useState<string>('Default Bar Name');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [nickname, setNickname] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [loading, setLoading] = useState(true);
   
   // QR Scanner states
   const [isScannerMode, setIsScannerMode] = useState(false);
   const [qrScanner, setQrScanner] = useState<QrScanner | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   
-  // Bar data
-  const [barSlug, setBarSlug] = useState<string | null>(null);
-  const [barId, setBarId] = useState<string | null>(null);
-  const [barName, setBarName] = useState<string>('');
-  const [error, setError] = useState<string>('');
-
   const [debugDeviceId, setDebugDeviceId] = useState<string>('');
 
   // IMPROVED QR CODE EXTRACTION
@@ -431,7 +424,8 @@ function ConsentContent() {
 
     const deviceId = await getDeviceId();
     const barDeviceKey = await getBarDeviceKey(barId);
-      
+    
+    try {
       // Check for existing tab one more time (safety check)
       const { data: existingTab } = await (supabase as any)
         .from('tabs')
