@@ -22,19 +22,5 @@ export const getSupabaseClient = () => {
   return supabaseClient;
 };
 
-// Don't initialize immediately - wait for first access
-export const supabase = {
-  get client() {
-    return getSupabaseClient();
-  },
-  // Proxy common methods to avoid breaking existing code
-  from: (...args: any[]) => getSupabaseClient().from(...args),
-  auth: {
-    get getUser() {
-      return getSupabaseClient().auth.getUser.bind(getSupabaseClient().auth);
-    },
-    get signOut() {
-      return getSupabaseClient().auth.signOut.bind(getSupabaseClient().auth);
-    }
-  }
-};
+// Export the client directly for consistent usage
+export const supabase = getSupabaseClient();

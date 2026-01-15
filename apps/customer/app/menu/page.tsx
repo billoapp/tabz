@@ -141,7 +141,7 @@ export default function MenuPage() {
   const { showToast } = useToast();
   
   // Token service instance
-  const tokensService = new TokensService(supabase.client);
+  const tokensService = new TokensService(supabase);
   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
   const { showNotification } = useTokenNotifications();
 
@@ -1628,7 +1628,7 @@ export default function MenuPage() {
     if (!tab) return;
     
     try {
-      const telegram = telegramMessageQueries(supabase.client);
+      const telegram = telegramMessageQueries(supabase);
       const { data, error } = await telegram.getTabMessages(tab.id);
       
       if (!error && data) {
