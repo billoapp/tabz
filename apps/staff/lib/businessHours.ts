@@ -1,23 +1,24 @@
 import { supabase } from './supabase';
 
-// Type definitions
+// Type definitions - updated to match actual database schema
 interface Bar {
   id: string;
   name: string;
-  business_hours: {
-    enabled: boolean;
-    type: string;
-    simple?: {
-      open: string;
-      close: string;
-    };
-  };
+  business_hours_mode: 'simple' | 'advanced' | '24hours' | null;
+  business_hours_simple: {
+    openTime: string;
+    closeTime: string;
+    closeNextDay: boolean;
+  } | null;
+  business_hours_advanced: any | null;
+  business_24_hours: boolean | null;
 }
 
 interface Tab {
   id: string;
   status: string;
   bar_id: string;
+  opened_at: string;
   bar: Bar;
 }
 
@@ -29,16 +30,21 @@ interface Payment {
   amount: string;
 }
 
-// Business hours check for TypeScript
-export const isWithinBusinessHours = (businessHours: any): boolean => {
+// Business hours check for TypeScript - updated to work with actual database schema
+export const isWithinBusinessHours = (bar: Bar): boolean => {
   try {
-    // If business hours not enabled, always open
-    if (!businessHours?.enabled) {
+    // Handle 24 hours mode
+    if (bar.business_24_hours === true) {
       return true;
     }
     
-    // Only handle 'simple' type for MVP
-    if (businessHours.type !== 'simple' || !businessHours.simple) {
+    // If no business hours configured, always open
+    if (!bar.business_hours_mode) {
+      return true;
+    }
+    
+    // Handle 24hours mode
+    if (bar.business_hours_mode === '24hours') {
       return true;
     }
     
@@ -47,22 +53,64 @@ export const isWithinBusinessHours = (businessHours: any): boolean => {
     const currentMinute = now.getMinutes();
     const currentTotalMinutes = currentHour * 60 + currentMinute;
     
-    // Parse open time (format: "HH:MM")
-    const [openHour, openMinute] = businessHours.simple.open.split(':').map(Number);
-    const openTotalMinutes = openHour * 60 + openMinute;
+    // Get current day of week (0 = Sunday, 1 = Monday, etc.)
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDay = dayNames[now.getDay()];
     
-    // Parse close time
-    const [closeHour, closeMinute] = businessHours.simple.close.split(':').map(Number);
-    const closeTotalMinutes = closeHour * 60 + closeMinute;
-    
-    // Handle overnight hours (e.g., 20:00 to 04:00)
-    if (closeTotalMinutes < openTotalMinutes) {
-      // Venue is open overnight: current time >= open OR current time <= close
-      return currentTotalMinutes >= openTotalMinutes || currentTotalMinutes <= closeTotalMinutes;
-    } else {
-      // Normal hours: current time between open and close
-      return currentTotalMinutes >= openTotalMinutes && currentTotalMinutes <= closeTotalMinutes;
+    if (bar.business_hours_mode === 'simple') {
+      // Simple mode: same hours every day
+      if (!bar.business_hours_simple) {
+        return true;
+      }
+      
+      // Parse open time (format: "HH:MM")
+      const [openHour, openMinute] = bar.business_hours_simple.openTime.split(':').map(Number);
+      const openTotalMinutes = openHour * 60 + openMinute;
+      
+      // Parse close time
+      const [closeHour, closeMinute] = bar.business_hours_simple.closeTime.split(':').map(Number);
+      const closeTotalMinutes = closeHour * 60 + closeMinute;
+      
+      // Handle overnight hours (e.g., 20:00 to 04:00)
+      if (bar.business_hours_simple.closeNextDay || closeTotalMinutes < openTotalMinutes) {
+        // Venue is open overnight: current time >= open OR current time <= close
+        return currentTotalMinutes >= openTotalMinutes || currentTotalMinutes <= closeTotalMinutes;
+      } else {
+        // Normal hours: current time between open and close
+        return currentTotalMinutes >= openTotalMinutes && currentTotalMinutes <= closeTotalMinutes;
+      }
+      
+    } else if (bar.business_hours_mode === 'advanced') {
+      // Advanced mode: different hours per day
+      if (!bar.business_hours_advanced || !bar.business_hours_advanced[currentDay]) {
+        return true; // Default to open if no hours for this day
+      }
+      
+      const dayHours = bar.business_hours_advanced[currentDay];
+      if (!dayHours.open || !dayHours.close) {
+        return true; // Default to open if missing open/close times
+      }
+      
+      // Parse open time
+      const [openHour, openMinute] = dayHours.open.split(':').map(Number);
+      const openTotalMinutes = openHour * 60 + openMinute;
+      
+      // Parse close time
+      const [closeHour, closeMinute] = dayHours.close.split(':').map(Number);
+      const closeTotalMinutes = closeHour * 60 + closeMinute;
+      
+      // Handle overnight hours
+      if (dayHours.closeNextDay || closeTotalMinutes < openTotalMinutes) {
+        // Venue is open overnight: current time >= open OR current time <= close
+        return currentTotalMinutes >= openTotalMinutes || currentTotalMinutes <= closeTotalMinutes;
+      } else {
+        // Normal hours: current time between open and close
+        return currentTotalMinutes >= openTotalMinutes && currentTotalMinutes <= closeTotalMinutes;
+      }
     }
+    
+    // Default to open for any other mode
+    return true;
   } catch (error) {
     console.error('Error checking business hours:', error);
     return true; // Default to open on error
@@ -78,7 +126,7 @@ export const canCreateNewTab = async (barId: string): Promise<{
   try {
     const { data: bar, error } = await supabase
       .from('bars')
-      .select('name, business_hours')
+      .select('name, business_hours_mode, business_hours_simple, business_hours_advanced, business_24_hours')
       .eq('id', barId)
       .single() as { data: Bar | null, error: any };
     
@@ -91,10 +139,10 @@ export const canCreateNewTab = async (barId: string): Promise<{
       };
     }
     
-    const isOpen = isWithinBusinessHours(bar.business_hours);
+    const isOpen = isWithinBusinessHours(bar);
     
     if (!isOpen) {
-      const openTime = bar.business_hours?.simple?.open || 'tomorrow';
+      const openTime = bar.business_hours_simple?.openTime || 'tomorrow';
       return {
         canCreate: false,
         message: `${bar.name} is currently closed`,
@@ -159,17 +207,27 @@ export const checkTabOverdueStatus = async (tabId: string): Promise<{
     const paymentsTotal = payments?.reduce((sum, payment) => sum + parseFloat(payment.amount), 0) || 0;
     const balance = ordersTotal - paymentsTotal;
     
-    // Check business hours
-    const isOpen = isWithinBusinessHours(tab.bar.business_hours);
+    // Calculate tab age in hours
+    const ageHours = (Date.now() - new Date(tab.opened_at).getTime()) / (1000 * 60 * 60);
     
-    // Determine if overdue
-    const isOverdue = balance > 0 && !isOpen && tab.status === 'open';
+    // Check business hours
+    const isOpen = isWithinBusinessHours(tab.bar);
+    
+    // Check if should be overdue
+    let isOverdue = false;
+    let overdueReason = '';
+    
+    // Tab becomes overdue if: bar is closed and has outstanding balance
+    if (balance > 0 && !isOpen) {
+      isOverdue = true;
+      overdueReason = 'Outstanding balance after business hours';
+    }
     
     return {
       isOverdue,
       balance,
       message: isOverdue 
-        ? 'Tab is overdue - venue is closed with outstanding balance'
+        ? `Tab is overdue - ${overdueReason}`
         : balance > 0 
           ? `Balance: KSh ${balance.toLocaleString()}` 
           : 'Tab is settled'
@@ -224,13 +282,12 @@ export const checkAndUpdateOverdueTabs = async (tabsData: any[]): Promise<void> 
       if (balance <= 0) continue;
       
       // Check business hours
-      const isOpen = isWithinBusinessHours(fullTab.bar.business_hours);
+      const isOpen = isWithinBusinessHours(fullTab.bar);
       
       // Mark as overdue if:
       // 1. Has outstanding balance
-      // 2. Venue is currently closed
-      // 3. Tab is still open
-      if (balance > 0 && !isOpen && fullTab.status === 'open') {
+      // 2. Bar is currently closed
+      if (balance > 0 && fullTab.status === 'open' && !isOpen) {
         await supabase
           .from('tabs')
           .update({
