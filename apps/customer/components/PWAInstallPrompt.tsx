@@ -88,11 +88,15 @@ export default function PWAInstallPrompt({
 
   // Handle beforeinstallprompt event
   useEffect(() => {
+    // GLOBAL PROMPT CAPTURE: Store in window object as backup
     const handleBeforeInstallPrompt = (e: Event) => {
       console.log('🔔 beforeinstallprompt event fired');
       e.preventDefault();
       
       const promptEvent = e as BeforeInstallPromptEvent;
+      
+      // Store in both component state AND window object
+      (window as any).deferredPrompt = promptEvent;
       
       setState(prev => ({
         ...prev,
@@ -111,6 +115,9 @@ export default function PWAInstallPrompt({
 
     const handleAppInstalled = () => {
       console.log('📱 PWA was installed');
+      // Clear global reference
+      delete (window as any).deferredPrompt;
+      
       setState(prev => ({
         ...prev,
         isInstalled: true,
@@ -122,17 +129,23 @@ export default function PWAInstallPrompt({
       onInstallSuccess?.();
     };
 
-    // Feature detection
+    // Feature detection and diagnostics
     const hasServiceWorker = 'serviceWorker' in navigator;
     const hasBeforeInstallPrompt = 'onbeforeinstallprompt' in window;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    const isIOSStandalone = (navigator as any).standalone === true;
     
-    console.log('🔍 PWA Installation Support:', {
+    console.log('🔍 PWA Installation Diagnostics:', {
       serviceWorker: hasServiceWorker,
       beforeinstallprompt: hasBeforeInstallPrompt,
+      isStandalone,
+      isIOSStandalone,
       userAgent: navigator.userAgent,
       url: window.location.href,
       isHTTPS: window.location.protocol === 'https:',
       isLocalhost: window.location.hostname === 'localhost',
+      hasManifest: !!document.querySelector('link[rel="manifest"]'),
+      manifestHref: document.querySelector('link[rel="manifest"]')?.getAttribute('href'),
     });
 
     // Show banner after a delay regardless of beforeinstallprompt
@@ -166,38 +179,51 @@ export default function PWAInstallPrompt({
     console.log('🔘 Install button clicked', { 
       hasDeferredPrompt: !!state.deferredPrompt, 
       platform: state.platform,
-      canInstall: state.canInstall 
+      canInstall: state.canInstall,
+      userAgent: navigator.userAgent
     });
 
     setState(prev => ({ ...prev, isInstalling: true, error: null }));
 
     try {
-      // Try native install first if available
-      if (state.deferredPrompt) {
-        console.log('🚀 Using native install prompt...');
-        await state.deferredPrompt.prompt();
+      // FORCE CHECK: Look for deferred prompt in window object
+      const windowPrompt = (window as any).deferredPrompt || state.deferredPrompt;
+      
+      if (windowPrompt) {
+        console.log('🚀 Found install prompt, attempting native install...');
+        await windowPrompt.prompt();
         
-        const choiceResult = await state.deferredPrompt.userChoice;
+        const choiceResult = await windowPrompt.userChoice;
         console.log('📊 PWA install choice result:', choiceResult);
+
+        setState(prev => ({ ...prev, isInstalling: false }));
 
         if (choiceResult.outcome === 'accepted') {
           console.log('✅ User accepted the install prompt');
-          // The 'appinstalled' event will handle success state
+          setShowInstallBanner(false);
           return;
         } else {
           console.log('❌ User dismissed the install prompt');
-          setState(prev => ({
-            ...prev,
-            isInstalling: false,
-            canInstall: false,
-            deferredPrompt: null,
-          }));
           setShowInstallBanner(false);
           return;
         }
       }
 
-      // Fallback: Show platform-specific manual instructions
+      // FALLBACK: Check if PWA is already installed
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+      const isIOSStandalone = (navigator as any).standalone === true;
+      
+      if (isStandalone || isIOSStandalone) {
+        setState(prev => ({ 
+          ...prev, 
+          isInstalling: false,
+          error: 'App is already installed!' 
+        }));
+        setTimeout(() => setState(prev => ({ ...prev, error: null })), 3000);
+        return;
+      }
+
+      // MANUAL INSTRUCTIONS: Show platform-specific guidance
       console.log('⚠️ No native install available, showing manual instructions');
       
       let instructionMessage = '';
@@ -215,8 +241,8 @@ export default function PWAInstallPrompt({
         error: instructionMessage 
       }));
       
-      // Clear error after 5 seconds
-      setTimeout(() => setState(prev => ({ ...prev, error: null })), 5000);
+      // Clear error after 8 seconds
+      setTimeout(() => setState(prev => ({ ...prev, error: null })), 8000);
       
     } catch (error) {
       console.error('💥 PWA install error:', error);
@@ -232,9 +258,8 @@ export default function PWAInstallPrompt({
       
       // Show error for longer, then hide banner
       setTimeout(() => {
-        setShowInstallBanner(false);
         setState(prev => ({ ...prev, error: null }));
-      }, 5000);
+      }, 8000);
     }
   };
 
