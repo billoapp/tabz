@@ -9,6 +9,8 @@ const withPWA = require('next-pwa')({
   clientsClaim: true,
   cleanupOutdatedCaches: true,
   reloadOnOnline: true,
+  // Use simple service worker to avoid installation issues
+  sw: 'sw-simple.js',
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,
