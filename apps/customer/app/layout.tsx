@@ -4,6 +4,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import DeviceInitializer from '@/components/DeviceInitializer';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import PWADebug from '@/components/PWADebug';
+import PWATest from '@/components/PWATest';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Analytics } from '@vercel/analytics/next';
 
@@ -65,6 +66,7 @@ export default function RootLayout({
           <ToastProvider>
             <PWAInstallPrompt />
             <PWADebug />
+            <PWATest />
             {children}
           </ToastProvider>
         </DeviceInitializer>
