@@ -7,10 +7,12 @@ import { Shield, Bell, Store, AlertCircle, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { 
   getDeviceId,
+  getDeviceIdSync,
   getBarDeviceKey,
   storeActiveTab,
   getActiveTab,
-  clearActiveTab
+  clearActiveTab,
+  recordVenueVisit
 } from '@/lib/deviceId';
 import { useToast } from '@/components/ui/Toast';
 import { TokensService, TOKENS_CONFIG } from '../../../../packages/shared/tokens-service';
@@ -19,6 +21,16 @@ import QrScanner from 'qr-scanner';
 import { BarClosedSlideIn } from '../../components/BarClosedSlideIn';
 import { playCustomerNotification, requestVibrationPermission, isVibrationSupported } from '@/lib/notifications';
 import { requestSystemPermissions, checkPermissions } from '@/lib/permissions';
+
+// Helper function to add timeout to async operations
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = 10000): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error('Operation timed out')), timeoutMs)
+    )
+  ]);
+};
 
 function ConsentContent() {
   const router = useRouter();
@@ -209,8 +221,15 @@ function ConsentContent() {
 
   useEffect(() => {
     const initDebugDeviceId = async () => {
-      const id = getDeviceId();
-      setDebugDeviceId(id.slice(0, 20));
+      try {
+        const id = await withTimeout(getDeviceId(supabase), 5000);
+        setDebugDeviceId(id.slice(0, 20));
+      } catch (error) {
+        console.error('❌ Error getting device ID for debug:', error);
+        // Fallback to sync version for debug display only
+        const fallbackId = getDeviceIdSync();
+        setDebugDeviceId(fallbackId.slice(0, 20));
+      }
     };
     initDebugDeviceId();
   }, []);
@@ -246,8 +265,17 @@ function ConsentContent() {
         return;
       }
       
-      // Get device ID first
-      const deviceId = getDeviceId();
+      // Get device ID first with proper error handling and timeout
+      let deviceId: string;
+      try {
+        deviceId = await withTimeout(getDeviceId(supabase), 10000);
+        console.log('✅ Device ID obtained:', deviceId.substring(0, 20) + '...');
+      } catch (deviceError) {
+        console.error('❌ Error getting device ID:', deviceError);
+        setError('Failed to initialize device. Please refresh the page and try again.');
+        setLoading(false);
+        return;
+      }
       
       // Get bar slug from URL or sessionStorage
       let slug = searchParams?.get('bar') || searchParams?.get('slug');
@@ -312,18 +340,32 @@ function ConsentContent() {
       // Check if bar is currently open for business BEFORE showing consent form
       try {
         // First check if user has existing overdue tabs for this bar
-        const deviceId = getDeviceId();
-        const barDeviceKey = getBarDeviceKey(bar.id);
+        let deviceId: string;
+        let barDeviceKey: string;
         
-        const { data: userTabs } = await (supabase as any)
-          .from('tabs')
-          .select('status, opened_at')
-          .eq('bar_id', bar.id)
-          .eq('owner_identifier', barDeviceKey)
-          .in('status', ['open', 'overdue']);
+        try {
+          deviceId = await withTimeout(getDeviceId(supabase), 10000);
+          barDeviceKey = await withTimeout(getBarDeviceKey(bar.id, supabase), 5000);
+        } catch (deviceError) {
+          console.error('❌ Error getting device info for business hours check:', deviceError);
+          // Continue without device-specific checks if device operations fail
+          deviceId = '';
+          barDeviceKey = '';
+        }
+        
+        let hasExistingTab = false;
+        
+        if (deviceId && barDeviceKey) {
+          const { data: userTabs } = await (supabase as any)
+            .from('tabs')
+            .select('status, opened_at')
+            .eq('bar_id', bar.id)
+            .eq('owner_identifier', barDeviceKey)
+            .in('status', ['open', 'overdue']);
 
-        // Allow access if user has existing tabs (open or overdue) - they need to pay!
-        const hasExistingTab = userTabs && userTabs.length > 0;
+          // Allow access if user has existing tabs (open or overdue) - they need to pay!
+          hasExistingTab = userTabs && userTabs.length > 0;
+        }
         
         if (hasExistingTab) {
           console.log('✅ User has existing tab, allowing access regardless of business hours');
@@ -479,14 +521,22 @@ function ConsentContent() {
 
     try {
       // First check if user has existing overdue tabs for this bar
-      const deviceId = getDeviceId();
-      const barDeviceKey = getBarDeviceKey(barId);
-
-      console.log('🔍 Checking for existing tabs:', {
-        deviceId: deviceId.substring(0, 20) + '...',
-        barId,
-        barDeviceKey: barDeviceKey.substring(0, 30) + '...'
-      });
+      let deviceId: string;
+      let barDeviceKey: string;
+      
+      try {
+        deviceId = await withTimeout(getDeviceId(supabase), 10000);
+        barDeviceKey = await withTimeout(getBarDeviceKey(barId, supabase), 5000);
+        
+        console.log('🔍 Checking for existing tabs:', {
+          deviceId: deviceId.substring(0, 20) + '...',
+          barId,
+          barDeviceKey: barDeviceKey.substring(0, 30) + '...'
+        });
+      } catch (deviceError) {
+        console.error('❌ Error getting device info for tab creation:', deviceError);
+        throw new Error('Failed to initialize device for tab creation. Please refresh the page and try again.');
+      }
 
       // Enhanced check for existing tabs across all bars for this device
       const { data: existingTabs, error: checkError } = await (supabase as any)
@@ -808,6 +858,20 @@ function ConsentContent() {
       sessionStorage.setItem('currentTab', JSON.stringify(tab));
       sessionStorage.setItem('displayName', displayName);
       sessionStorage.setItem('barName', barName);
+      
+      // Record venue visit for analytics (async, don't block on failure)
+      try {
+        await withTimeout(recordVenueVisit(barId, supabase, {
+          tab_id: tab.id,
+          tab_number: tabNumber,
+          display_name: displayName,
+          has_nickname: !!nickname.trim(),
+          created_via: 'consent_page'
+        }), 5000);
+      } catch (analyticsError) {
+        console.warn('⚠️ Failed to record venue visit for analytics:', analyticsError);
+        // Don't block tab creation if analytics fails
+      }
       
       // Award first connection tokens
       try {

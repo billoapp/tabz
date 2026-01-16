@@ -1,5 +1,6 @@
 // Push Notification Manager for Tabeza Customer App
-import { getDeviceId } from './deviceId';
+import { getDeviceId, getDeviceIdSync } from './deviceId';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export interface PushNotificationData {
   title: string;
@@ -32,11 +33,19 @@ export interface PushSubscriptionResult {
 class PushNotificationManager {
   private subscription: PushSubscription | null = null;
   private isSupported = false;
-  private deviceId: string;
+  private deviceId: string | null = null;
+  private supabase: SupabaseClient | null = null;
 
   constructor() {
-    this.deviceId = getDeviceId();
+    // Use sync version for immediate initialization, will be updated async
+    this.deviceId = getDeviceIdSync();
     this.checkSupport();
+  }
+
+  async initialize(supabase: SupabaseClient): Promise<void> {
+    this.supabase = supabase;
+    // Update with proper async device ID
+    this.deviceId = await getDeviceId(supabase);
   }
 
   private checkSupport() {
@@ -132,6 +141,11 @@ class PushNotificationManager {
   }
 
   private async sendSubscriptionToServer(subscription: PushSubscription) {
+    if (!this.deviceId) {
+      console.error('❌ Device ID not available');
+      return;
+    }
+    
     try {
       const response = await fetch('/api/push/subscribe', {
         method: 'POST',

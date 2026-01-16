@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, RefreshCw, Trash2, Info, AlertTriangle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-import { getDeviceId, getBarDeviceKey } from '@/lib/deviceId';
+import { getDeviceId, getBarDeviceKey, getDeviceIdSync } from '@/lib/deviceId';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,8 +47,8 @@ export default function TabDebugInfo({ className = '', barId }: TabDebugInfoProp
   const loadTabInfo = async () => {
     setLoading(true);
     try {
-      const deviceId = getDeviceId();
-      const currentBarDeviceKey = barId ? getBarDeviceKey(barId) : undefined;
+      const deviceId = await getDeviceId(supabase);
+      const currentBarDeviceKey = barId ? await getBarDeviceKey(barId, supabase) : undefined;
       
       setDeviceInfo({
         deviceId,

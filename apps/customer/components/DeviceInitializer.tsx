@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getDeviceInfo } from '@/lib/deviceId';
+import { getDeviceInfo, initializePWAInstallationHandling } from '@/lib/deviceId';
+import { supabase } from '@/lib/supabase';
 
 interface DeviceInitializerProps {
   children: React.ReactNode;
@@ -15,7 +16,7 @@ export default function DeviceInitializer({ children }: DeviceInitializerProps) 
     // CRITICAL FIX: Don't block app initialization for device ID
     setInitialized(true);
     
-    // Initialize device in background
+    // Initialize device and PWA handling in background
     const initializeDevice = async () => {
       try {
         console.log('🔧 Starting device initialization...');
@@ -28,6 +29,9 @@ export default function DeviceInitializer({ children }: DeviceInitializerProps) 
           createdAt: device.createdAt,
           lastSeen: device.lastSeen
         });
+        
+        // Initialize PWA installation event handling
+        initializePWAInstallationHandling(supabase);
         
         // Update last seen timestamp in legacy storage for compatibility
         try {

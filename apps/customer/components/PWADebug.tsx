@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getPWAInstallationDebugInfo } from '@/lib/deviceId';
 
 export default function PWADebug() {
   const [debugInfo, setDebugInfo] = useState<any>({});
@@ -27,6 +28,9 @@ export default function PWADebug() {
         manifestUrl: '',
         manifestContent: null as any,
         installPromptDetected: false,
+        
+        // Enhanced PWA installation debug info
+        installationDebug: getPWAInstallationDebugInfo()
       };
 
       // Check manifest
@@ -97,6 +101,28 @@ export default function PWADebug() {
         
         {debugInfo.registration?.error && (
           <div className="mt-2 text-red-400">SW Error: {debugInfo.registration.error}</div>
+        )}
+        
+        {debugInfo.installationDebug && (
+          <div className="mt-2 pt-2 border-t border-gray-600">
+            <div className="font-bold mb-1">Installation Events:</div>
+            <div>Current Mode: {debugInfo.installationDebug.displayMode}</div>
+            <div>Is Standalone: {debugInfo.installationDebug.isStandalone ? '✅' : '❌'}</div>
+            
+            {debugInfo.installationDebug.installationHistory && (
+              <div className="mt-1">
+                <div className="text-green-400">Last Install:</div>
+                <div className="text-xs">{new Date(debugInfo.installationDebug.installationHistory.timestamp).toLocaleString()}</div>
+                <div className="text-xs">Device: {debugInfo.installationDebug.installationHistory.deviceId}</div>
+              </div>
+            )}
+            
+            {debugInfo.installationDebug.error && (
+              <div className="mt-1 text-red-400">
+                Debug Error: {debugInfo.installationDebug.error}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
