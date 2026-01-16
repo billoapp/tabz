@@ -72,6 +72,8 @@ export default function RootLayout({
         </DeviceInitializer>
         <SpeedInsights />
         <Analytics />
+        {/* PWA Activation Helper */}
+        <script src="/pwa-activate.js" async></script>
       </body>
     </html>
   );
