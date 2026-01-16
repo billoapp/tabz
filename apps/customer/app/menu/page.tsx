@@ -1180,9 +1180,16 @@ export default function MenuPage() {
 
             // If this is a slideshow, fetch the slideshow images and settings
             if ((barData as any).static_menu_type === 'slideshow') {
+              // Validate that we have a valid bar ID before making API calls
+              const barId = (fullTab as any)?.bar?.id;
+              if (!barId) {
+                console.warn('❌ Cannot fetch slideshow: missing bar ID');
+                return;
+              }
+
               try {
                 const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-                const apiUrl = `${baseUrl}/api/get-slideshow?barId=${(fullTab as any).bar.id}`;
+                const apiUrl = `${baseUrl}/api/get-slideshow?barId=${barId}`;
                 console.log('🔄 Calling slideshow API:', apiUrl);
 
                 const resp = await fetch(apiUrl);
@@ -1209,7 +1216,7 @@ export default function MenuPage() {
 
                 // Fallback: try admin inspection endpoint
                 try {
-                  const altUrl = `${baseUrl}/api/admin/slideshow-status?barId=${(fullTab as any).bar.id}`;
+                  const altUrl = `${baseUrl}/api/admin/slideshow-status?barId=${barId}`;
                   console.log('🔁 Trying admin fallback:', altUrl);
                   const altResp = await fetch(altUrl);
                   console.log('📊 Admin fallback status:', altResp.status, altResp.ok);
@@ -1229,7 +1236,7 @@ export default function MenuPage() {
                 // Try admin endpoint as a last-ditch fallback
                 try {
                   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-                  const altUrl = `${baseUrl}/api/admin/slideshow-status?barId=${(fullTab as any).bar.id}`;
+                  const altUrl = `${baseUrl}/api/admin/slideshow-status?barId=${barId}`;
                   console.log('🔁 Trying admin fallback (catch):', altUrl);
                   const altResp = await fetch(altUrl);
                   if (altResp.ok) {

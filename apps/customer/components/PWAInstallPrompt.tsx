@@ -15,95 +15,8 @@ interface BeforeInstallPromptEvent extends Event {
 export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalling, setIsInstalling] = useState(false);
-  const [diagnostics, setDiagnostics] = useState<any>(null);
 
   useEffect(() => {
-    // Run comprehensive diagnostics
-    const runDiagnostics = async () => {
-      const results: any = {
-        timestamp: new Date().toISOString(),
-        url: window.location.href,
-        userAgent: navigator.userAgent,
-        resources: {},
-        serviceWorker: {},
-        pwaSupport: {}
-      };
-
-      // Test all PWA-related resources
-      const resources = [
-        '/manifest.json',
-        '/sw.js',
-        '/logo-192.png',
-        '/logo-512.png',
-        '/favicon.ico',
-        '/offline.html'
-      ];
-
-      for (const resource of resources) {
-        try {
-          const response = await fetch(resource);
-          results.resources[resource] = {
-            status: response.status,
-            ok: response.ok,
-            statusText: response.statusText,
-            contentType: response.headers.get('content-type')
-          };
-          
-          if (resource === '/manifest.json' && response.ok) {
-            try {
-              const manifest = await response.json();
-              results.resources[resource].content = manifest;
-            } catch (e) {
-              results.resources[resource].parseError = (e as Error).message;
-            }
-          }
-        } catch (error) {
-          results.resources[resource] = {
-            error: (error as Error).message,
-            failed: true
-          };
-        }
-      }
-
-      // Check service worker registration
-      if ('serviceWorker' in navigator) {
-        try {
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          results.serviceWorker = {
-            supported: true,
-            registrations: registrations.length,
-            controller: !!navigator.serviceWorker.controller
-          };
-        } catch (error) {
-          results.serviceWorker = {
-            supported: true,
-            error: (error as Error).message
-          };
-        }
-      } else {
-        results.serviceWorker = { supported: false };
-      }
-
-      // Check PWA support
-      results.pwaSupport = {
-        beforeinstallprompt: 'onbeforeinstallprompt' in window,
-        standalone: window.matchMedia('(display-mode: standalone)').matches,
-        isHTTPS: window.location.protocol === 'https:' || window.location.hostname === 'localhost'
-      };
-
-      console.log('🔍 PWA Diagnostics:', results);
-      setDiagnostics(results);
-
-      // Check for specific 400 errors
-      const failedResources = Object.entries(results.resources)
-        .filter(([_, info]: [string, any]) => info.status === 400 || info.failed)
-        .map(([resource, info]) => ({ resource, info }));
-
-      if (failedResources.length > 0) {
-        console.error('❌ Resources failing with 400 or errors:', failedResources);
-      }
-    };
-
     // Check if already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     const isIOSStandalone = (navigator as any).standalone === true;
@@ -112,19 +25,16 @@ export default function PWAInstallPrompt() {
       return; // Already installed
     }
 
-    // Run diagnostics
-    runDiagnostics();
-
     // Listen for beforeinstallprompt
     const handleBeforeInstallPrompt = (e: Event) => {
-      console.log('✅ beforeinstallprompt fired - PWA is installable!');
+      console.log('✅ PWA: beforeinstallprompt fired - showing install button');
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
     };
 
     const handleAppInstalled = () => {
-      console.log('✅ App installed successfully');
+      console.log('✅ PWA: App installed successfully');
       setDeferredPrompt(null);
     };
 
@@ -154,31 +64,6 @@ export default function PWAInstallPrompt() {
       setIsInstalling(false);
     }
   };
-
-  // Show diagnostics in development
-  if (process.env.NODE_ENV === 'development' && diagnostics) {
-    const failedResources = Object.entries(diagnostics.resources)
-      .filter(([_, info]: [string, any]) => info.status === 400 || info.failed);
-
-    if (failedResources.length > 0) {
-      return (
-        <div className="fixed top-4 left-4 bg-red-50 border border-red-200 rounded-lg p-4 max-w-md text-sm z-50">
-          <h3 className="font-semibold text-red-800 mb-2">PWA Resources Failing:</h3>
-          {failedResources.map(([resource, info]: [string, any]) => (
-            <div key={resource} className="mb-2">
-              <div className="font-medium text-red-700">{resource}</div>
-              <div className="text-red-600">
-                {info.failed ? `Error: ${info.error}` : `HTTP ${info.status}: ${info.statusText}`}
-              </div>
-            </div>
-          ))}
-          <div className="mt-3 text-red-600">
-            ❌ This is why PWA install isn't working. Fix these 400 errors first.
-          </div>
-        </div>
-      );
-    }
-  }
 
   // Only show install button if we have a real install prompt
   if (!deferredPrompt) return null;
