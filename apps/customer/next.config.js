@@ -2,7 +2,7 @@
 const path = require('path');
 const withPWA = require('next-pwa')({
   dest: 'public',
-  register: true,
+  register: false, // Disable automatic registration - we do it manually
   skipWaiting: true,
   disable: false, // CRITICAL: Always enable PWA for testing
   // CRITICAL: Force service worker activation

@@ -1,15 +1,29 @@
 // PWA Activation Helper
-// This script helps activate the service worker immediately
+// This script manually registers our simple service worker
 
 if ('serviceWorker' in navigator) {
-  // Force service worker activation
-  navigator.serviceWorker.ready.then((registration) => {
-    console.log('✅ Service Worker ready:', registration);
+  console.log('🔄 Registering simple service worker...');
+  
+  // Manually register our simple service worker
+  navigator.serviceWorker.register('/sw-simple.js', {
+    scope: '/'
+  }).then((registration) => {
+    console.log('✅ Simple Service Worker registered:', registration.scope);
     
-    // If there's a waiting service worker, activate it
+    // Force activation immediately
     if (registration.waiting) {
       console.log('🔄 Activating waiting service worker...');
       registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
+    
+    if (registration.installing) {
+      console.log('🔄 Service worker is installing, waiting for activation...');
+      registration.installing.addEventListener('statechange', () => {
+        if (registration.installing?.state === 'installed') {
+          console.log('✅ Service worker installed, activating...');
+          registration.installing.postMessage({ type: 'SKIP_WAITING' });
+        }
+      });
     }
     
     // Listen for updates
@@ -24,12 +38,15 @@ if ('serviceWorker' in navigator) {
         });
       }
     });
-  });
-
-  // Listen for controller changes
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    console.log('✅ Service Worker controller changed - PWA ready!');
-    // Trigger a check for install prompt
-    window.dispatchEvent(new Event('sw-activated'));
+    
+    // Listen for controller changes
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('✅ Service Worker controller changed - PWA ready!');
+      // Trigger a check for install prompt
+      window.dispatchEvent(new Event('sw-activated'));
+    });
+    
+  }).catch((error) => {
+    console.error('❌ Service Worker registration failed:', error);
   });
 }
