@@ -40,8 +40,14 @@ export default function PWAInstallPrompt() {
     // Listen for beforeinstallprompt
     const handleBeforeInstallPrompt = (e: Event) => {
       console.log('✅ PWA: beforeinstallprompt fired - showing install button');
+      console.log('🔍 Event details:', {
+        type: e.type,
+        defaultPrevented: e.defaultPrevented,
+        platforms: (e as any).platforms
+      });
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
+      console.log('🔍 Setting deferred prompt:', !!promptEvent);
       setDeferredPrompt(promptEvent);
     };
 
@@ -78,30 +84,15 @@ export default function PWAInstallPrompt() {
   };
 
   // Only show install button if we have a real install prompt
+  console.log('🔍 Render check:', {
+    hasDeferredPrompt: !!deferredPrompt,
+    isInstalling,
+    shouldShow: !!deferredPrompt && !isInstalling
+  });
+  
   if (!deferredPrompt) {
-    return (
-      <div className="fixed top-1/3 left-4 right-4 z-50">
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm mx-auto">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex-1">
-              <h3 className="font-medium text-gray-900">PWA Debug Info</h3>
-              <div className="text-xs text-gray-600 space-y-1">
-                <div>Service Worker: {debugInfo.serviceWorker ? '✅' : '❌'}</div>
-                <div>Install Prompt: {debugInfo.beforeinstallprompt ? '✅' : '❌'}</div>
-                <div>Standalone: {debugInfo.standalone ? '✅' : '❌'}</div>
-                <div className="text-blue-600">No install prompt detected - refresh page to trigger</div>
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
-          >
-            Refresh Page to Trigger Install Prompt
-          </button>
-        </div>
-      </div>
-    );
+    console.log('🔍 No deferred prompt, returning null');
+    return null;
   }
 
   return (
