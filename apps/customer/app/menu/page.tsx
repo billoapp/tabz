@@ -89,6 +89,29 @@ export default function MenuPage() {
   const router = useRouter();
   const { buzz } = useVibrate(); 
   const playAcceptanceSound = useSound(); // Use synthetic beep by default
+  
+  // CRITICAL: Check if we have valid tab data before proceeding
+  const tabData = sessionStorage.getItem('currentTab');
+  if (!tabData) {
+    console.warn('❌ Menu page: No tab data found, redirecting to home');
+    router.replace('/');
+    return null;
+  }
+  
+  try {
+    const parsedTab = JSON.parse(tabData);
+    if (!parsedTab?.id) {
+      console.warn('❌ Menu page: Invalid tab data, redirecting to home');
+      sessionStorage.removeItem('currentTab');
+      router.replace('/');
+      return null;
+    }
+  } catch (error) {
+    console.warn('❌ Menu page: Corrupted tab data, redirecting to home');
+    sessionStorage.removeItem('currentTab');
+    router.replace('/');
+    return null;
+  }
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [tab, setTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
