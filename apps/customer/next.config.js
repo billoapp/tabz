@@ -4,15 +4,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  // CRITICAL FIX: Enable PWA in development for testing
-  disable: false, // Always enable PWA for testing
-  // Take control of all clients immediately
-  clientsClaim: true,
-  // Clean up outdated caches automatically
-  cleanupOutdatedCaches: true,
-  // Configure offline fallback
-  navigateFallback: '/offline.html',
-  navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
+  disable: process.env.NODE_ENV === 'development',
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,
