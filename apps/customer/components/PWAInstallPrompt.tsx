@@ -18,16 +18,35 @@ export default function PWAInstallPrompt() {
   const [isInstalling, setIsInstalling] = useState(false);
 
   useEffect(() => {
+    console.log('PWA Install: Component mounted');
+    
+    // Test manifest loading
+    fetch('/manifest.json')
+      .then(response => {
+        console.log('PWA Install: Manifest response', response.status, response.ok);
+        return response.json();
+      })
+      .then(manifest => {
+        console.log('PWA Install: Manifest loaded', manifest);
+      })
+      .catch(error => {
+        console.error('PWA Install: Manifest failed to load', error);
+      });
+    
     // Check if already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     const isIOSStandalone = (navigator as any).standalone === true;
     
+    console.log('PWA Install: Standalone check', { isStandalone, isIOSStandalone });
+    
     if (isStandalone || isIOSStandalone) {
+      console.log('PWA Install: Already installed, not showing button');
       return; // Already installed
     }
 
-    // Listen for beforeinstallprompt (Chrome, Edge, Samsung Internet, Opera)
+    // Listen for beforeinstallprompt
     const handleBeforeInstallPrompt = (e: Event) => {
+      console.log('PWA Install: beforeinstallprompt fired!');
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
@@ -36,6 +55,7 @@ export default function PWAInstallPrompt() {
 
     // Listen for app installed
     const handleAppInstalled = () => {
+      console.log('PWA Install: App installed');
       setShowInstallButton(false);
       setDeferredPrompt(null);
     };
@@ -43,67 +63,64 @@ export default function PWAInstallPrompt() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // For Safari iOS 16.4+ and other browsers that support PWA but don't fire beforeinstallprompt
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isSafari = userAgent.includes('safari') && !userAgent.includes('chrome');
-    const isFirefox = userAgent.includes('firefox');
-    
-    // Show install button for Safari and Firefox after a delay (only if not launched from PWA)
-    const isPWALaunch = window.location.search.includes('pwa=true');
-    
-    if ((isSafari || isFirefox) && !isPWALaunch) {
-      const timer = setTimeout(() => {
-        if (!deferredPrompt) {
-          setShowInstallButton(true);
-        }
-      }, 2000);
-      
-      return () => {
-        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-        window.removeEventListener('appinstalled', handleAppInstalled);
-        clearTimeout(timer);
-      };
-    }
+    // Force show button after 3 seconds for testing (remove this in production)
+    const testTimer = setTimeout(() => {
+      console.log('PWA Install: Test timer - forcing button display');
+      if (!deferredPrompt) {
+        console.log('PWA Install: No beforeinstallprompt event, showing fallback button');
+        setShowInstallButton(true);
+      }
+    }, 3000);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      clearTimeout(testTimer);
     };
   }, [deferredPrompt]);
 
   const handleInstall = async () => {
+    console.log('PWA Install: Button clicked', { hasDeferredPrompt: !!deferredPrompt });
+    
     if (deferredPrompt) {
       // Native install for Chrome, Edge, Samsung Internet, Opera
       setIsInstalling(true);
       try {
+        console.log('PWA Install: Triggering native prompt');
         await deferredPrompt.prompt();
         const choiceResult = await deferredPrompt.userChoice;
+        
+        console.log('PWA Install: User choice', choiceResult);
         
         if (choiceResult.outcome === 'accepted') {
           setShowInstallButton(false);
         }
       } catch (error) {
-        console.error('Install failed:', error);
+        console.error('PWA Install: Failed', error);
       } finally {
         setIsInstalling(false);
         setDeferredPrompt(null);
       }
     } else {
-      // For Safari, Firefox, and other browsers
+      // Fallback for browsers without beforeinstallprompt
+      console.log('PWA Install: No native prompt available, showing instructions');
       const userAgent = navigator.userAgent.toLowerCase();
       
-      if (userAgent.includes('iphone') || userAgent.includes('ipad')) {
-        // iOS Safari
-        alert('To install: Tap the Share button, then "Add to Home Screen"');
+      if (userAgent.includes('chrome')) {
+        alert('To install: Look for the install icon in your address bar, or go to Chrome menu → "Install Tabeza"');
       } else if (userAgent.includes('safari')) {
-        // macOS Safari
-        alert('To install: Click File menu → "Add to Dock"');
+        if (userAgent.includes('iphone') || userAgent.includes('ipad')) {
+          alert('To install: Tap the Share button, then "Add to Home Screen"');
+        } else {
+          alert('To install: Click File menu → "Add to Dock"');
+        }
       } else {
-        // Firefox and others
         alert('To install: Look for the install option in your browser menu');
       }
     }
   };
+
+  console.log('PWA Install: Render', { showInstallButton, isInstalling });
 
   if (!showInstallButton) return null;
 
