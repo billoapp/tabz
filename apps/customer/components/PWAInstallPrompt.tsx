@@ -52,12 +52,12 @@ export default function PWAInstallPrompt() {
               const manifest = await response.json();
               results.resources[resource].content = manifest;
             } catch (e) {
-              results.resources[resource].parseError = e.message;
+              results.resources[resource].parseError = (e as Error).message;
             }
           }
         } catch (error) {
           results.resources[resource] = {
-            error: error.message,
+            error: (error as Error).message,
             failed: true
           };
         }
@@ -75,7 +75,7 @@ export default function PWAInstallPrompt() {
         } catch (error) {
           results.serviceWorker = {
             supported: true,
-            error: error.message
+            error: (error as Error).message
           };
         }
       } else {
