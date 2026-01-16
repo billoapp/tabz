@@ -11,19 +11,8 @@ const withPWA = require('next-pwa')({
   reloadOnOnline: true,
   // Use simple service worker to avoid installation issues
   sw: 'sw-simple.js',
-  runtimeCaching: [
-    {
-      urlPattern: /^https?.*/,
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'tabeza-customer-v1',
-        expiration: {
-          maxEntries: 100,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
-        }
-      }
-    }
-  ]
+  // Disable runtime caching to avoid workbox generation
+  runtimeCaching: []
 });
 
 const nextConfig = {
