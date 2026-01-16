@@ -14,115 +14,172 @@ interface BeforeInstallPromptEvent extends Event {
 
 export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showInstallButton, setShowInstallButton] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<any>(null);
 
   useEffect(() => {
-    console.log('PWA Install: Component mounted');
-    
-    // Test manifest loading
-    fetch('/manifest.json')
-      .then(response => {
-        console.log('PWA Install: Manifest response', response.status, response.ok);
-        return response.json();
-      })
-      .then(manifest => {
-        console.log('PWA Install: Manifest loaded', manifest);
-      })
-      .catch(error => {
-        console.error('PWA Install: Manifest failed to load', error);
-      });
-    
+    // Run comprehensive diagnostics
+    const runDiagnostics = async () => {
+      const results = {
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        resources: {} as any
+      };
+
+      // Test all PWA-related resources
+      const resources = [
+        '/manifest.json',
+        '/sw.js',
+        '/logo-192.png',
+        '/logo-512.png',
+        '/favicon.ico',
+        '/offline.html'
+      ];
+
+      for (const resource of resources) {
+        try {
+          const response = await fetch(resource);
+          results.resources[resource] = {
+            status: response.status,
+            ok: response.ok,
+            statusText: response.statusText,
+            contentType: response.headers.get('content-type')
+          };
+          
+          if (resource === '/manifest.json' && response.ok) {
+            try {
+              const manifest = await response.json();
+              results.resources[resource].content = manifest;
+            } catch (e) {
+              results.resources[resource].parseError = e.message;
+            }
+          }
+        } catch (error) {
+          results.resources[resource] = {
+            error: error.message,
+            failed: true
+          };
+        }
+      }
+
+      // Check service worker registration
+      if ('serviceWorker' in navigator) {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          results.serviceWorker = {
+            supported: true,
+            registrations: registrations.length,
+            controller: !!navigator.serviceWorker.controller
+          };
+        } catch (error) {
+          results.serviceWorker = {
+            supported: true,
+            error: error.message
+          };
+        }
+      } else {
+        results.serviceWorker = { supported: false };
+      }
+
+      // Check PWA support
+      results.pwaSupport = {
+        beforeinstallprompt: 'onbeforeinstallprompt' in window,
+        standalone: window.matchMedia('(display-mode: standalone)').matches,
+        isHTTPS: window.location.protocol === 'https:' || window.location.hostname === 'localhost'
+      };
+
+      console.log('🔍 PWA Diagnostics:', results);
+      setDiagnostics(results);
+
+      // Check for specific 400 errors
+      const failedResources = Object.entries(results.resources)
+        .filter(([_, info]: [string, any]) => info.status === 400 || info.failed)
+        .map(([resource, info]) => ({ resource, info }));
+
+      if (failedResources.length > 0) {
+        console.error('❌ Resources failing with 400 or errors:', failedResources);
+      }
+    };
+
     // Check if already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     const isIOSStandalone = (navigator as any).standalone === true;
     
-    console.log('PWA Install: Standalone check', { isStandalone, isIOSStandalone });
-    
     if (isStandalone || isIOSStandalone) {
-      console.log('PWA Install: Already installed, not showing button');
       return; // Already installed
     }
 
+    // Run diagnostics
+    runDiagnostics();
+
     // Listen for beforeinstallprompt
     const handleBeforeInstallPrompt = (e: Event) => {
-      console.log('PWA Install: beforeinstallprompt fired!');
+      console.log('✅ beforeinstallprompt fired - PWA is installable!');
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
-      setShowInstallButton(true);
     };
 
-    // Listen for app installed
     const handleAppInstalled = () => {
-      console.log('PWA Install: App installed');
-      setShowInstallButton(false);
+      console.log('✅ App installed successfully');
       setDeferredPrompt(null);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // Force show button after 3 seconds for testing (remove this in production)
-    const testTimer = setTimeout(() => {
-      console.log('PWA Install: Test timer - forcing button display');
-      if (!deferredPrompt) {
-        console.log('PWA Install: No beforeinstallprompt event, showing fallback button');
-        setShowInstallButton(true);
-      }
-    }, 3000);
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
-      clearTimeout(testTimer);
     };
-  }, [deferredPrompt]);
+  }, []);
 
   const handleInstall = async () => {
-    console.log('PWA Install: Button clicked', { hasDeferredPrompt: !!deferredPrompt });
-    
-    if (deferredPrompt) {
-      // Native install for Chrome, Edge, Samsung Internet, Opera
-      setIsInstalling(true);
-      try {
-        console.log('PWA Install: Triggering native prompt');
-        await deferredPrompt.prompt();
-        const choiceResult = await deferredPrompt.userChoice;
-        
-        console.log('PWA Install: User choice', choiceResult);
-        
-        if (choiceResult.outcome === 'accepted') {
-          setShowInstallButton(false);
-        }
-      } catch (error) {
-        console.error('PWA Install: Failed', error);
-      } finally {
-        setIsInstalling(false);
+    if (!deferredPrompt) return;
+
+    setIsInstalling(true);
+    try {
+      await deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      
+      if (choiceResult.outcome === 'accepted') {
         setDeferredPrompt(null);
       }
-    } else {
-      // Fallback for browsers without beforeinstallprompt
-      console.log('PWA Install: No native prompt available, showing instructions');
-      const userAgent = navigator.userAgent.toLowerCase();
-      
-      if (userAgent.includes('chrome')) {
-        alert('To install: Look for the install icon in your address bar, or go to Chrome menu → "Install Tabeza"');
-      } else if (userAgent.includes('safari')) {
-        if (userAgent.includes('iphone') || userAgent.includes('ipad')) {
-          alert('To install: Tap the Share button, then "Add to Home Screen"');
-        } else {
-          alert('To install: Click File menu → "Add to Dock"');
-        }
-      } else {
-        alert('To install: Look for the install option in your browser menu');
-      }
+    } catch (error) {
+      console.error('Install failed:', error);
+    } finally {
+      setIsInstalling(false);
     }
   };
 
-  console.log('PWA Install: Render', { showInstallButton, isInstalling });
+  // Show diagnostics in development
+  if (process.env.NODE_ENV === 'development' && diagnostics) {
+    const failedResources = Object.entries(diagnostics.resources)
+      .filter(([_, info]: [string, any]) => info.status === 400 || info.failed);
 
-  if (!showInstallButton) return null;
+    if (failedResources.length > 0) {
+      return (
+        <div className="fixed top-4 left-4 bg-red-50 border border-red-200 rounded-lg p-4 max-w-md text-sm z-50">
+          <h3 className="font-semibold text-red-800 mb-2">PWA Resources Failing:</h3>
+          {failedResources.map(([resource, info]: [string, any]) => (
+            <div key={resource} className="mb-2">
+              <div className="font-medium text-red-700">{resource}</div>
+              <div className="text-red-600">
+                {info.failed ? `Error: ${info.error}` : `HTTP ${info.status}: ${info.statusText}`}
+              </div>
+            </div>
+          ))}
+          <div className="mt-3 text-red-600">
+            ❌ This is why PWA install isn't working. Fix these 400 errors first.
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Only show install button if we have a real install prompt
+  if (!deferredPrompt) return null;
 
   return (
     <div className="fixed top-1/3 left-4 right-4 z-50">
