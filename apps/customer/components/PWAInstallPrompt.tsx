@@ -20,11 +20,13 @@ export default function PWAInstallPrompt() {
   useEffect(() => {
     // Run comprehensive diagnostics
     const runDiagnostics = async () => {
-      const results = {
+      const results: any = {
         timestamp: new Date().toISOString(),
         url: window.location.href,
         userAgent: navigator.userAgent,
-        resources: {} as any
+        resources: {},
+        serviceWorker: {},
+        pwaSupport: {}
       };
 
       // Test all PWA-related resources
