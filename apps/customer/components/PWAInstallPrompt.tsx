@@ -17,11 +17,20 @@ export default function PWAInstallPrompt() {
   const [isInstalling, setIsInstalling] = useState(false);
 
   useEffect(() => {
+    // Debug browser support
+    console.log('🔍 PWA support check:', {
+      serviceWorker: 'serviceWorker' in navigator,
+      beforeinstallprompt: 'onbeforeinstallprompt' in window,
+      standalone: window.matchMedia('(display-mode: standalone)').matches,
+      userAgent: navigator.userAgent
+    });
+
     // Check if already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     const isIOSStandalone = (navigator as any).standalone === true;
     
     if (isStandalone || isIOSStandalone) {
+      console.log('📱 PWA is already installed in standalone mode');
       return; // Already installed
     }
 

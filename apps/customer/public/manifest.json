@@ -1,42 +1,23 @@
 {
-  "id": "/",
   "name": "Tabeza Customer App",
   "short_name": "Tabeza",
-  "description": "Digital tabs for bars and restaurants - order, pay, and manage your tab seamlessly",
-  "start_url": "/start?pwa=true",
-  "scope": "/",
+  "description": "Tab management for bars and restaurants",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ea580c",
-  "orientation": "portrait-primary",
-  "lang": "en",
-  "dir": "ltr",
-  "prefer_related_applications": false,
+  "orientation": "portrait",
+  "scope": "/",
   "icons": [
     {
       "src": "/logo-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/logo-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/logo-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/logo-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ],
-  "categories": ["business", "food", "lifestyle"]
+  "categories": ["business", "food", "lifestyle"],
+  "lang": "en",
+  "dir": "ltr",
+  "prefer_related_applications": false
 }

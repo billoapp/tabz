@@ -4,55 +4,20 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  // Enable PWA in development mode for testing
-  disable: false,
-  // Take control of all clients immediately
-  clientsClaim: true,
-  // Clean up outdated caches automatically
-  cleanupOutdatedCaches: true,
-  // Configure offline fallback
-  navigateFallback: '/offline.html',
-  navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
-  // Runtime caching configuration - simplified to avoid build issues
+  disable: process.env.NODE_ENV === 'development',
   runtimeCaching: [
     {
-      // Cache static assets with CacheFirst strategy
-      urlPattern: /^https?.*\.(png|jpg|jpeg|webp|svg|gif|tiff|js|css)$/,
-      handler: 'CacheFirst',
-      options: {
-        cacheName: 'static-assets',
-        expiration: {
-          maxEntries: 100,
-          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-        },
-      },
-    },
-    {
-      // Cache API routes with NetworkFirst strategy
-      urlPattern: /^https?.*\/api\/.*/,
+      urlPattern: /^https?.*/,
       handler: 'NetworkFirst',
       options: {
-        cacheName: 'api-cache',
+        cacheName: 'tabeza-customer-v1',
         expiration: {
-          maxEntries: 20,
-          maxAgeSeconds: 5 * 60, // 5 minutes
-        },
-        networkTimeoutSeconds: 10,
-      },
-    },
-  ],
-  // Public excludes - files that should not be precached
-  publicExcludes: [
-    '!robots.txt',
-    '!sitemap.xml',
-    '!favicon.ico',
-  ],
-  // Build excludes - patterns to exclude from precaching
-  buildExcludes: [
-    /chunks\/images\/.*$/,
-    /chunks\/pages\/.*$/,
-    /media\/.*$/,
-  ],
+          maxEntries: 100,
+          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+        }
+      }
+    }
+  ]
 });
 
 const nextConfig = {
