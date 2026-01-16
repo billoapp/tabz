@@ -3,9 +3,6 @@ import './globals.css';
 import { ToastProvider } from '@/components/ui/Toast';
 import DeviceInitializer from '@/components/DeviceInitializer';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
-import PWADebugInfo from '@/components/PWADebugInfo';
-import PWAInstallChecker from '@/components/PWAInstallChecker';
-import TabDebugInfo from '@/components/TabDebugInfo';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Analytics } from '@vercel/analytics/next';
 
@@ -66,10 +63,7 @@ export default function RootLayout({
         <DeviceInitializer>
           <ToastProvider>
             <PWAInstallPrompt />
-            <PWAInstallChecker />
             {children}
-            <PWADebugInfo />
-            <TabDebugInfo />
           </ToastProvider>
         </DeviceInitializer>
         <SpeedInsights />
