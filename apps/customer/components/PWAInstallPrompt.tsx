@@ -17,45 +17,135 @@ export default function PWAInstallPrompt() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   useEffect(() => {
-    // Check if already installed
+    console.log('🔧 PWAInstallPrompt component mounted');
+
+    // Enhanced installation status check
     const checkInstalled = () => {
       const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
       const isIOSStandalone = (navigator as any).standalone === true;
-      return isStandalone || isIOSStandalone;
+      const isInstalled = isStandalone || isIOSStandalone;
+      
+      console.log('🔍 Installation status check:', {
+        isStandalone,
+        isIOSStandalone,
+        isInstalled,
+        userAgent: navigator.userAgent,
+        displayMode: window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser'
+      });
+      
+      return isInstalled;
+    };
+
+    // Enhanced PWA support detection
+    const checkPWASupport = () => {
+      const support = {
+        serviceWorker: 'serviceWorker' in navigator,
+        beforeinstallprompt: 'onbeforeinstallprompt' in window,
+        userAgent: navigator.userAgent,
+        url: window.location.href,
+        isHTTPS: window.location.protocol === 'https:' || window.location.hostname === 'localhost',
+        platform: navigator.platform,
+        standalone: window.matchMedia('(display-mode: standalone)').matches
+      };
+      
+      console.log('🔍 PWA Installation Support:', support);
+      setDebugInfo(support);
+      return support;
     };
 
     if (checkInstalled()) {
+      console.log('❌ PWA Install Prompt: Already installed, not showing banner');
       setIsInstalled(true);
       return;
     }
 
-    // Listen for beforeinstallprompt
+    checkPWASupport();
+
+    // Listen for beforeinstallprompt with enhanced logging
     const handleBeforeInstallPrompt = (e: Event) => {
-      console.log('PWA: beforeinstallprompt fired');
+      console.log('✅ PWA: beforeinstallprompt event fired!');
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
       setShowInstallPrompt(true);
+      console.log('✅ PWA: Install banner will be shown');
     };
 
     // Listen for app installed
     const handleAppInstalled = () => {
-      console.log('PWA: App installed');
+      console.log('✅ PWA: App successfully installed');
       setIsInstalled(true);
       setShowInstallPrompt(false);
       setDeferredPrompt(null);
     };
 
+    // Enhanced service worker check
+    const checkServiceWorker = async () => {
+      if ('serviceWorker' in navigator) {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          console.log('🔍 Service Worker registrations:', registrations.length);
+          
+          if (registrations.length === 0) {
+            console.log('⚠️ No service worker registered - this may prevent PWA installation');
+          } else {
+            console.log('✅ Service worker is registered');
+          }
+        } catch (error) {
+          console.error('❌ Error checking service worker:', error);
+        }
+      }
+    };
+
+    // Enhanced manifest check
+    const checkManifest = async () => {
+      try {
+        const response = await fetch('/manifest.json');
+        if (response.ok) {
+          const manifest = await response.json();
+          console.log('✅ Manifest loaded successfully:', manifest);
+        } else {
+          console.error('❌ Failed to load manifest.json:', response.status);
+        }
+      } catch (error) {
+        console.error('❌ Error loading manifest:', error);
+      }
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // Fallback: Show prompt after delay if no beforeinstallprompt
+    // Run checks
+    checkServiceWorker();
+    checkManifest();
+
+    // Enhanced fallback logic with better detection
     const fallbackTimer = setTimeout(() => {
+      const currentState = {
+        deferredPrompt: !!deferredPrompt,
+        isInstalled: checkInstalled(),
+        showInstallPrompt,
+        url: window.location.href,
+        isHTTPS: window.location.protocol === 'https:' || window.location.hostname === 'localhost'
+      };
+      
+      console.log('🔍 After timeout check:', currentState);
+      
       if (!deferredPrompt && !checkInstalled()) {
-        console.log('PWA: Showing fallback install prompt');
-        setShowInstallPrompt(true);
+        // Check if we're in a development/preview environment
+        const isDev = process.env.NODE_ENV === 'development';
+        const isPreview = window.location.hostname.includes('vercel.app') || 
+                         window.location.hostname.includes('netlify.app');
+        
+        if (isDev || isPreview) {
+          console.log('🧪 Development/Preview mode detected - showing install prompt for testing');
+          setShowInstallPrompt(true);
+        } else {
+          console.log('❌ Production mode: beforeinstallprompt not fired, PWA may not meet installability criteria');
+        }
       }
     }, 3000);
 
@@ -64,30 +154,55 @@ export default function PWAInstallPrompt() {
       window.removeEventListener('appinstalled', handleAppInstalled);
       clearTimeout(fallbackTimer);
     };
-  }, [deferredPrompt]);
+  }, []);
 
   const handleInstall = async () => {
+    console.log('🔧 Install button clicked', { deferredPrompt: !!deferredPrompt });
+    
     if (!deferredPrompt) {
-      // Show manual instructions
-      alert('To install: Tap Chrome menu (⋮) → Add to Home screen');
+      // Enhanced manual instructions based on platform
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isAndroid = userAgent.includes('android');
+      const isIOS = userAgent.includes('iphone') || userAgent.includes('ipad');
+      const isChrome = userAgent.includes('chrome');
+      const isSafari = userAgent.includes('safari') && !userAgent.includes('chrome');
+      
+      let instructions = '';
+      
+      if (isAndroid && isChrome) {
+        instructions = 'Tap Chrome menu (⋮) → "Add to Home screen"';
+      } else if (isIOS && isSafari) {
+        instructions = 'Tap Share button → "Add to Home Screen"';
+      } else if (isChrome) {
+        instructions = 'Click Chrome menu (⋮) → "Install Tabeza"';
+      } else {
+        instructions = 'Use Chrome or Safari to install this app';
+      }
+      
+      console.log('📱 Showing manual install instructions:', instructions);
+      alert(`To install this app:\n\n${instructions}`);
       return;
     }
 
     setIsInstalling(true);
+    console.log('🚀 Attempting PWA installation...');
 
     try {
       await deferredPrompt.prompt();
       const choiceResult = await deferredPrompt.userChoice;
       
+      console.log('✅ PWA Install choice:', choiceResult);
+      
       if (choiceResult.outcome === 'accepted') {
-        console.log('PWA: User accepted install');
+        console.log('✅ User accepted PWA installation');
+        setShowInstallPrompt(false);
       } else {
-        console.log('PWA: User dismissed install');
+        console.log('❌ User dismissed PWA installation');
         setShowInstallPrompt(false);
       }
     } catch (error) {
-      console.error('PWA: Install failed', error);
-      alert('Install failed. Try: Chrome menu → Add to Home screen');
+      console.error('❌ PWA Install failed:', error);
+      alert('Installation failed. Please try using Chrome menu → Add to Home screen');
     } finally {
       setIsInstalling(false);
       setDeferredPrompt(null);

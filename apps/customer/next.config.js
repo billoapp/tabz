@@ -6,8 +6,6 @@ const withPWA = require('next-pwa')({
   skipWaiting: true,
   // Enable PWA in development mode for testing
   disable: false,
-  // Skip waiting for new service worker to take control
-  skipWaiting: true,
   // Take control of all clients immediately
   clientsClaim: true,
   // Clean up outdated caches automatically
