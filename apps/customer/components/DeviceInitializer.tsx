@@ -13,18 +13,16 @@ export default function DeviceInitializer({ children }: DeviceInitializerProps) 
 
   useEffect(() => {
     // CRITICAL FIX: Don't block app initialization for device ID
-    // PWA install functionality must work independently of device management
-    console.log('🔧 Starting non-blocking device initialization...');
-    
-    // Set initialized immediately - don't wait for device ID
     setInitialized(true);
     
-    // Initialize device ID in background (non-blocking)
-    const initializeDeviceAsync = async () => {
+    // Initialize device in background
+    const initializeDevice = async () => {
       try {
+        console.log('🔧 Starting device initialization...');
+        
         const device = await getDeviceInfo();
         
-        console.log('✅ Device initialized in background:', {
+        console.log('✅ Device initialized:', {
           id: device.deviceId,
           fingerprint: device.fingerprint.slice(0, 10) + '...',
           createdAt: device.createdAt,
@@ -38,13 +36,12 @@ export default function DeviceInitializer({ children }: DeviceInitializerProps) 
           // Ignore storage errors
         }
       } catch (err) {
-        console.error('❌ Device initialization failed (non-blocking):', err);
-        // Don't set error state - app should continue working
+        console.error('❌ Failed to initialize device:', err);
+        // Don't set error - app continues to work
       }
     };
 
-    // Run device initialization in background without blocking
-    initializeDeviceAsync();
+    initializeDevice();
   }, []);
 
   // App initializes immediately - no loading screen needed
