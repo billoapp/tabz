@@ -40,15 +40,40 @@ export default function PWATest() {
           results.serviceWorkerRegistered = true;
           results.serviceWorkerScope = registration.scope;
           
-          // Check if active
+          // Check detailed state
+          results.serviceWorkerActive = !!registration.active;
+          results.serviceWorkerInstalling = !!registration.installing;
+          results.serviceWorkerWaiting = !!registration.waiting;
+          
           if (registration.active) {
-            results.serviceWorkerActive = true;
             results.serviceWorkerURL = registration.active.scriptURL;
-          } else {
-            results.serviceWorkerActive = false;
-            results.serviceWorkerInstalling = !!registration.installing;
-            results.serviceWorkerWaiting = !!registration.waiting;
+            results.serviceWorkerState = registration.active.state;
           }
+          
+          if (registration.installing) {
+            results.installingState = registration.installing.state;
+          }
+          
+          if (registration.waiting) {
+            results.waitingState = registration.waiting.state;
+          }
+          
+          // Try to force activation if waiting
+          if (registration.waiting && !registration.active) {
+            console.log('🔄 Service worker is waiting, trying to activate...');
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            
+            // Wait for activation
+            setTimeout(async () => {
+              const updatedReg = await navigator.serviceWorker.ready;
+              results.serviceWorkerActiveAfterSkip = !!updatedReg.active;
+              if (updatedReg.active) {
+                results.serviceWorkerURLAfterSkip = updatedReg.active.scriptURL;
+              }
+              setTestResults({...results});
+            }, 1000);
+          }
+          
         } catch (error: any) {
           results.serviceWorkerRegistered = false;
           results.serviceWorkerError = error.message;
@@ -75,7 +100,25 @@ export default function PWATest() {
         <div>Service Worker: {testResults.serviceWorkerSupported ? '✅' : '❌'}</div>
         <div>SW Registered: {testResults.serviceWorkerRegistered ? '✅' : '❌'}</div>
         <div>SW Active: {testResults.serviceWorkerActive ? '✅' : '❌'}</div>
+        <div>SW Installing: {testResults.serviceWorkerInstalling ? '✅' : '❌'}</div>
+        <div>SW Waiting: {testResults.serviceWorkerWaiting ? '✅' : '❌'}</div>
         <div>Install Prompt: {testResults.beforeInstallPromptSupported ? '✅' : '❌'}</div>
+        
+        {testResults.serviceWorkerState && (
+          <div className="mt-2 text-gray-300">SW State: {testResults.serviceWorkerState}</div>
+        )}
+        
+        {testResults.installingState && (
+          <div className="mt-2 text-yellow-300">Installing: {testResults.installingState}</div>
+        )}
+        
+        {testResults.waitingState && (
+          <div className="mt-2 text-yellow-300">Waiting: {testResults.waitingState}</div>
+        )}
+        
+        {testResults.serviceWorkerActiveAfterSkip && (
+          <div className="mt-2 text-green-300">✅ SW Active After Skip!</div>
+        )}
         
         {testResults.manifestError && (
           <div className="mt-2 text-yellow-300">Manifest Error: {testResults.manifestError}</div>
