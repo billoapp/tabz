@@ -66,7 +66,7 @@ export default function PWAInstallChecker() {
           url: window.location.href,
           protocol: window.location.protocol,
           hostname: window.location.hostname,
-          isHTTPS: window.location.protocol === 'https:' || window.location.hostname === 'localhost',
+          isHTTPS: window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
           isLocalhost: window.location.hostname === 'localhost',
           isVercel: window.location.hostname.includes('vercel.app'),
         },
@@ -151,20 +151,24 @@ export default function PWAInstallChecker() {
       if (results.installability.alreadyInstalled) {
         results.installability.reason = 'Already installed';
       } else if (!results.environment.isHTTPS) {
-        results.installability.reason = 'HTTPS required';
+        results.installability.reason = 'HTTPS required (current: ' + results.environment.protocol + ')';
       } else if (!results.pwaSupport.serviceWorker) {
         results.installability.reason = 'Service Worker not supported';
       } else if (!results.serviceWorkerStatus.registrations) {
-        results.installability.reason = 'No Service Worker registered';
+        results.installability.reason = 'No Service Worker registered (check console for errors)';
       } else if (!results.manifest.loaded) {
-        results.installability.reason = 'Manifest not loaded';
+        results.installability.reason = 'Manifest not loaded (error: ' + (results.manifest.error || 'unknown') + ')';
       } else if (!results.manifest.validation?.isValid) {
-        results.installability.reason = 'Invalid manifest';
+        results.installability.reason = 'Invalid manifest (missing: ' + 
+          Object.entries(results.manifest.validation || {})
+            .filter(([key, value]) => key !== 'isValid' && !value)
+            .map(([key]) => key)
+            .join(', ') + ')';
       } else if (!results.pwaSupport.beforeInstallPrompt) {
-        results.installability.reason = 'Browser does not support beforeinstallprompt';
+        results.installability.reason = 'Browser does not support beforeinstallprompt (try Chrome/Edge)';
       } else {
         results.installability.canInstall = true;
-        results.installability.reason = 'Should be installable';
+        results.installability.reason = 'Should be installable - check for beforeinstallprompt event';
       }
 
       console.log('🔍 PWA Install Checker Results:', results);
