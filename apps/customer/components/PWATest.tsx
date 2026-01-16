@@ -36,7 +36,7 @@ export default function PWATest() {
       // Test 4: Try to register service worker
       if (results.serviceWorkerSupported) {
         try {
-          const registration = await navigator.serviceWorker.register('/sw.js');
+          const registration = await navigator.serviceWorker.register('/sw-simple.js');
           results.serviceWorkerRegistered = true;
           results.serviceWorkerScope = registration.scope;
           

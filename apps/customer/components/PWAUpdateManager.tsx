@@ -16,7 +16,7 @@ export default function PWAUpdateManager() {
       return;
     }
 
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('/sw-simple.js')
       .then(registration => {
         console.log('PWA Update Manager: Service worker registered');
 
