@@ -70,8 +70,9 @@ export default function RootLayout({
             {children}
           </ToastProvider>
         </DeviceInitializer>
-        <SpeedInsights />
-        <Analytics />
+        {/* Temporarily disable analytics to fix PWA install */}
+        {/* <SpeedInsights />
+        <Analytics /> */}
         {/* PWA Activation Helper */}
         <script src="/pwa-activate.js" async></script>
       </body>

@@ -11,6 +11,8 @@ const withPWA = require('next-pwa')({
   reloadOnOnline: true,
   // Use simple service worker to avoid installation issues
   sw: 'sw-simple.js',
+  // Disable precaching to avoid 404 errors
+  precacheEntries: [],
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,
