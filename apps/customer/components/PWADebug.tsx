@@ -26,6 +26,7 @@ export default function PWADebug() {
         // Manifest details
         manifestUrl: '',
         manifestContent: null as any,
+        installPromptDetected: false,
       };
 
       // Check manifest
@@ -57,8 +58,8 @@ export default function PWADebug() {
         }
       }
 
-      // Check if PWA is installable
-      (info as any).installable = info.serviceWorker && info.https && info.manifest && info.beforeInstallPrompt;
+      // Check if PWA is installable (for localhost, HTTPS is not required)
+      (info as any).installable = info.serviceWorker && info.manifest && info.beforeInstallPrompt;
 
       setDebugInfo(info);
       console.log('🔍 PWA Debug Info:', info);
@@ -69,7 +70,7 @@ export default function PWADebug() {
     // Listen for beforeinstallprompt
     const handleBeforeInstallPrompt = (e: any) => {
       console.log('✅ beforeinstallprompt event detected!', e);
-      setDebugInfo((prev: any) => ({ ...prev, installPromptEvent: e }));
+      setDebugInfo((prev: any) => ({ ...prev, installPromptDetected: true, installPromptEvent: e }));
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -84,14 +85,14 @@ export default function PWADebug() {
       <h3 className="font-bold mb-2">PWA Debug Info</h3>
       <div className="space-y-1">
         <div>Service Worker: {debugInfo.serviceWorker ? '✅' : '❌'}</div>
-        <div>HTTPS: {debugInfo.https ? '✅' : '❌'}</div>
+        <div>HTTPS: {debugInfo.https ? '✅' : '❌'} (localhost OK)</div>
         <div>Manifest: {debugInfo.manifest ? '✅' : '❌'}</div>
         <div>Install Prompt: {debugInfo.beforeInstallPrompt ? '✅' : '❌'}</div>
-        <div>Installable: {debugInfo.installable ? '✅' : '❌'}</div>
+        <div>Installable: {(debugInfo as any).installable ? '✅' : '❌'}</div>
         <div>Standalone: {debugInfo.standalone ? '✅' : '❌'}</div>
         
-        {debugInfo.installPromptEvent && (
-          <div className="mt-2 text-green-400">Install prompt detected!</div>
+        {debugInfo.installPromptDetected && (
+          <div className="mt-2 text-green-400">✅ Install prompt detected! PWA is working!</div>
         )}
         
         {debugInfo.registration?.error && (
