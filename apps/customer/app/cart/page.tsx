@@ -50,7 +50,9 @@ export default function CartPage() {
     const cartData = sessionStorage.getItem('cart');
     if (cartData) {
       try {
-        setCart(JSON.parse(cartData));
+        const parsedCart = JSON.parse(cartData);
+        console.log('🛒 Cart loaded from sessionStorage:', parsedCart);
+        setCart(parsedCart);
       } catch (error) {
         console.error('Error parsing cart data:', error);
         setCart([]);
@@ -75,6 +77,11 @@ export default function CartPage() {
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   const isDrinkItem = (item: CartItem): boolean => {
+    console.log('🔍 Checking if item is drink:', {
+      name: item.name,
+      category: item.category,
+      isDrink: item.category ? drinkCategories.includes(item.category) : false
+    });
     return item.category ? drinkCategories.includes(item.category) : false;
   };
 
