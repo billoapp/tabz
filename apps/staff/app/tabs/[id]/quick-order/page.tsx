@@ -47,7 +47,7 @@ export default function QuickOrderPage() {
         .from('tabs')
         .select('*, bar:bars(name)')
         .eq('id', tabId)
-        .single();
+        .single() as { data: any, error: any };
 
       if (tabError) {
         console.error('❌ Error loading tab:', tabError);

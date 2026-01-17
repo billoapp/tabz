@@ -90,7 +90,7 @@ export default function AddOrderPage() {
         .from('tabs')
         .select('*, bar:bars(name)')
         .eq('id', tabId)
-        .single();
+        .single() as { data: any, error: any };
 
       if (error) throw error;
       
@@ -118,7 +118,7 @@ export default function AddOrderPage() {
         .eq('bar_id', barId)
         .eq('active', true)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(20) as { data: any, error: any };
 
       if (error) throw error;
 
