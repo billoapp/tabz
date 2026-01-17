@@ -296,35 +296,35 @@ export default function TabDetailPage() {
     setLoading(true);
     
     try {
-      const { data: tabData, error: tabError } = await supabase
+      const { data: tabData, error: tabError } = await (supabase as any)
         .from('tabs')
         .select('*')
         .eq('id', tabId)
-        .single();
+        .single() as { data: any, error: any };
 
       if (tabError) throw tabError;
 
-      const { data: barData, error: barError } = await supabase
+      const { data: barData, error: barError } = await (supabase as any)
         .from('bars')
         .select('id, name, location')
         .eq('id', tabData.bar_id)
-        .single();
+        .single() as { data: any, error: any };
 
       if (barError) throw barError;
 
-      const { data: ordersResult, error: ordersError } = await supabase
+      const { data: ordersResult, error: ordersError } = await (supabase as any)
         .from('tab_orders')
         .select('*')
         .eq('tab_id', tabId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: any, error: any };
 
       if (ordersError) throw ordersError;
 
-      const { data: paymentsResult, error: paymentsError } = await supabase
+      const { data: paymentsResult, error: paymentsError } = await (supabase as any)
         .from('tab_payments')
         .select('*')
         .eq('tab_id', tabId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: any, error: any };
 
       if (paymentsError) throw paymentsError;
 
@@ -462,7 +462,7 @@ export default function TabDetailPage() {
 
       const total = getCartTotal();
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
         .insert({
           tab_id: tabId,
@@ -470,7 +470,7 @@ export default function TabDetailPage() {
           total: total,
           status: 'pending',
           initiated_by: 'staff'
-        });
+        }) as { data: any, error: any };
 
       if (error) throw error;
 
@@ -505,13 +505,13 @@ export default function TabDetailPage() {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
         .update({ 
           status: 'confirmed',
           confirmed_at: new Date().toISOString()
         })
-        .eq('id', orderId);
+        .eq('id', orderId) as { data: any, error: any };
 
       if (error) throw error;
 
@@ -538,13 +538,13 @@ export default function TabDetailPage() {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
         .update({ 
           status: 'cancelled',
           cancelled_at: new Date().toISOString()
         })
-        .eq('id', orderId);
+        .eq('id', orderId) as { data: any, error: any };
 
       if (error) throw error;
 
@@ -571,7 +571,7 @@ export default function TabDetailPage() {
     if (!amount || isNaN(Number(amount))) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_payments')
         .insert({
           tab_id: tabId,
@@ -579,7 +579,7 @@ export default function TabDetailPage() {
           method: 'cash',
           status: 'success',
           reference: `CASH_${Date.now()}`
-        });
+        }) as { data: any, error: any };
 
       if (error) throw error;
 
@@ -672,7 +672,7 @@ export default function TabDetailPage() {
     try {
       if (balance > 0) {
         // Push to overdue
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('tabs')
           .update({ 
             status: 'overdue',
@@ -680,7 +680,7 @@ export default function TabDetailPage() {
             overdue_reason: 'Unpaid balance pushed to bad debt',
             closed_by: 'staff'
           })
-          .eq('id', tabId);
+          .eq('id', tabId) as { data: any, error: any };
 
         if (error) {
           console.error('Error pushing tab to overdue:', error);
@@ -695,14 +695,14 @@ export default function TabDetailPage() {
         
       } else {
         // Close normally
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('tabs')
           .update({ 
             status: 'closed', 
             closed_at: new Date().toISOString(),
             closed_by: 'staff'
           })
-          .eq('id', tabId);
+          .eq('id', tabId) as { data: any, error: any };
 
         if (error) {
           console.error('Error closing tab:', error);
@@ -743,11 +743,11 @@ export default function TabDetailPage() {
     console.log('🔥 Loading telegram messages for tab:', tabId);
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('tab_telegram_messages')
         .select('*')
         .eq('tab_id', tabId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: any, error: any };
       
       if (error) {
         console.error('❌ Error loading messages:', error);
@@ -766,7 +766,7 @@ export default function TabDetailPage() {
   const acknowledgeLatestPendingCustomerMessage = async () => {
     try {
       // Find the most recent pending customer message
-      const { data: pendingMessage, error: fetchError } = await supabase
+      const { data: pendingMessage, error: fetchError } = await (supabase as any)
         .from('tab_telegram_messages')
         .select('id')
         .eq('tab_id', tabId)
@@ -774,7 +774,7 @@ export default function TabDetailPage() {
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .single() as { data: any, error: any };
       
       if (fetchError || !pendingMessage) {
         console.log('ℹ️ No pending customer messages to acknowledge');
@@ -866,11 +866,11 @@ export default function TabDetailPage() {
       console.log('✅ Acknowledging customer message:', messageId);
       
       // First, get the current message to check its status
-      const { data: currentMessage, error: fetchError } = await supabase
+      const { data: currentMessage, error: fetchError } = await (supabase as any)
         .from('tab_telegram_messages')
         .select('status, initiated_by')
         .eq('id', messageId)
-        .single();
+        .single() as { data: any, error: any };
       
       if (fetchError) {
         console.error('❌ Failed to fetch message:', fetchError);
@@ -904,7 +904,7 @@ export default function TabDetailPage() {
       }
       
       // Update the message status to acknowledged
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('tab_telegram_messages')
         .update({
           status: 'acknowledged',
@@ -914,7 +914,7 @@ export default function TabDetailPage() {
         .eq('id', messageId)
         .eq('initiated_by', 'customer') // Double-check it's a customer message
         .select()
-        .single();
+        .single() as { data: any, error: any };
       
       if (error) {
         console.error('❌ Failed to acknowledge message:', error);

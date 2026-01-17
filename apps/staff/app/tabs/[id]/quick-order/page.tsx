@@ -72,19 +72,19 @@ export default function QuickOrderPage() {
 
   const loadBarProducts = async (barId: string) => {
     try {
-      const { data: products, error } = await supabase
+      const { data: products, error } = await (supabase as any)
         .from('bar_products')
         .select('id, name, category, sale_price, description, custom_product_id')
         .eq('bar_id', barId)
         .eq('active', true)
-        .order('category, name');
+        .order('category, name') as { data: any, error: any };
 
       if (error) {
         console.error('❌ Error loading bar products:', error);
         return;
       }
 
-      const formattedProducts: BarProduct[] = (products || []).map(p => ({
+      const formattedProducts: BarProduct[] = (products || []).map((p: any) => ({
         id: p.id,
         name: p.name,
         category: p.category,

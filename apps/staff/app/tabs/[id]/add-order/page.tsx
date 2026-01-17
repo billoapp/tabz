@@ -86,7 +86,7 @@ export default function AddOrderPage() {
     setLoading(true);
     try {
       // Load tab with bar_id
-      const { data: tabData, error } = await supabase
+      const { data: tabData, error } = await (supabase as any)
         .from('tabs')
         .select('*, bar:bars(name)')
         .eq('id', tabId)
@@ -112,7 +112,7 @@ export default function AddOrderPage() {
 
   const loadBarProducts = async (barId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('bar_products')
         .select('id, name, category, sale_price, description, custom_product_id')
         .eq('bar_id', barId)
@@ -122,7 +122,7 @@ export default function AddOrderPage() {
 
       if (error) throw error;
 
-      const formattedProducts: BarProduct[] = (data || []).map(p => ({
+      const formattedProducts: BarProduct[] = (data || []).map((p: any) => ({
         id: p.id,
         name: p.name,
         category: p.category,
@@ -150,12 +150,12 @@ export default function AddOrderPage() {
     console.log('🔍 Searching global products for:', trimmedQuery);
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('products')
         .select('*')
         .ilike('name', `%${trimmedQuery}%`)
         .eq('active', true)
-        .limit(10);
+        .limit(10) as { data: any, error: any };
 
       if (error) {
         console.error('❌ Error searching global products:', error);
@@ -218,12 +218,12 @@ export default function AddOrderPage() {
 
     try {
       // Check if product exists in global catalog
-      const { data: existingProduct } = await supabase
+      const { data: existingProduct } = await (supabase as any)
         .from('products')
         .select('*')
         .ilike('name', productName.trim())
         .eq('active', true)
-        .maybeSingle();
+        .maybeSingle() as { data: any, error: any };
 
       let productId: string | undefined;
       let customProductId: string | undefined;
@@ -240,7 +240,7 @@ export default function AddOrderPage() {
         // Generate SKU for custom product
         const sku = `CUSTOM-${Date.now().toString(36).toUpperCase()}`;
         
-        const { data: newCustomProduct, error: customError } = await supabase
+        const { data: newCustomProduct, error: customError } = await (supabase as any)
           .from('custom_products')
           .insert({
             bar_id: tab.bar_id,
@@ -251,7 +251,7 @@ export default function AddOrderPage() {
             active: true
           })
           .select()
-          .single();
+          .single() as { data: any, error: any };
 
         if (customError) {
           console.error('❌ Error creating custom product:', customError);
@@ -259,12 +259,12 @@ export default function AddOrderPage() {
           // Check if custom product already exists
           if (customError.code === '23505') {
             // Try to find existing custom product
-            const { data: existingCustom } = await supabase
+            const { data: existingCustom } = await (supabase as any)
               .from('custom_products')
               .select('*')
               .eq('bar_id', tab.bar_id)
               .ilike('name', productName.trim())
-              .maybeSingle();
+              .maybeSingle() as { data: any, error: any };
 
             if (existingCustom) {
               customProductId = existingCustom.id;
@@ -282,18 +282,18 @@ export default function AddOrderPage() {
       }
 
       // Check if product already exists in bar_products
-      const { data: existingBarProduct, error: checkError } = await supabase
+      const { data: existingBarProduct, error: checkError } = await (supabase as any)
         .from('bar_products')
         .select('id')
         .eq('bar_id', tab.bar_id)
-        .eq('active', true);
+        .eq('active', true) as { data: any, error: any };
 
       if (checkError) {
         console.error('❌ Error checking existing bar product:', checkError);
       }
 
       // Use appropriate filter based on whether it's a global or custom product
-      let filterQuery = supabase
+      let filterQuery = (supabase as any)
         .from('bar_products')
         .select('id')
         .eq('bar_id', tab.bar_id)
@@ -305,17 +305,17 @@ export default function AddOrderPage() {
         filterQuery = filterQuery.eq('product_id', productId);
       }
 
-      const { data: existingBarProducts } = await filterQuery;
+      const { data: existingBarProducts } = await filterQuery as { data: any, error: any };
 
       if (existingBarProducts && existingBarProducts.length > 0) {
         // Update existing bar product price
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
           .from('bar_products')
           .update({ 
             sale_price: parseFloat(productPrice),
             updated_at: new Date().toISOString()
           })
-          .eq('id', existingBarProducts[0].id);
+          .eq('id', existingBarProducts[0].id) as { data: any, error: any };
 
         if (updateError) {
           console.error('❌ Error updating bar product:', updateError);
@@ -345,11 +345,11 @@ export default function AddOrderPage() {
           barProductData.sku = `DIRECT-${Date.now().toString(36).toUpperCase()}`;
         }
 
-        const { data: newBarProduct, error: barError } = await supabase
+        const { data: newBarProduct, error: barError } = await (supabase as any)
           .from('bar_products')
           .insert(barProductData)
           .select()
-          .single();
+          .single() as { data: any, error: any };
 
         if (barError) {
           console.error('❌ Error creating bar product:', barError);
