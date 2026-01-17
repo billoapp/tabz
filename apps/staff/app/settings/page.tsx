@@ -131,7 +131,7 @@ export default function SettingsPage() {
         .from('bars')
         .select('*')
         .eq('id', userBarId)
-        .single();
+        .single() as { data: any, error: any };
 
       if (error) {
         console.error('Error loading bar:', error);
@@ -243,13 +243,13 @@ export default function SettingsPage() {
         .select('id')
         .eq('slug', slug)
         .neq('id', userBarId)
-        .single();
+        .single() as { data: any, error: any };
 
       if (existingBar) {
         slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
       }
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bars')
         .update({
           name: editedInfo.name,
