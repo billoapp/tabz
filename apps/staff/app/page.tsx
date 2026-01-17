@@ -383,12 +383,12 @@ export default function TabsPage() {
     if (!bar) return;
     
     try {
-      const { data: tabsData, error } = await supabase
+      const { data: tabsData, error } = await (supabase as any)
         .from('tabs')
         .select('*, bars(id, name, location)')
         .eq('bar_id', bar.id)
-        .eq('status', 'open') // Only load open tabs
-        .order('tab_number', { ascending: false });
+        .in('status', ['open', 'overdue']) // Load both open and overdue tabs
+        .order('tab_number', { ascending: false }) as { data: any, error: any };
 
       if (error) throw error;
 
