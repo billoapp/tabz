@@ -43,7 +43,7 @@ export default function QuickOrderPage() {
     setLoading(true);
     try {
       // Load tab data to get bar_id
-      const { data: tabData, error: tabError } = await supabase
+      const { data: tabData, error: tabError } = await (supabase as any)
         .from('tabs')
         .select('*, bar:bars(name)')
         .eq('id', tabId)
