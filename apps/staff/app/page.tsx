@@ -321,7 +321,7 @@ export default function TabsPage() {
       try {
         const { data, error } = await supabase
           .from('bars')
-          .select('alert_timeout, alert_sound_enabled, alert_custom_audio_url, alert_volume')
+          .select('alert_timeout, alert_sound_enabled, alert_custom_audio_url, alert_custom_audio_name, alert_volume')
           .eq('id', bar.id)
           .single();
 
@@ -340,25 +340,11 @@ export default function TabsPage() {
         }
 
         if (data) {
-          // Try to get customAudioName separately in case it exists
-          let customAudioName = '';
-          try {
-            const { data: nameData } = await supabase
-              .from('bars')
-              .select('alert_custom_audio_name')
-              .eq('id', bar.id)
-              .single();
-            customAudioName = nameData?.alert_custom_audio_name ?? '';
-          } catch (e) {
-            // Column doesn't exist, use empty string
-            customAudioName = '';
-          }
-
           setAlertSettings({
             timeout: data.alert_timeout ?? 5,
             soundEnabled: data.alert_sound_enabled ?? true,
             customAudioUrl: data.alert_custom_audio_url ?? '',
-            customAudioName,
+            customAudioName: data.alert_custom_audio_name ?? '',
             volume: data.alert_volume ?? 0.8,
             vibrationEnabled: true // Default value since column doesn't exist
           });
