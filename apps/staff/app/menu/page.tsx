@@ -516,7 +516,7 @@ export default function MenuManagementPage() {
       return;
     }
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bar_products')
         .insert({
           bar_id: barId,
@@ -572,7 +572,7 @@ export default function MenuManagementPage() {
       return;
     }
     try {
-      const { data: customData, error: customError } = await supabase
+      const { data: customData, error: customError } = await (supabase as any)
         .from('custom_products')
         .insert({
           bar_id: barId,
@@ -587,7 +587,7 @@ export default function MenuManagementPage() {
         .single();
       if (customError) throw customError;
 
-      const { error: barProductError } = await supabase
+      const { error: barProductError } = await (supabase as any)
         .from('bar_products')
         .insert({
           bar_id: barId,
@@ -615,7 +615,7 @@ export default function MenuManagementPage() {
 
   const handleUpdateCustomProduct = async (customProductId: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('custom_products')
         .update({
           name: editForm.name,
@@ -630,7 +630,7 @@ export default function MenuManagementPage() {
 
       const barProduct = barProducts.find(bp => bp.custom_product_id === customProductId);
       if (barProduct) {
-        await supabase
+        await (supabase as any)
           .from('bar_products')
           .update({
             name: editForm.name,
@@ -654,14 +654,14 @@ export default function MenuManagementPage() {
   const handleDeleteCustomProduct = async (customProductId: string) => {
     if (!window.confirm('Delete this custom product? It will also be removed from your menu.')) return;
     try {
-      const { error: barProductError } = await supabase
+      const { error: barProductError } = await (supabase as any)
         .from('bar_products')
         .delete()
         .eq('custom_product_id', customProductId)
         .eq('bar_id', barId);
       if (barProductError) throw barProductError;
 
-      const { error: customError } = await supabase
+      const { error: customError } = await (supabase as any)
         .from('custom_products')
         .delete()
         .eq('id', customProductId)
@@ -683,7 +683,7 @@ export default function MenuManagementPage() {
       return;
     }
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bar_products')
         .insert({
           bar_id: barId,
@@ -788,7 +788,7 @@ export default function MenuManagementPage() {
   // ========== BAR PRODUCTS FUNCTIONS ==========
   const handleUpdatePrice = async (barProductId: string, newPrice: number) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bar_products')
         .update({
           sale_price: newPrice,
@@ -809,7 +809,7 @@ export default function MenuManagementPage() {
   const handleRemoveFromMenu = async (menuItemId: string) => {
     if (!window.confirm('Remove this item from your menu?')) return;
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bar_products')
         .delete()
         .eq('id', menuItemId)
@@ -844,7 +844,7 @@ export default function MenuManagementPage() {
     }
     if (!window.confirm(`Update ${selectedProducts.size} products to KSh ${newPrice}?`)) return;
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bar_products')
         .update({
           sale_price: parseFloat(newPrice),
@@ -975,7 +975,7 @@ export default function MenuManagementPage() {
         throw new Error(err.error || 'Batch upload failed');
       }
       const data = await response.json();
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from('bars')
         .update({
           menu_type: 'static',
@@ -1029,7 +1029,7 @@ export default function MenuManagementPage() {
   const handleMenuTypeChange = async (type: 'interactive' | 'static') => {
     if (!barId) return;
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bars')
         .update({ menu_type: type })
         .eq('id', barId);
