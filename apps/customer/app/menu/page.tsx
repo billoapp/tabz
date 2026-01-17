@@ -2099,9 +2099,6 @@ export default function MenuPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-orange-900">{item.name}</span>
-                        <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
-                          {item.category}
-                        </span>
                       </div>
                       <p className="text-sm text-orange-600">{tempFormatCurrency(item.price)} each</p>
                     </div>
