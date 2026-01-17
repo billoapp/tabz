@@ -60,10 +60,12 @@ export default function CartPage() {
     }
   }, []);
 
-  const updateQuantity = (id: number | string, delta: number) => {
-    const newCart = cart.map(item => {
-      const itemId = item.id || item.bar_product_id;
-      if (itemId === id) {
+  const updateQuantity = (itemId: string, delta: number) => {
+    // Extract index from itemId (format: "productId_index")
+    const index = parseInt(itemId.split('_').pop() || '0');
+    
+    const newCart = cart.map((item, idx) => {
+      if (idx === index) {
         const newQty = item.quantity + delta;
         return newQty > 0 ? { ...item, quantity: newQty } : item;
       }
@@ -108,8 +110,8 @@ export default function CartPage() {
       const currentTab: CurrentTab = JSON.parse(tabData);
       console.log('📋 Submitting order for tab:', currentTab.id);
 
-      const orderItems: OrderItem[] = cart.map(item => {
-        const itemId = item.id || item.bar_product_id || item.product_id || 0;
+      const orderItems: OrderItem[] = cart.map((item, index) => {
+        const itemId = `${item.id || item.bar_product_id || item.product_id || 0}_${index}`;
         return {
           product_id: item.product_id || item.id || null,
           name: item.name,
@@ -182,8 +184,9 @@ export default function CartPage() {
             </button>
           </div>
         ) : (
-          cart.map(item => {
-            const itemId = item.id || item.bar_product_id || 0; // Provide fallback to avoid undefined
+          cart.map((item, index) => {
+            // Use index-based ID to ensure each cart item is unique
+            const itemId = `${item.id || item.bar_product_id}_${index}`;
             const itemImage = item.image || item.image_url;
             
             return (
@@ -194,6 +197,7 @@ export default function CartPage() {
                     <div>
                       <h3 className="font-semibold text-gray-800">{item.name}</h3>
                       <p className="text-sm text-gray-600">KSh {item.price.toFixed(2)} each</p>
+                      <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
                     </div>
                   </div>
                   <p className="font-bold text-orange-600">

@@ -148,6 +148,11 @@ export default function QuickOrderPage() {
       // Show toast notification
       showToast(`${product.name} added to cart!`);
       
+      // Navigate back to tab page after short delay
+      setTimeout(() => {
+        router.push(`/tabs/${tabId}`);
+      }, 1000);
+      
     } catch (error) {
       console.error('❌ Error adding to cart:', error);
       alert('Failed to add item to cart. Please try again.');
