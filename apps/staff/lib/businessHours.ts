@@ -198,8 +198,8 @@ export const checkTabOverdueStatus = async (tabId: string): Promise<{
       };
     }
     
-    // Get tab balance
-    const { data: orders } = await supabase
+    // Get CONFIRMED orders only for balance calculation
+    const { data: confirmedOrders } = await supabase
       .from('tab_orders')
       .select('total')
       .eq('tab_id', tabId)
@@ -211,33 +211,42 @@ export const checkTabOverdueStatus = async (tabId: string): Promise<{
       .eq('tab_id', tabId)
       .eq('status', 'success') as { data: Payment[] | null, error: any };
     
-    const ordersTotal = orders?.reduce((sum, order) => sum + parseFloat(order.total), 0) || 0;
+    // Calculate confirmed balance (only confirmed orders count)
+    const confirmedOrdersTotal = confirmedOrders?.reduce((sum, order) => sum + parseFloat(order.total), 0) || 0;
     const paymentsTotal = payments?.reduce((sum, payment) => sum + parseFloat(payment.amount), 0) || 0;
-    const balance = ordersTotal - paymentsTotal;
+    const confirmedBalance = confirmedOrdersTotal - paymentsTotal;
     
-    // Calculate tab age in hours
-    const ageHours = (Date.now() - new Date(tab.opened_at).getTime()) / (1000 * 60 * 60);
+    // Check if tab should be closed based on when it was opened
+    const tabOpenedDate = new Date(tab.opened_at);
+    const now = new Date();
+    const isCurrentlyOpen = isWithinBusinessHours(tab.bar);
     
-    // Check business hours
-    const isOpen = isWithinBusinessHours(tab.bar);
+    // Tab should be closed if:
+    // 1. It was opened on a previous day, OR
+    // 2. It was opened today but we're now past closing time
+    const shouldBeClosed = tabOpenedDate.toDateString() !== now.toDateString() || !isCurrentlyOpen;
     
     // Check if should be overdue
     let isOverdue = false;
     let overdueReason = '';
     
-    // Tab becomes overdue if: bar is closed and has outstanding balance
-    if (balance > 0 && !isOpen) {
+    // Tab becomes overdue if: has outstanding CONFIRMED balance and should be closed
+    if (confirmedBalance > 0 && shouldBeClosed) {
       isOverdue = true;
-      overdueReason = 'Outstanding balance after business hours';
+      if (tabOpenedDate.toDateString() !== now.toDateString()) {
+        overdueReason = 'Outstanding confirmed balance from previous day';
+      } else {
+        overdueReason = 'Outstanding confirmed balance after business hours';
+      }
     }
     
     return {
       isOverdue,
-      balance,
+      balance: confirmedBalance,
       message: isOverdue 
         ? `Tab is overdue - ${overdueReason}`
-        : balance > 0 
-          ? `Balance: KSh ${balance.toLocaleString()}` 
+        : confirmedBalance > 0 
+          ? `Confirmed Balance: KSh ${confirmedBalance.toLocaleString()}` 
           : 'Tab is settled'
     };
   } catch (error) {
@@ -269,8 +278,8 @@ export const checkAndUpdateOverdueTabs = async (tabsData: any[]): Promise<void> 
       
       if (error || !fullTab) continue;
       
-      // Get tab balance
-      const { data: orders } = await supabase
+      // Get CONFIRMED orders only for balance calculation
+      const { data: confirmedOrders } = await supabase
         .from('tab_orders')
         .select('total')
         .eq('tab_id', tab.id)
@@ -282,50 +291,61 @@ export const checkAndUpdateOverdueTabs = async (tabsData: any[]): Promise<void> 
         .eq('tab_id', tab.id)
         .eq('status', 'success') as { data: Payment[] | null, error: any };
       
-      const ordersTotal = orders?.reduce((sum, order) => sum + parseFloat(order.total), 0) || 0;
+      // Calculate confirmed balance (only confirmed orders count)
+      const confirmedOrdersTotal = confirmedOrders?.reduce((sum, order) => sum + parseFloat(order.total), 0) || 0;
       const paymentsTotal = payments?.reduce((sum, payment) => sum + parseFloat(payment.amount), 0) || 0;
-      const balance = ordersTotal - paymentsTotal;
+      const confirmedBalance = confirmedOrdersTotal - paymentsTotal;
       
-      // Check business hours
-      const isOpen = isWithinBusinessHours(fullTab.bar);
+      // Check for pending orders
+      const { data: pendingOrders } = await supabase
+        .from('tab_orders')
+        .select('id')
+        .eq('tab_id', tab.id)
+        .eq('status', 'pending');
       
-      // Auto-close tabs with 0 balance after business hours (unless 24hrs setup)
-      if (balance <= 0 && fullTab.status === 'open' && !isOpen && fullTab.bar.business_hours_mode !== '24hours' && !fullTab.bar.business_24_hours) {
-        // Check for pending orders before closing
-        const { data: pendingOrders } = await supabase
-          .from('tab_orders')
-          .select('id')
-          .eq('tab_id', tab.id)
-          .eq('status', 'pending');
+      const hasPendingOrders = pendingOrders && pendingOrders.length > 0;
+      
+      // Check if tab should be closed based on when it was opened
+      const tabOpenedDate = new Date(fullTab.opened_at);
+      const now = new Date();
+      const isCurrentlyOpen = isWithinBusinessHours(fullTab.bar);
+      
+      // Tab should be closed if:
+      // 1. It was opened on a previous day, OR
+      // 2. It was opened today but we're now past closing time
+      const shouldBeClosed = tabOpenedDate.toDateString() !== now.toDateString() || !isCurrentlyOpen;
+      
+      // Auto-delete tabs if:
+      // 1. Confirmed balance is 0 or negative AND no pending orders
+      // 2. Tab should be closed (opened yesterday or past closing time today)
+      // 3. Not a 24-hour establishment
+      if (confirmedBalance <= 0 && !hasPendingOrders && fullTab.status === 'open' && shouldBeClosed && 
+          fullTab.bar.business_hours_mode !== '24hours' && !fullTab.bar.business_24_hours) {
         
-        // Only auto-close if no pending orders
-        if (!pendingOrders || pendingOrders.length === 0) {
-          await supabase
-            .from('tabs')
-            .update({
-              status: 'closed',
-              closed_at: new Date().toISOString(),
-              closed_by: 'system',
-              closure_reason: 'Auto-closed: Zero balance after business hours'
-            })
-            .eq('id', tab.id);
-            
-          console.log(`✅ Tab ${tab.id} auto-closed (zero balance after hours)`);
+        const { error } = await supabase
+          .from('tabs')
+          .delete()
+          .eq('id', tab.id);
+          
+        if (error) {
+          console.error('Error deleting tab:', error);
+        } else {
+          console.log(`✅ Tab ${tab.id} auto-deleted (zero confirmed balance, opened ${tabOpenedDate.toDateString()}, should be closed: ${shouldBeClosed})`);
         }
       }
       
-      // Mark as overdue if has outstanding balance after business hours
-      else if (balance > 0 && fullTab.status === 'open' && !isOpen) {
-        await supabase
+      // Mark as overdue if has outstanding CONFIRMED balance and should be closed
+      else if (confirmedBalance > 0 && fullTab.status === 'open' && shouldBeClosed) {
+        const { error } = await (supabase as any)
           .from('tabs')
-          .update({
-            status: 'overdue',
-            moved_to_overdue_at: new Date().toISOString(),
-            overdue_reason: 'Outstanding balance after business hours'
-          })
+          .update({ status: 'overdue' })
           .eq('id', tab.id);
           
-        console.log(`🔴 Tab ${tab.id} marked as overdue`);
+        if (error) {
+          console.error('Error marking tab as overdue:', error);
+        } else {
+          console.log(`🔴 Tab ${tab.id} marked as overdue (confirmed balance: ${confirmedBalance})`);
+        }
       }
     }
   } catch (error) {
