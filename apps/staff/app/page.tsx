@@ -714,7 +714,6 @@ export default function TabsPage() {
     const matchesSearch = displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          tab.tab_number?.toString().includes(searchQuery) || 
                          tab.owner_identifier?.includes(searchQuery);
-    const matchesFilter = tab.status === filterStatus;
     
     // Filter out cancelled orders when checking for pending
     const hasPendingOrders = tab.orders?.some((o: any) => 
@@ -722,9 +721,17 @@ export default function TabsPage() {
       o.status !== 'cancelled'
     );
     const hasPendingMessages = (tab.unreadMessages || 0) > 0;
-    const matchesPendingFilter = filterStatus !== 'pending' || hasPendingOrders || hasPendingMessages;
     
-    return matchesSearch && matchesFilter && matchesPendingFilter;
+    let matchesFilter = false;
+    if (filterStatus === 'pending') {
+      // For pending filter, show tabs that have pending orders OR messages
+      matchesFilter = hasPendingOrders || hasPendingMessages;
+    } else {
+      // For other filters, match the tab's actual status
+      matchesFilter = tab.status === filterStatus;
+    }
+    
+    return matchesSearch && matchesFilter;
   }).sort((a, b) => {
     const aHasPendingOrders = a.orders?.some((o: any) => 
       o.status === 'pending' && 
