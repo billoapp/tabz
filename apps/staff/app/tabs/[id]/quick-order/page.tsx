@@ -34,6 +34,7 @@ export default function QuickOrderPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
+  const [cartItemCount, setCartItemCount] = useState(0);
 
   useEffect(() => {
     loadAllData();
@@ -213,12 +214,14 @@ export default function QuickOrderPage() {
         }, 300);
       }
       
+      // Update cart counter
+      setCartItemCount(prev => prev + 1);
+      
       // Show toast notification
       showToast(`${product.name} added to cart!`);
       
-      // Navigate back to tab page immediately
-      console.log('🔄 Quick-order: Navigating back to tab page...');
-      router.push(`/tabs/${tabId}`);
+      // DON'T navigate back - let user continue adding items
+      console.log('✅ Quick-order: Item added successfully, staying on page for more additions');
       
     } catch (error) {
       console.error('❌ Quick-order: Error adding to cart:', error);
@@ -286,12 +289,20 @@ export default function QuickOrderPage() {
               {tab?.bar?.name || 'Bar Menu'} • Tab #{tab?.tab_number}
             </p>
           </div>
-          <div className="bg-white bg-opacity-20 rounded-lg px-3 py-1">
-            <p className="text-sm">{filteredBarProducts.length} items</p>
+          <div className="flex items-center gap-2">
+            <div className="bg-white bg-opacity-20 rounded-lg px-3 py-1">
+              <p className="text-sm">{filteredBarProducts.length} items</p>
+            </div>
+            {cartItemCount > 0 && (
+              <div className="bg-green-500 rounded-lg px-3 py-1 flex items-center gap-1">
+                <ShoppingCart size={16} />
+                <span className="text-sm font-bold">{cartItemCount}</span>
+              </div>
+            )}
           </div>
         </div>
         <p className="text-sm text-blue-100 mt-2">
-          🛒 Tap any item to add to cart instantly
+          🛒 Tap items to add to cart • Use back button when done
         </p>
       </div>
 
@@ -434,13 +445,22 @@ export default function QuickOrderPage() {
                     <p className="text-xl font-bold text-gray-800">{filteredBarProducts.length} items</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => router.push(`/tabs/${tabId}/add-order`)}
-                  className="text-blue-500 hover:text-blue-600 font-medium flex items-center gap-2"
-                >
-                  <Plus size={16} />
-                  Add more products
-                </button>
+                <div className="text-right">
+                  {cartItemCount > 0 ? (
+                    <div className="bg-green-100 px-3 py-2 rounded-lg">
+                      <p className="text-sm text-green-600">In Cart</p>
+                      <p className="text-lg font-bold text-green-800">{cartItemCount} items</p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => router.push(`/tabs/${tabId}/add-order`)}
+                      className="text-blue-500 hover:text-blue-600 font-medium flex items-center gap-2"
+                    >
+                      <Plus size={16} />
+                      Add more products
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </>
@@ -450,22 +470,45 @@ export default function QuickOrderPage() {
       {/* Bottom Navigation */}
       <div className="p-4 bg-white border-t border-gray-200 sticky bottom-0 z-10">
         <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => router.push(`/tabs/${tabId}/add-order`)}
-              className="bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
-            >
-              <Plus size={20} />
-              Create New Products
-            </button>
-            <button
-              onClick={() => router.push(`/tabs/${tabId}`)}
-              className="bg-gradient-to-r from-gray-600 to-gray-700 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
-            >
-              <ShoppingCart size={20} />
-              View Cart & Checkout
-            </button>
-          </div>
+          {cartItemCount > 0 ? (
+            <div className="grid grid-cols-1 gap-3">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <ShoppingCart size={20} className="text-green-600" />
+                  <span className="text-lg font-bold text-green-800">
+                    {cartItemCount} item{cartItemCount !== 1 ? 's' : ''} added to cart
+                  </span>
+                </div>
+                <p className="text-sm text-green-600 mb-3">
+                  Continue adding items or go back to review and send order
+                </p>
+                <button
+                  onClick={() => router.push(`/tabs/${tabId}`)}
+                  className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <ArrowLeft size={20} />
+                  Back to Cart & Checkout ({cartItemCount} items)
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => router.push(`/tabs/${tabId}/add-order`)}
+                className="bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <Plus size={20} />
+                Create New Products
+              </button>
+              <button
+                onClick={() => router.push(`/tabs/${tabId}`)}
+                className="bg-gradient-to-r from-gray-600 to-gray-700 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <ArrowLeft size={20} />
+                Back to Tab
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1473,18 +1473,19 @@ export default function MenuPage() {
   const addToCart = (barProduct: BarProduct) => {
     const product = barProduct.product;
     if (!product) return;
-    const existing = cart.find(c => c.bar_product_id === barProduct.id);
-    const newCart = existing
-      ? cart.map(c => c.bar_product_id === barProduct.id ? { ...c, quantity: c.quantity + 1 } : c)
-      : [...cart, {
-        bar_product_id: barProduct.id,
-        product_id: barProduct.product_id,
-        name: product.name,
-        price: barProduct.sale_price,
-        category: product.category,
-        image_url: product.image_url,
-        quantity: 1
-      }];
+    
+    // Always add as a new item (no grouping by product)
+    const newItem = {
+      bar_product_id: barProduct.id,
+      product_id: barProduct.product_id,
+      name: product.name,
+      price: barProduct.sale_price,
+      category: product.category,
+      image_url: product.image_url,
+      quantity: 1
+    };
+    
+    const newCart = [...cart, newItem];
     setCart(newCart);
     sessionStorage.setItem('cart', JSON.stringify(newCart));
     
@@ -1499,9 +1500,9 @@ export default function MenuPage() {
     });
   };
 
-  const updateCartQuantity = (barProductId: string, delta: number) => {
-    const newCart = cart.map(item => {
-      if (item.bar_product_id === barProductId) {
+  const updateCartQuantity = (itemIndex: number, delta: number) => {
+    const newCart = cart.map((item, idx) => {
+      if (idx === itemIndex) {
         const newQty = item.quantity + delta;
         return newQty > 0 ? { ...item, quantity: newQty } : item;
       }
@@ -1515,14 +1516,14 @@ export default function MenuPage() {
     if (cart.length === 0) return;
     setSubmittingOrder(true);
     try {
-      const orderItems = cart.map(item => ({
+      const orderItems = cart.map((item, index) => ({
         product_id: item.product_id,
         name: item.name,
         quantity: item.quantity,
         price: item.price,
         total: item.price * item.quantity,
         category: item.category,
-        ...(isDrinkItem(item) && notColdPreferences[item.bar_product_id] && { not_cold: true })
+        ...(isDrinkItem(item) && notColdPreferences[`cart-item-${index}`] && { not_cold: true })
       }));
       const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       const orderSubmissionTime = new Date().toISOString();
@@ -2115,8 +2116,8 @@ export default function MenuPage() {
 
               {/* Cart Items */}
               <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
-                {cart.map(item => (
-                  <div key={item.bar_product_id} className="bg-orange-50 rounded-lg border border-orange-200">
+                {cart.map((item, index) => (
+                  <div key={`cart-item-${index}`} className="bg-orange-50 rounded-lg border border-orange-200">
                     <div className="flex items-center justify-between p-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -2127,14 +2128,14 @@ export default function MenuPage() {
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-lg">
                           <button
-                            onClick={() => updateCartQuantity(item.bar_product_id, -1)}
+                            onClick={() => updateCartQuantity(index, -1)}
                             className="p-2 hover:bg-orange-200 transition-colors"
                           >
                             <Minus size={16} className="text-orange-700" />
                           </button>
                           <span className="font-bold w-8 text-center text-orange-900">{item.quantity}</span>
                           <button
-                            onClick={() => updateCartQuantity(item.bar_product_id, 1)}
+                            onClick={() => updateCartQuantity(index, 1)}
                             className="p-2 hover:bg-orange-200 transition-colors"
                           >
                             <Plus size={16} className="text-orange-700" />
@@ -2142,7 +2143,7 @@ export default function MenuPage() {
                         </div>
                         <button
                           onClick={() => {
-                            const newCart = cart.filter(cartItem => cartItem.bar_product_id !== item.bar_product_id);
+                            const newCart = cart.filter((_, idx) => idx !== index);
                             setCart(newCart);
                             sessionStorage.setItem('cart', JSON.stringify(newCart));
                           }}
@@ -2161,8 +2162,8 @@ export default function MenuPage() {
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
-                              checked={notColdPreferences[item.bar_product_id] || false}
-                              onChange={() => toggleNotCold(item.bar_product_id)}
+                              checked={notColdPreferences[`cart-item-${index}`] || false}
+                              onChange={() => toggleNotCold(`cart-item-${index}`)}
                               className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                             />
                             <span className="text-sm text-blue-700 font-medium">Not Cold</span>
