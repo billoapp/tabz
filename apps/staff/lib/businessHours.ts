@@ -286,16 +286,36 @@ export const checkAndUpdateOverdueTabs = async (tabsData: any[]): Promise<void> 
       const paymentsTotal = payments?.reduce((sum, payment) => sum + parseFloat(payment.amount), 0) || 0;
       const balance = ordersTotal - paymentsTotal;
       
-      // Skip if no outstanding balance
-      if (balance <= 0) continue;
-      
       // Check business hours
       const isOpen = isWithinBusinessHours(fullTab.bar);
       
-      // Mark as overdue if:
-      // 1. Has outstanding balance
-      // 2. Bar is currently closed
-      if (balance > 0 && fullTab.status === 'open' && !isOpen) {
+      // Auto-close tabs with 0 balance after business hours (unless 24hrs setup)
+      if (balance <= 0 && fullTab.status === 'open' && !isOpen && fullTab.bar.business_hours_mode !== '24hours' && !fullTab.bar.business_24_hours) {
+        // Check for pending orders before closing
+        const { data: pendingOrders } = await supabase
+          .from('tab_orders')
+          .select('id')
+          .eq('tab_id', tab.id)
+          .eq('status', 'pending');
+        
+        // Only auto-close if no pending orders
+        if (!pendingOrders || pendingOrders.length === 0) {
+          await supabase
+            .from('tabs')
+            .update({
+              status: 'closed',
+              closed_at: new Date().toISOString(),
+              closed_by: 'system',
+              closure_reason: 'Auto-closed: Zero balance after business hours'
+            })
+            .eq('id', tab.id);
+            
+          console.log(`✅ Tab ${tab.id} auto-closed (zero balance after hours)`);
+        }
+      }
+      
+      // Mark as overdue if has outstanding balance after business hours
+      else if (balance > 0 && fullTab.status === 'open' && !isOpen) {
         await supabase
           .from('tabs')
           .update({

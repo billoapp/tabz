@@ -642,7 +642,7 @@ export default function TabDetailPage() {
       return;
     }
 
-    // Determine closure type
+    // Allow closing regardless of balance - determine closure type
     if (balance > 0) {
       setCloseTabReason('overdue');
       setShowCloseConfirm(true);

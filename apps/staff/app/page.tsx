@@ -321,7 +321,7 @@ export default function TabsPage() {
       try {
         const { data, error } = await supabase
           .from('bars')
-          .select('alert_timeout, alert_sound_enabled, alert_custom_audio_url, alert_custom_audio_name, alert_volume, alert_vibration_enabled')
+          .select('alert_timeout, alert_sound_enabled, alert_custom_audio_url, alert_custom_audio_name, alert_volume')
           .eq('id', bar.id)
           .single();
 
@@ -334,7 +334,7 @@ export default function TabsPage() {
             customAudioUrl: data.alert_custom_audio_url ?? '',
             customAudioName: data.alert_custom_audio_name ?? '',
             volume: data.alert_volume ?? 0.8,
-            vibrationEnabled: data.alert_vibration_enabled ?? true
+            vibrationEnabled: true // Default value since column doesn't exist
           });
         }
       } catch (error) {
