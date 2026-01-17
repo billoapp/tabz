@@ -66,11 +66,11 @@ export default function CartPage() {
     
     const newCart = cart.map((item, idx) => {
       if (idx === index) {
-        const newQty = item.quantity + delta;
+        const newQty = (item.quantity || 0) + delta;
         return newQty > 0 ? { ...item, quantity: newQty } : item;
       }
       return item;
-    }).filter(item => item.quantity > 0);
+    }).filter(item => (item.quantity || 0) > 0);
     
     setCart(newCart);
     sessionStorage.setItem('cart', JSON.stringify(newCart));

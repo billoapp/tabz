@@ -37,12 +37,29 @@ export default function QuickOrderPage() {
 
   useEffect(() => {
     loadAllData();
+    
+    // Add a timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      if (loading) {
+        console.warn('⚠️ Quick-order: Loading timeout reached, forcing completion');
+        setLoading(false);
+        if (barProducts.length === 0) {
+          alert('Loading took too long. Please check your connection and try again.');
+        }
+      }
+    }, 15000); // 15 second timeout
+    
+    return () => clearTimeout(loadingTimeout);
   }, [tabId]);
 
   const loadAllData = async () => {
+    console.log('🔄 Quick-order: Starting loadAllData for tab:', tabId);
     setLoading(true);
+    const startTime = Date.now();
+    
     try {
       // Load tab data to get bar_id
+      console.log('📋 Quick-order: Loading tab data...');
       const { data: tabData, error: tabError } = await (supabase as any)
         .from('tabs')
         .select('*, bar:bars(name)')
@@ -50,39 +67,87 @@ export default function QuickOrderPage() {
         .single() as { data: any, error: any };
 
       if (tabError) {
-        console.error('❌ Error loading tab:', tabError);
+        console.error('❌ Quick-order: Error loading tab:', tabError);
         alert('Failed to load tab');
         router.push('/');
         return;
       }
 
+      console.log('✅ Quick-order: Tab loaded in', Date.now() - startTime, 'ms');
       setTab(tabData);
 
       // Load bar products for this tab's bar
       if (tabData.bar_id) {
+        console.log('📦 Quick-order: Loading products for bar:', tabData.bar_id);
         await loadBarProducts(tabData.bar_id);
+      } else {
+        console.error('❌ Quick-order: No bar_id found in tab data');
       }
       
     } catch (error) {
-      console.error('❌ Error in loadAllData:', error);
+      console.error('❌ Quick-order: Error in loadAllData:', error);
+      alert('Failed to load data. Please try again.');
     } finally {
+      const totalTime = Date.now() - startTime;
+      console.log('⏱️ Quick-order: Total load time:', totalTime, 'ms');
       setLoading(false);
     }
   };
 
   const loadBarProducts = async (barId: string) => {
+    const startTime = Date.now();
+    console.log('🔍 Quick-order: Loading bar products for bar:', barId);
+    
     try {
+      // Set bar context for RLS policies
+      console.log('🔧 Quick-order: Setting bar context...');
+      await (supabase as any).rpc('set_bar_context', { bar_id: barId });
+      
+      console.log('📊 Quick-order: Querying bar_products...');
       const { data: products, error } = await (supabase as any)
         .from('bar_products')
-        .select('id, name, category, sale_price, description, custom_product_id')
+        .select('id, name, category, sale_price, description, custom_product_id, active')
         .eq('bar_id', barId)
         .eq('active', true)
         .order('category, name') as { data: any, error: any };
 
       if (error) {
-        console.error('❌ Error loading bar products:', error);
+        console.error('❌ Quick-order: Error loading bar products:', error);
+        console.error('❌ Quick-order: Error details:', error);
+        
+        // Try alternative query without active filter if main query fails
+        console.log('🔄 Quick-order: Trying alternative query...');
+        const { data: altProducts, error: altError } = await (supabase as any)
+          .from('bar_products')
+          .select('id, name, category, sale_price, description, custom_product_id, active')
+          .eq('bar_id', barId)
+          .order('category, name') as { data: any, error: any };
+        
+        if (altError) {
+          console.error('❌ Quick-order: Alternative query also failed:', altError);
+          alert('Failed to load products. Please check your connection and try again.');
+          return;
+        }
+        
+        // Filter active products in JavaScript
+        const activeProducts = (altProducts || []).filter((p: any) => p.active === true);
+        console.log('✅ Quick-order: Alternative query succeeded, found products:', activeProducts.length);
+        
+        const formattedProducts: BarProduct[] = activeProducts.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          price: p.sale_price,
+          description: p.description,
+          is_custom: !!p.custom_product_id
+        }));
+
+        setBarProducts(formattedProducts);
+        console.log('⏱️ Quick-order: Products loaded in', Date.now() - startTime, 'ms (fallback)');
         return;
       }
+
+      console.log('✅ Quick-order: Loaded bar products:', products?.length || 0);
 
       const formattedProducts: BarProduct[] = (products || []).map((p: any) => ({
         id: p.id,
@@ -94,13 +159,16 @@ export default function QuickOrderPage() {
       }));
 
       setBarProducts(formattedProducts);
+      console.log('⏱️ Quick-order: Products loaded in', Date.now() - startTime, 'ms');
       
     } catch (error) {
-      console.error('❌ Error in loadBarProducts:', error);
+      console.error('❌ Quick-order: Error in loadBarProducts:', error);
+      alert('Failed to load products. Please check your connection and try again.');
     }
   };
 
   const addToCart = async (product: BarProduct) => {
+    console.log('➕ Quick-order: Adding to cart:', product.name);
     setAddingToCart(product.id);
     
     try {
@@ -113,7 +181,7 @@ export default function QuickOrderPage() {
         bar_product_id: product.id
       };
 
-      console.log('➕ Adding to cart:', cartItem);
+      console.log('➕ Quick-order: Cart item created:', cartItem);
 
       // Method 1: Try postMessage first (for same window)
       try {
@@ -121,9 +189,9 @@ export default function QuickOrderPage() {
           type: 'ADD_TO_CART',
           item: cartItem
         }, '*');
-        console.log('📨 Sent via postMessage');
+        console.log('📨 Quick-order: Sent via postMessage');
       } catch (error) {
-        console.log('❌ postMessage failed, using fallback');
+        console.log('❌ Quick-order: postMessage failed, using fallback');
       }
 
       // Method 2: Fallback to sessionStorage (for different windows)
@@ -131,30 +199,29 @@ export default function QuickOrderPage() {
         const existingItems = JSON.parse(sessionStorage.getItem('tab_cart_items') || '[]');
         existingItems.push(cartItem);
         sessionStorage.setItem('tab_cart_items', JSON.stringify(existingItems));
-        console.log('💾 Saved to sessionStorage fallback');
+        console.log('💾 Quick-order: Saved to sessionStorage fallback');
       } catch (error) {
-        console.error('❌ sessionStorage fallback failed:', error);
+        console.error('❌ Quick-order: sessionStorage fallback failed:', error);
       }
       
-      // Show success feedback
+      // Show success feedback immediately
       const button = document.getElementById(`product-${product.id}`);
       if (button) {
         button.classList.add('bg-green-500');
         setTimeout(() => {
           button.classList.remove('bg-green-500');
-        }, 500);
+        }, 300);
       }
       
       // Show toast notification
       showToast(`${product.name} added to cart!`);
       
-      // Navigate back to tab page after short delay
-      setTimeout(() => {
-        router.push(`/tabs/${tabId}`);
-      }, 1000);
+      // Navigate back to tab page immediately
+      console.log('🔄 Quick-order: Navigating back to tab page...');
+      router.push(`/tabs/${tabId}`);
       
     } catch (error) {
-      console.error('❌ Error adding to cart:', error);
+      console.error('❌ Quick-order: Error adding to cart:', error);
       alert('Failed to add item to cart. Please try again.');
     } finally {
       setAddingToCart(null);
@@ -195,7 +262,8 @@ export default function QuickOrderPage() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
         <div className="text-center">
           <ShoppingCart size={48} className="mx-auto mb-3 text-blue-500 animate-pulse" />
-          <p className="text-gray-600">Loading menu...</p>
+          <p className="text-gray-600 mb-2">Loading menu...</p>
+          <p className="text-sm text-gray-500">This should take just a few seconds</p>
         </div>
       </div>
     );
