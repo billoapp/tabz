@@ -515,7 +515,17 @@ export default function TabDetailPage() {
 
       if (error) throw error;
 
-      loadTabData();
+      // Show success message
+      showToast({
+        type: 'success',
+        title: 'Order Confirmed',
+        message: 'Order has been marked as served'
+      });
+
+      // Navigate back to dashboard after successful confirmation
+      setTimeout(() => {
+        router.push('/');
+      }, 1500); // Give user time to see the success message
       
     } catch (error) {
       console.error('Error marking served:', error);
@@ -1425,9 +1435,15 @@ export default function TabDetailPage() {
                         <div className="flex-1">
                           <div className="space-y-1 mb-2">
                             {orderItems.map((item: any, idx: number) => (
-                              <p key={idx} className="text-sm text-gray-700">
-                                {item.quantity}x {item.name}
-                              </p>
+                              <div key={idx} className="text-sm text-gray-700">
+                                <span>{item.quantity}x {item.name}</span>
+                                {/* Show "not cold" preference for customer orders */}
+                                {initiatedBy === 'customer' && item.not_cold && (
+                                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 font-medium">
+                                    🧊 Not Cold
+                                  </span>
+                                )}
+                              </div>
                             ))}
                           </div>
                           <p className="text-sm text-gray-500">{timeAgo(order.created_at)}</p>

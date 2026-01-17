@@ -15,6 +15,8 @@ interface CartItem {
   price: number;
   quantity: number;
   image: string;
+  category?: string;
+  not_cold?: boolean;
 }
 
 interface OrderItem {
@@ -23,6 +25,8 @@ interface OrderItem {
   quantity: number;
   price: number;
   total: number;
+  category?: string;
+  not_cold?: boolean;
 }
 
 interface CurrentTab {
@@ -34,6 +38,10 @@ export default function CartPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [notColdPreferences, setNotColdPreferences] = useState<Record<number, boolean>>({});
+
+  // Define drink categories that support "not cold" preference
+  const drinkCategories = ['Beer & Cider', 'Wine & Champagne', 'Spirits', 'Liqueurs & Specialty', 'Non-Alcoholic'];
 
   useEffect(() => {
     const cartData = sessionStorage.getItem('cart');
@@ -62,6 +70,17 @@ export default function CartPage() {
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
+  const isDrinkItem = (item: CartItem): boolean => {
+    return item.category ? drinkCategories.includes(item.category) : false;
+  };
+
+  const toggleNotCold = (itemId: number) => {
+    setNotColdPreferences(prev => ({
+      ...prev,
+      [itemId]: !prev[itemId]
+    }));
+  };
+
   const confirmOrder = async () => {
     if (cart.length === 0) return;
     
@@ -83,7 +102,9 @@ export default function CartPage() {
         name: item.name,
         quantity: item.quantity,
         price: item.price,
-        total: item.price * item.quantity
+        total: item.price * item.quantity,
+        category: item.category,
+        ...(isDrinkItem(item) && notColdPreferences[item.id] && { not_cold: true })
       }));
 
       // Fix: Type assertion inside the insert method
@@ -161,6 +182,22 @@ export default function CartPage() {
                   KSh {(item.price * item.quantity).toFixed(2)}
                 </p>
               </div>
+              
+              {/* Not Cold Preference for Drinks */}
+              {isDrinkItem(item) && (
+                <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notColdPreferences[item.id] || false}
+                      onChange={() => toggleNotCold(item.id)}
+                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <span className="text-sm text-blue-700 font-medium">Not Cold</span>
+                    <span className="text-xs text-blue-600">(serve at room temperature)</span>
+                  </label>
+                </div>
+              )}
               
               <div className="flex items-center gap-3 justify-end">
                 <button
