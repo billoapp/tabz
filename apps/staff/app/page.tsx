@@ -323,7 +323,7 @@ export default function TabsPage() {
           .from('bars')
           .select('alert_timeout, alert_sound_enabled, alert_custom_audio_url, alert_custom_audio_name, alert_volume')
           .eq('id', bar.id)
-          .single();
+          .single() as { data: any, error: any };
 
         if (error) {
           console.error('Error loading alert settings:', error);

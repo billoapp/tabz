@@ -448,7 +448,7 @@ export default function MenuManagementPage() {
         .select('*')
         .eq('bar_id', barId)
         .eq('active', true)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
       if (error) throw error;
       const publishedCustomIds = barProducts
         .filter((bp) => bp.custom_product_id)
