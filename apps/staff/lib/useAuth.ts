@@ -26,16 +26,25 @@ export function useAuth() {
 
   const checkAuth = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      console.log('🔐 Checking authentication...');
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('❌ Auth session error:', error);
+        router.push('/login');
+        return;
+      }
       
       if (!session) {
+        console.log('❌ No session found, redirecting to login');
         router.push('/login');
         return;
       }
 
+      console.log('✅ Session found:', { userId: session.user.id, email: session.user.email });
       await loadUserData(session.user);
     } catch (error) {
-      console.error('Auth check error:', error);
+      console.error('❌ Auth check error:', error);
       router.push('/login');
     } finally {
       setLoading(false);
