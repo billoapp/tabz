@@ -682,7 +682,10 @@ export default function TabDetailPage() {
           })
           .eq('id', tabId);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error pushing tab to overdue:', error);
+          throw error;
+        }
 
         showToast({
           type: 'success',
@@ -701,7 +704,10 @@ export default function TabDetailPage() {
           })
           .eq('id', tabId);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error closing tab:', error);
+          throw error;
+        }
 
         showToast({
           type: 'success',
@@ -710,14 +716,17 @@ export default function TabDetailPage() {
         });
       }
       
-      router.push('/');
+      // Wait a moment for the update to process, then redirect
+      setTimeout(() => {
+        router.push('/');
+      }, 1000);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error closing tab:', error);
       showToast({
         type: 'error',
         title: 'Failed to Close Tab',
-        message: 'Please try again'
+        message: error.message || 'Please try again. Check your connection and authentication.'
       });
     } finally {
       setClosingTab(false);

@@ -46,14 +46,25 @@ export function useAuth() {
     setUser(user);
     
     const barId = user.user_metadata?.bar_id;
+    console.log('🔐 Loading user data:', { userId: user.id, barId });
+    
     if (barId) {
-      const { data: barData } = await supabase
-        .from('bars')
-        .select('*')
-        .eq('id', barId)
-        .single();
-      
-      setBar(barData);
+      try {
+        const { data: barData, error } = await supabase
+          .from('bars')
+          .select('*')
+          .eq('id', barId)
+          .single();
+        
+        if (error) {
+          console.error('❌ Error loading bar data:', error);
+        } else {
+          console.log('✅ Bar data loaded:', barData);
+          setBar(barData);
+        }
+      } catch (error) {
+        console.error('❌ Exception loading bar data:', error);
+      }
     }
   };
 
