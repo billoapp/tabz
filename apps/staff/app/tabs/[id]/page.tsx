@@ -1150,17 +1150,24 @@ export default function TabDetailPage() {
         </div>
 
         {newOrderNotification && (
-          <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 pointer-events-none">
+          <div className="fixed inset-0 bg-orange-500 bg-opacity-50 animate-pulse flex items-center justify-center z-50 pointer-events-none">
             <div 
-              className="bg-orange-500 animate-pulse rounded-full p-6 shadow-2xl pointer-events-auto cursor-pointer hover:bg-orange-600 transition-colors flex flex-col items-center justify-center min-w-[140px] min-h-[140px]"
+              className="pointer-events-auto cursor-pointer"
               onClick={() => {
                 handleMarkServed(newOrderNotification.id, newOrderNotification.initiated_by);
                 setNewOrderNotification(null);
               }}
             >
-              <Bell size={48} className="text-white mb-1" />
-              <span className="text-white text-xs font-medium">New Order</span>
+              <Bell size={300} className="text-white" fill="none" stroke="white" strokeWidth={1} />
             </div>
+            {/* Pending orders counter - only show if 2 or more */}
+            {tab?.orders?.filter((order: any) => order.status === 'pending' && order.initiated_by === 'customer').length >= 2 && (
+              <div className="absolute bottom-8 right-8 pointer-events-none">
+                <span className="text-white font-bold" style={{ fontSize: '33vh', lineHeight: '1' }}>
+                  {tab.orders.filter((order: any) => order.status === 'pending' && order.initiated_by === 'customer').length}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
