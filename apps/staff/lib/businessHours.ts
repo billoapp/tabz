@@ -133,7 +133,7 @@ export const canCreateNewTab = async (barId: string): Promise<{
 }> => {
   try {
     // Use the unified SQL function to check business hours
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .rpc('is_within_business_hours_at_time', {
         p_bar_id: barId,
         p_check_time: new Date().toISOString()
@@ -182,7 +182,7 @@ export const checkTabOverdueStatus = async (tabId: string): Promise<{
 }> => {
   try {
     // Use the unified SQL function to check if tab should be overdue
-    const { data: shouldBeOverdue, error: overdueError } = await supabase
+    const { data: shouldBeOverdue, error: overdueError } = await (supabase as any)
       .rpc('should_tab_be_overdue_unified', {
         p_tab_id: tabId
       });
@@ -193,7 +193,7 @@ export const checkTabOverdueStatus = async (tabId: string): Promise<{
     }
 
     // Get current balance using the SQL function
-    const { data: balance, error: balanceError } = await supabase
+    const { data: balance, error: balanceError } = await (supabase as any)
       .rpc('get_tab_balance', {
         p_tab_id: tabId
       });
@@ -203,7 +203,7 @@ export const checkTabOverdueStatus = async (tabId: string): Promise<{
       throw balanceError;
     }
 
-    const currentBalance = balance || 0;
+    const currentBalance = typeof balance === 'number' ? balance : 0;
     const isOverdue = shouldBeOverdue === true;
 
     return {
@@ -212,7 +212,7 @@ export const checkTabOverdueStatus = async (tabId: string): Promise<{
       message: isOverdue 
         ? `Tab is overdue - Outstanding balance after business hours`
         : currentBalance > 0 
-          ? `Balance: KSh ${currentBalance.toLocaleString()}` 
+          ? `Balance: KSh ${currentBalance.toFixed(2)}` 
           : 'Tab is settled'
     };
   } catch (error) {
@@ -229,7 +229,7 @@ export const checkTabOverdueStatus = async (tabId: string): Promise<{
 export const checkAndUpdateOverdueTabs = async (tabsData: any[]): Promise<void> => {
   try {
     // Use the unified SQL function to update all overdue tabs at once
-    const { data: result, error } = await supabase
+    const { data: result, error } = await (supabase as any)
       .rpc('update_overdue_tabs_unified');
     
     if (error) {
@@ -237,7 +237,7 @@ export const checkAndUpdateOverdueTabs = async (tabsData: any[]): Promise<void> 
       throw error;
     }
 
-    if (result && result.length > 0) {
+    if (result && Array.isArray(result) && result.length > 0) {
       const { tabs_marked_overdue, tabs_kept_open } = result[0];
       console.log(`✅ Overdue update complete: ${tabs_marked_overdue} marked overdue, ${tabs_kept_open} kept open`);
     }
