@@ -5,7 +5,7 @@
 UPDATE bars 
 SET 
   table_setup_enabled = true,
-  table_count = 20
+  table_count = 48
 WHERE name = 'Popos'; -- or use WHERE id = 'your-bar-id'
 
 -- Verify the update

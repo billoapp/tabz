@@ -98,8 +98,8 @@ const calculatePendingWaitTime = (tabs: any[], currentTime?: number): string => 
   }
 };
 
-// Play alert sound function with mobile support
-const playAlertSound = (customAudioUrl: string, soundEnabled: boolean, volume: number = 0.8, vibrationEnabled: boolean = true) => {
+// Play alert sound function with mobile support and continuous option
+const playAlertSound = (customAudioUrl: string, soundEnabled: boolean, volume: number = 0.8, vibrationEnabled: boolean = true, continuous: boolean = false) => {
   try {
     // Vibrate for mobile devices (works for all users including anon)
     if (vibrationEnabled && 'vibrate' in navigator) {
@@ -112,32 +112,97 @@ const playAlertSound = (customAudioUrl: string, soundEnabled: boolean, volume: n
         // Play custom audio
         const audio = new Audio(customAudioUrl);
         audio.volume = Math.min(Math.max(volume, 0), 1); // Clamp between 0 and 1
+        
+        if (continuous) {
+          audio.loop = true;
+          // Store reference for stopping later
+          (window as any).continuousAlertAudio = audio;
+        }
+        
         audio.play().catch(() => console.log('Custom audio playback failed'));
       } else {
-        // Play default bell sound
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        // Bell-like sound
-        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.5);
-        
-        // Volume envelope with configurable volume
-        const clampedVolume = Math.min(Math.max(volume, 0), 1);
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.3 * clampedVolume, audioContext.currentTime + 0.1);
-        gainNode.gain.exponentialRampToValueAtTime(0.001 * clampedVolume, audioContext.currentTime + 1);
-        
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 1);
+        // For continuous default bell sound, we need to use a different approach
+        if (continuous) {
+          startContinuousBellSound(volume);
+        } else {
+          // Play single bell sound
+          playDefaultBellSound(volume);
+        }
       }
     }
   } catch (error) {
     console.log('Could not play alert:', error);
+  }
+};
+
+// Function to play a single default bell sound
+const playDefaultBellSound = (volume: number) => {
+  try {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    // Bell-like sound
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.5);
+    
+    // Volume envelope with configurable volume
+    const clampedVolume = Math.min(Math.max(volume, 0), 1);
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.3 * clampedVolume, audioContext.currentTime + 0.1);
+    gainNode.gain.exponentialRampToValueAtTime(0.001 * clampedVolume, audioContext.currentTime + 1);
+    
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 1);
+  } catch (error) {
+    console.log('Could not play default bell sound:', error);
+  }
+};
+
+// Function to start continuous bell sound
+const startContinuousBellSound = (volume: number) => {
+  try {
+    // Stop any existing continuous sound
+    stopContinuousAlertSound();
+    
+    const playBellLoop = () => {
+      if (!(window as any).continuousBellActive) return;
+      
+      playDefaultBellSound(volume);
+      
+      // Schedule next bell sound after 1.5 seconds
+      (window as any).continuousBellTimeout = setTimeout(playBellLoop, 1500);
+    };
+    
+    // Mark as active and start the loop
+    (window as any).continuousBellActive = true;
+    playBellLoop();
+  } catch (error) {
+    console.log('Could not start continuous bell sound:', error);
+  }
+};
+
+// Function to stop continuous alert sound
+const stopContinuousAlertSound = () => {
+  try {
+    // Stop custom audio if playing
+    if ((window as any).continuousAlertAudio) {
+      (window as any).continuousAlertAudio.pause();
+      (window as any).continuousAlertAudio.currentTime = 0;
+      (window as any).continuousAlertAudio = null;
+    }
+    
+    // Stop continuous bell sound
+    (window as any).continuousBellActive = false;
+    if ((window as any).continuousBellTimeout) {
+      clearTimeout((window as any).continuousBellTimeout);
+      (window as any).continuousBellTimeout = null;
+    }
+  } catch (error) {
+    console.log('Could not stop continuous alert sound:', error);
   }
 };
 
@@ -170,6 +235,12 @@ const HighVisibilityAlert = ({
     
     return () => clearInterval(timer);
   }, [isVisible]);
+
+  // Handle dismissal with sound stopping
+  const handleDismiss = () => {
+    stopContinuousAlertSound();
+    onDismiss();
+  };
   
   if (!isVisible) return null;
   
@@ -182,7 +253,7 @@ const HighVisibilityAlert = ({
           animation: 'flash 0.5s infinite alternate',
           backgroundColor: 'rgba(0, 0, 0, 0.9)'
         }}
-        onClick={onDismiss}
+        onClick={handleDismiss}
       />
       
       {/* Main Alert Content */}
@@ -244,17 +315,17 @@ const HighVisibilityAlert = ({
             Check the pending section immediately!
           </p>
           
-          {/* Countdown timer */}
+          {/* Countdown timer - Remove auto-hide since sound is continuous */}
           <div className="bg-black bg-opacity-50 rounded-2xl p-4 mb-6 inline-block">
             <p className="text-3xl font-mono font-bold text-amber-400">
-              Auto-hides in: <span className="countdown">{count}</span>s
+              🔔 Sound playing continuously
             </p>
           </div>
           
           {/* Instructions */}
           <div className="bg-white bg-opacity-20 rounded-xl p-4">
             <p className="text-lg text-white font-semibold">
-              Click anywhere or press ESC to dismiss
+              Click anywhere or press ESC to dismiss and stop sound
             </p>
           </div>
         </div>
@@ -305,6 +376,8 @@ export default function TabsPage() {
   useEffect(() => {
     return () => {
       mounted.current = false;
+      // Stop any continuous alert sounds when component unmounts
+      stopContinuousAlertSound();
     };
   }, []);
 
@@ -370,6 +443,7 @@ export default function TabsPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && showAlert) {
+        stopContinuousAlertSound();
         setShowAlert(false);
       }
     };
@@ -464,16 +538,11 @@ export default function TabsPage() {
             if (payload.new?.initiated_by === 'customer') {
               console.log('🚨 STAFF APP: Customer message detected - triggering MESSAGE alert');
               if (mounted.current) {
-                playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled, alertSettings.volume);
+                playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled, alertSettings.volume, alertSettings.vibrationEnabled, true);
                 setAlertType('message');
                 setShowAlert(true);
                 
-                // Auto-hide after configured timeout
-                setTimeout(() => {
-                  if (mounted.current) {
-                    setShowAlert(false);
-                  }
-                }, alertSettings.timeout * 1000);
+                // Remove auto-hide timeout since sound is continuous
               }
             } else {
               console.log('ℹ️ STAFF APP: Message not from customer, ignoring:', payload.new?.initiated_by);
@@ -525,16 +594,11 @@ export default function TabsPage() {
             if (payload.new?.initiated_by === 'customer') {
               console.log('🚨 Triggering ORDER alert');
               if (mounted.current) {
-                playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled, alertSettings.volume);
+                playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled, alertSettings.volume, alertSettings.vibrationEnabled, true);
                 setAlertType('order');
                 setShowAlert(true);
                 
-                // Auto-hide after configured timeout
-                setTimeout(() => {
-                  if (mounted.current) {
-                    setShowAlert(false);
-                  }
-                }, alertSettings.timeout * 1000);
+                // Remove auto-hide timeout since sound is continuous
               }
             }
             
@@ -820,13 +884,11 @@ export default function TabsPage() {
               <button 
                 onClick={() => {
                   console.log('🚨 Test button clicked!');
-                  playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled, alertSettings.volume, alertSettings.vibrationEnabled);
+                  playAlertSound(alertSettings.customAudioUrl, alertSettings.soundEnabled, alertSettings.volume, alertSettings.vibrationEnabled, true);
                   setAlertType('order');
                   setShowAlert(true);
                   
-                  setTimeout(() => {
-                    setShowAlert(false);
-                  }, alertSettings.timeout * 1000);
+                  // Remove auto-hide timeout since sound is continuous
                 }}
                 className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition"
                 title="Test Alert"

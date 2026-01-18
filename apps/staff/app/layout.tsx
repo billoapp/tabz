@@ -3,6 +3,7 @@ import './globals.css';
 import { BarProvider } from '@/contexts/page';
 import { ToastProvider } from '@/components/ui/Toast';
 import PWAUpdateManager from '@/components/PWAUpdateManager';
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Analytics } from '@vercel/analytics/next';
 
@@ -150,7 +151,8 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <ToastProvider>
           <BarProvider>
-            {/*<PWAUpdateManager />*/}
+            <PWAInstallPrompt />
+            <PWAUpdateManager />
             {children}
           </BarProvider>
         </ToastProvider>

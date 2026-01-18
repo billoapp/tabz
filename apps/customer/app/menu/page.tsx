@@ -1199,39 +1199,48 @@ export default function MenuPage() {
         
         // Load bar table configuration
         try {
+          console.log('🏢 Loading bar table configuration for bar:', (fullTab as any).bar.id);
           const { data: barData, error: barError } = await supabase
             .from('bars')
             .select('table_count, table_setup_enabled')
             .eq('id', (fullTab as any).bar.id)
             .single();
 
+          console.log('📊 Bar data result:', { barData, barError });
+
           if (!barError && barData) {
             const tableCount = (barData as any).table_count || 0;
             const tableSetupEnabled = (barData as any).table_setup_enabled || false;
             
+            console.log('🔧 Table setup config:', { tableCount, tableSetupEnabled });
+            
             if (tableSetupEnabled && tableCount > 0) {
               // Generate table numbers array (1 to tableCount)
               const tables = Array.from({ length: tableCount }, (_, i) => i + 1);
+              console.log('🪑 Generated tables array:', tables);
               setBarTables(tables);
               setTableSelectionRequired(true);
               
               // Check if tab already has a table assigned
               const tabNotes = (fullTab as any).notes;
               let hasTableAssigned = false;
+              console.log('📝 Tab notes:', tabNotes);
               if (tabNotes) {
                 try {
                   const notes = JSON.parse(tabNotes);
                   if (notes.table_number) {
+                    console.log('✅ Table already assigned:', notes.table_number);
                     setSelectedTable(notes.table_number);
                     hasTableAssigned = true;
                   }
                 } catch (e) {
-                  // Ignore JSON parse errors
+                  console.log('❌ Error parsing tab notes:', e);
                 }
               }
               
               // Show table selection modal if no table assigned (with delay)
               if (!hasTableAssigned) {
+                console.log('⏰ Setting up table selection modal with delay...');
                 // Show a gentle notification first
                 const notificationTimeout = setTimeout(() => {
                   showToast({
@@ -1243,13 +1252,18 @@ export default function MenuPage() {
                 
                 // Then show the modal after 3 seconds total
                 const modalTimeout = setTimeout(() => {
+                  console.log('🪑 Showing table selection modal');
                   setShowTableModal(true);
                 }, 3000);
                 
                 // Store timeouts for cleanup
                 (window as any).tableSelectionTimeouts = [notificationTimeout, modalTimeout];
               }
+            } else {
+              console.log('❌ Table setup not enabled or no tables configured');
             }
+          } else {
+            console.log('❌ Error loading bar data or no data found');
           }
         } catch (error) {
           console.error('Error loading bar table configuration:', error);
@@ -1375,7 +1389,11 @@ export default function MenuPage() {
   };
 
   const selectTable = async (tableNumber: number | null) => {
-    if (!tab) return;
+    console.log('🪑 selectTable called with:', tableNumber);
+    if (!tab) {
+      console.log('❌ No tab available');
+      return;
+    }
     
     try {
       // Update tab notes with table number
@@ -1383,8 +1401,9 @@ export default function MenuPage() {
       if (tab.notes) {
         try {
           currentNotes = JSON.parse(tab.notes);
+          console.log('📝 Current notes:', currentNotes);
         } catch (e) {
-          // Ignore parse errors, use empty object
+          console.log('❌ Error parsing current notes:', e);
         }
       }
       
@@ -1393,13 +1412,15 @@ export default function MenuPage() {
         table_number: tableNumber
       };
       
+      console.log('📝 Updating notes to:', updatedNotes);
+      
       const { error } = await (supabase as any)
         .from('tabs')
         .update({ notes: JSON.stringify(updatedNotes) })
         .eq('id', tab.id);
       
       if (error) {
-        console.error('Error updating table number:', error);
+        console.error('❌ Error updating table number:', error);
         showToast({
           type: 'error',
           title: 'Error',
@@ -1408,6 +1429,7 @@ export default function MenuPage() {
         return;
       }
       
+      console.log('✅ Table number updated successfully');
       setSelectedTable(tableNumber);
       setShowTableModal(false);
       
@@ -1423,7 +1445,7 @@ export default function MenuPage() {
       });
       
     } catch (error) {
-      console.error('Error in selectTable:', error);
+      console.error('❌ Error in selectTable:', error);
       showToast({
         type: 'error',
         title: 'Error',
@@ -1950,6 +1972,23 @@ export default function MenuPage() {
                     Change Table
                   </button>
                 )}
+                
+                {/* Debug button for testing */}
+                <button
+                  onClick={() => {
+                    console.log('🐛 Debug: Manual table modal trigger');
+                    console.log('🐛 Debug state:', { 
+                      showTableModal, 
+                      barTables: barTables.length, 
+                      tableSelectionRequired,
+                      selectedTable 
+                    });
+                    setShowTableModal(true);
+                  }}
+                  className="text-xs bg-red-500 bg-opacity-80 text-white px-2 py-0.5 rounded-full hover:bg-opacity-90 transition-colors ml-2"
+                >
+                  DEBUG: Show Table Modal
+                </button>
               </div>
             </div>
             
@@ -3394,6 +3433,10 @@ export default function MenuPage() {
               <p className="text-gray-600">
                 Please select your table number to help staff serve you better
               </p>
+              {/* Debug info */}
+              <div className="mt-2 text-xs text-gray-400">
+                Debug: {barTables.length} tables available: [{barTables.join(', ')}]
+              </div>
             </div>
             
             {/* Table Grid */}
@@ -3401,7 +3444,10 @@ export default function MenuPage() {
               {barTables.map((tableNum) => (
                 <button
                   key={tableNum}
-                  onClick={() => selectTable(tableNum)}
+                  onClick={() => {
+                    console.log('🪑 Table button clicked:', tableNum);
+                    selectTable(tableNum);
+                  }}
                   className="aspect-square bg-orange-50 border-2 border-orange-200 rounded-lg hover:bg-orange-100 hover:border-orange-300 transition-all duration-200 flex items-center justify-center font-bold text-orange-700 hover:scale-105"
                 >
                   {tableNum}
@@ -3411,7 +3457,10 @@ export default function MenuPage() {
             
             {/* None Option */}
             <button
-              onClick={() => selectTable(null)}
+              onClick={() => {
+                console.log('🪑 NONE button clicked');
+                selectTable(null);
+              }}
               className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-lg font-medium transition-colors mb-4"
             >
               NONE (Outside/Takeaway)
@@ -3419,7 +3468,10 @@ export default function MenuPage() {
             
             {/* Skip for now (if needed) */}
             <button
-              onClick={() => setShowTableModal(false)}
+              onClick={() => {
+                console.log('🪑 Skip button clicked');
+                setShowTableModal(false);
+              }}
               className="w-full text-gray-500 py-2 text-sm hover:text-gray-700"
             >
               Skip for now
