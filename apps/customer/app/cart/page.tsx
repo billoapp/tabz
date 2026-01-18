@@ -43,7 +43,6 @@ export default function CartPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [notColdPreferences, setNotColdPreferences] = useState<Record<string | number, boolean>>({});
 
   // Define drink categories that support "not cold" preference
   const drinkCategories = ['Beer & Cider', 'Wine & Champagne', 'Spirits', 'Liqueurs & Specialty', 'Non-Alcoholic'];
@@ -78,9 +77,9 @@ export default function CartPage() {
     sessionStorage.setItem('cart', JSON.stringify(newCart));
   };
 
-  const toggleCold = (id: number) => {
-    const newCart = cart.map(item => {
-      if (item.id === id) {
+  const toggleCold = (itemIndex: number) => {
+    const newCart = cart.map((item, idx) => {
+      if (idx === itemIndex) {
         return { ...item, cold: !item.cold };
       }
       return item;
@@ -101,13 +100,6 @@ export default function CartPage() {
     return item.category ? drinkCategories.includes(item.category) : false;
   };
 
-  const toggleNotCold = (itemId: number | string) => {
-    setNotColdPreferences(prev => ({
-      ...prev,
-      [itemId]: !prev[itemId]
-    }));
-  };
-
   const confirmOrder = async () => {
     if (cart.length === 0) return;
     
@@ -125,7 +117,6 @@ export default function CartPage() {
       console.log('📋 Submitting order for tab:', currentTab.id);
 
       const orderItems: OrderItem[] = cart.map((item, index) => {
-        const itemId = `${item.id || item.bar_product_id || item.product_id || 0}_${index}`;
         return {
           product_id: item.product_id || item.id || null,
           name: item.name,
@@ -133,8 +124,8 @@ export default function CartPage() {
           price: item.price,
           total: item.price * item.quantity,
           category: item.category,
-          not_cold: isDrinkItem(item) && notColdPreferences[itemId] ? true : false,
-          cold: item.cold || false // Include cold preference
+          not_cold: isDrinkItem(item) && item.cold ? true : false, // cold checkbox means "not cold"
+          cold: item.cold || false
         };
       });
 
@@ -220,14 +211,14 @@ export default function CartPage() {
                   </p>
                 </div>
                 
-                {/* Not Cold Preference for Drinks */}
+                {/* Cold Preference for Drinks */}
                 {isDrinkItem(item) && (
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={notColdPreferences[itemId] || false}
-                        onChange={() => toggleNotCold(itemId)}
+                        checked={item.cold || false}
+                        onChange={() => toggleCold(item.id || index)}
                         className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                       />
                       <span className="text-sm text-blue-700 font-medium">Not Cold</span>

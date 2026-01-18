@@ -681,8 +681,19 @@ export default function TabDetailPage() {
 
     try {
       if (balance > 0) {
-        // Push to overdue
-        const { error } = await (supabase as any)
+        // Push to overdue - use the close_tab function with write-off
+        const { data, error } = await supabase.rpc('close_tab', {
+          p_tab_id: tabId,
+          p_write_off_amount: balance
+        });
+
+        if (error) {
+          console.error('Error pushing tab to overdue:', error);
+          throw error;
+        }
+
+        // Also update status to overdue instead of closed
+        const { error: updateError } = await (supabase as any)
           .from('tabs')
           .update({ 
             status: 'overdue',
@@ -690,11 +701,10 @@ export default function TabDetailPage() {
             overdue_reason: 'Unpaid balance pushed to bad debt',
             closed_by: 'staff'
           })
-          .eq('id', tabId) as { data: any, error: any };
+          .eq('id', tabId);
 
-        if (error) {
-          console.error('Error pushing tab to overdue:', error);
-          throw error;
+        if (updateError) {
+          console.error('Error updating tab status to overdue:', updateError);
         }
 
         showToast({
@@ -704,15 +714,11 @@ export default function TabDetailPage() {
         });
         
       } else {
-        // Close normally
-        const { error } = await (supabase as any)
-          .from('tabs')
-          .update({ 
-            status: 'closed', 
-            closed_at: new Date().toISOString(),
-            closed_by: 'staff'
-          })
-          .eq('id', tabId) as { data: any, error: any };
+        // Close normally using the close_tab function
+        const { data, error } = await supabase.rpc('close_tab', {
+          p_tab_id: tabId,
+          p_write_off_amount: 0
+        });
 
         if (error) {
           console.error('Error closing tab:', error);

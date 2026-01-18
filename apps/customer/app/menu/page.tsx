@@ -1302,18 +1302,21 @@ export default function MenuPage() {
         return; // Stop here - don't close the tab
       }
 
-      const { error } = await (supabase as any)
-        .from('tabs')
-        .update({
-          status: 'closed',
-          closed_at: new Date().toISOString()
-        })
-        .eq('id', tab.id);
+      // Call the close tab API
+      const response = await fetch('/api/tabs/close', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tabId: tab.id,
+          writeOffAmount: 0 // Customer tabs should have 0 balance when closing
+        }),
+      });
 
-      if (error) {
-        console.error('Error closing tab:', error);
-        alert('Failed to close tab');
-        return;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to close tab');
       }
 
       sessionStorage.removeItem('currentTab');

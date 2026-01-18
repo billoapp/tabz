@@ -204,12 +204,12 @@ BEGIN
         -- Check for pending orders
         SELECT EXISTS(
             SELECT 1 FROM tab_orders 
-            WHERE tab_id = v_tab.id AND status = 'pending'
+            WHERE tab_orders.tab_id = v_tab.id AND status = 'pending'
         ) INTO v_has_pending_orders;
         
         -- Decision logic:
-        IF v_balance <= 0 AND NOT v_has_pending_orders THEN
-            -- Delete tabs with zero balance and no pending orders
+        IF v_balance <= 0 THEN
+            -- Delete tabs with zero balance (regardless of pending orders)
             DELETE FROM tabs WHERE id = v_tab.id;
             
             RETURN QUERY SELECT 
@@ -217,7 +217,10 @@ BEGIN
                 v_tab.id,
                 v_tab.tab_number,
                 v_balance,
-                'Zero balance, no pending orders'::TEXT;
+                CASE 
+                    WHEN v_has_pending_orders THEN 'Zero balance with pending orders - auto-closed'
+                    ELSE 'Zero balance, no pending orders - auto-closed'
+                END::TEXT;
                 
         ELSIF v_balance > 0 THEN
             -- Mark tabs with balance as overdue
@@ -234,15 +237,6 @@ BEGIN
                 v_tab.tab_number,
                 v_balance,
                 'Outstanding balance after business hours'::TEXT;
-                
-        ELSE
-            -- Keep tabs with pending orders (will be processed when orders are resolved)
-            RETURN QUERY SELECT 
-                'KEPT_OPEN'::TEXT,
-                v_tab.id,
-                v_tab.tab_number,
-                v_balance,
-                'Has pending orders'::TEXT;
         END IF;
     END LOOP;
 END;
