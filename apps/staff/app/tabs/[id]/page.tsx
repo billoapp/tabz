@@ -1149,40 +1149,6 @@ export default function TabDetailPage() {
           </div>
         </div>
 
-        {newOrderNotification && (
-          <div 
-            className="fixed inset-0 bg-orange-500 bg-opacity-50 animate-pulse flex items-center justify-center z-50 cursor-pointer"
-            onClick={() => {
-              setNewOrderNotification(null);
-            }}
-          >
-            <div className="pointer-events-none">
-              <svg 
-                width="33vh" 
-                height="33vh" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="white" 
-                strokeWidth={1} 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                className="text-white"
-              >
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
-                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
-              </svg>
-            </div>
-            {/* Pending orders counter - only show if 2 or more */}
-            {tab?.orders?.filter((order: any) => order.status === 'pending' && order.initiated_by === 'customer').length >= 2 && (
-              <div className="absolute bottom-8 right-8 pointer-events-none">
-                <span className="text-white font-bold" style={{ fontSize: '33vh', lineHeight: '1' }}>
-                  {tab.orders.filter((order: any) => order.status === 'pending' && order.initiated_by === 'customer').length}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
         <div className="p-4">
           {/* Order Creation Buttons */}
           <div className="flex gap-4 mb-6 justify-center">
