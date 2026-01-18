@@ -686,7 +686,7 @@ export default function TabDetailPage() {
     try {
       if (balance > 0) {
         // Push to overdue - use the close_tab function with write-off
-        const { data, error } = await supabase.rpc('close_tab', {
+        const { data, error } = await (supabase as any).rpc('close_tab', {
           p_tab_id: tabId,
           p_write_off_amount: balance
         });
@@ -719,7 +719,7 @@ export default function TabDetailPage() {
         
       } else {
         // Close normally using the close_tab function
-        const { data, error } = await supabase.rpc('close_tab', {
+        const { data, error } = await (supabase as any).rpc('close_tab', {
           p_tab_id: tabId,
           p_write_off_amount: 0
         });
