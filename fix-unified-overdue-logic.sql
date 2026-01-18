@@ -39,9 +39,9 @@ BEGIN
         RETURN TRUE;
     END IF;
     
-    -- If no business hours configured, default to closed
+    -- If no business hours configured, default to always open (24/7)
     IF v_bar.business_hours_mode IS NULL THEN
-        RETURN FALSE;
+        RETURN TRUE;
     END IF;
     
     -- Convert check time to local time and extract components
@@ -52,7 +52,8 @@ BEGIN
     IF v_bar.business_hours_mode = 'simple' THEN
         -- Simple mode: same hours every day
         IF v_bar.business_hours_simple IS NULL THEN
-            RETURN FALSE;
+            -- If no business hours configured but mode is simple, default to always open
+            RETURN TRUE;
         END IF;
         
         -- Parse open time (format: "HH:MM")
@@ -77,7 +78,8 @@ BEGIN
     ELSIF v_bar.business_hours_mode = 'advanced' THEN
         -- Advanced mode: different hours per day
         IF v_bar.business_hours_advanced IS NULL THEN
-            RETURN FALSE;
+            -- If no business hours configured but mode is advanced, default to always open
+            RETURN TRUE;
         END IF;
         
         -- Get day name (0 = Sunday, 1 = Monday, etc.)

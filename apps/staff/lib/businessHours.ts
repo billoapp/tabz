@@ -68,7 +68,7 @@ export const isWithinBusinessHours = (bar: Bar): boolean => {
     if (bar.business_hours_mode === 'simple') {
       // Simple mode: same hours every day
       if (!bar.business_hours_simple) {
-        return true;
+        return true; // Default to always open if no hours configured
       }
       
       // Parse open time (format: "HH:MM")
@@ -91,7 +91,7 @@ export const isWithinBusinessHours = (bar: Bar): boolean => {
     } else if (bar.business_hours_mode === 'advanced') {
       // Advanced mode: different hours per day
       if (!bar.business_hours_advanced || !bar.business_hours_advanced[currentDay]) {
-        return true; // Default to open if no hours for this day
+        return true; // Default to always open if no hours configured for this day
       }
       
       const dayHours = bar.business_hours_advanced[currentDay];

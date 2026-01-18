@@ -169,8 +169,9 @@ export default function MenuPage() {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
 
-  // THREE COLLAPSIBLE SECTIONS - all start closed
-  const [interactiveMenuCollapsed, setInteractiveMenuCollapsed] = useState(true);
+  // FIVE COLLAPSIBLE SECTIONS - food menu starts open, others closed
+  const [foodMenuCollapsed, setFoodMenuCollapsed] = useState(false); // Start open
+  const [drinksMenuCollapsed, setDrinksMenuCollapsed] = useState(true);
   const [cartCollapsed, setCartCollapsed] = useState(true);
   const [paymentCollapsed, setPaymentCollapsed] = useState(true);
 
@@ -275,6 +276,18 @@ export default function MenuPage() {
     return item.category ? drinkCategories.includes(item.category) : false;
   };
 
+  // Helper function to check if a product is a drink
+  const isDrinkProduct = (product: any): boolean => {
+    if (!product?.category) return false;
+    return drinkCategories.includes(product.category);
+  };
+
+  // Helper function to check if a product is food
+  const isFoodProduct = (product: any): boolean => {
+    if (!product?.category) return false;
+    return !drinkCategories.includes(product.category);
+  };
+
   // Toggle not cold preference
   const toggleNotCold = (itemId: string | number) => {
     setNotColdPreferences(prev => ({
@@ -284,6 +297,8 @@ export default function MenuPage() {
   };
 
   const menuRef = useRef<HTMLDivElement>(null);
+  const foodMenuRef = useRef<HTMLDivElement>(null);
+  const drinksMenuRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
   const paymentRef = useRef<HTMLDivElement>(null);
 
@@ -900,20 +915,36 @@ export default function MenuPage() {
     setImageScale(1);
   };
 
-  // Toggle functions for THREE EXCLUSIVE collapsible sections
-  const toggleInteractiveMenu = () => {
-    if (!interactiveMenuCollapsed) {
+  // Toggle functions for FIVE EXCLUSIVE collapsible sections
+  const toggleFoodMenu = () => {
+    if (!foodMenuCollapsed) {
       // If already open, just close it
-      setInteractiveMenuCollapsed(true);
+      setFoodMenuCollapsed(true);
     } else {
-      // Open interactive menu, close others
-      setInteractiveMenuCollapsed(false);
+      // Open food menu, close others
+      setFoodMenuCollapsed(false);
+      setDrinksMenuCollapsed(true);
       setCartCollapsed(true);
       setPaymentCollapsed(true);
       setShowStaticMenu(false);
     }
   };
 
+  const toggleDrinksMenu = () => {
+    if (!drinksMenuCollapsed) {
+      // If already open, just close it
+      setDrinksMenuCollapsed(true);
+    } else {
+      // Open drinks menu, close others
+      setDrinksMenuCollapsed(false);
+      setFoodMenuCollapsed(true);
+      setCartCollapsed(true);
+      setPaymentCollapsed(true);
+      setShowStaticMenu(false);
+    }
+  };
+
+  // Toggle functions for remaining collapsible sections
   const toggleCart = () => {
     if (!cartCollapsed) {
       // If already open, just close it
@@ -921,7 +952,8 @@ export default function MenuPage() {
     } else {
       // Open cart, close others
       setCartCollapsed(false);
-      setInteractiveMenuCollapsed(true);
+      setFoodMenuCollapsed(true);
+      setDrinksMenuCollapsed(true);
       setPaymentCollapsed(true);
       setShowStaticMenu(false);
     }
@@ -934,7 +966,8 @@ export default function MenuPage() {
     } else {
       // Open payment, close others
       setPaymentCollapsed(false);
-      setInteractiveMenuCollapsed(true);
+      setFoodMenuCollapsed(true);
+      setDrinksMenuCollapsed(true);
       setCartCollapsed(true);
       setShowStaticMenu(false);
     }
@@ -944,7 +977,8 @@ export default function MenuPage() {
     if (!showStaticMenu) {
       // Opening static menu - close all collapsible sections
       setShowStaticMenu(true);
-      setInteractiveMenuCollapsed(true);
+      setFoodMenuCollapsed(true);
+      setDrinksMenuCollapsed(true);
       setCartCollapsed(true);
       setPaymentCollapsed(true);
     } else {
@@ -1494,6 +1528,8 @@ export default function MenuPage() {
     
     // Auto-open cart when items are added
     setCartCollapsed(false);
+    setFoodMenuCollapsed(true);
+    setDrinksMenuCollapsed(true);
     
     // Show toast notification for cart addition
     showToast({
@@ -1783,6 +1819,18 @@ export default function MenuPage() {
         <div className="px-4 py-2.5">
           <div className="flex items-center justify-between gap-3">
             <button 
+              onClick={() => foodMenuRef.current?.scrollIntoView({ behavior: 'smooth' })} 
+              className="flex-1 bg-white bg-opacity-20 backdrop-blur-sm hover:bg-opacity-30 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+            >
+              Food
+            </button>
+            <button 
+              onClick={() => drinksMenuRef.current?.scrollIntoView({ behavior: 'smooth' })} 
+              className="flex-1 bg-white bg-opacity-20 backdrop-blur-sm hover:bg-opacity-30 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+            >
+              Drinks
+            </button>
+            <button 
               onClick={() => ordersRef.current?.scrollIntoView({ behavior: 'smooth' })} 
               className="flex-1 bg-white bg-opacity-20 backdrop-blur-sm hover:bg-opacity-30 rounded-lg px-4 py-2 text-sm font-medium transition-all"
             >
@@ -1963,21 +2011,21 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Interactive Menu Section - COLLAPSIBLE */}
+      {/* FOOD Menu Section - COLLAPSIBLE */}
       <div className="bg-gray-50 px-4">
         <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
-          <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
+          <div className="p-4 flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50">
             <div>
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Interactive Menu</h2>
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🍽️ FOOD</h2>
             </div>
             <button
-              onClick={toggleInteractiveMenu}
-              className="text-orange-600 hover:text-orange-700 p-2 transform transition-transform duration-200 hover:scale-110"
+              onClick={toggleFoodMenu}
+              className="text-green-600 hover:text-green-700 p-2 transform transition-transform duration-200 hover:scale-110"
             >
               <ChevronDown 
                 size={20} 
                 className={`transform transition-transform duration-300 ease-in-out ${
-                  interactiveMenuCollapsed ? 'rotate-0' : 'rotate-180'
+                  foodMenuCollapsed ? 'rotate-0' : 'rotate-180'
                 }`}
               />
             </button>
@@ -1985,21 +2033,26 @@ export default function MenuPage() {
           
           <div 
             className={`overflow-hidden transition-all duration-500 ease-in-out ${
-              interactiveMenuCollapsed 
+              foodMenuCollapsed 
                 ? 'max-h-0 opacity-0' 
                 : 'max-h-[1000px] opacity-100'
             }`}
           >
-            <div ref={menuRef} className="relative overflow-hidden">
+            <div ref={foodMenuRef} className="relative overflow-hidden">
               <div className="p-4 border-b">
                 <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
-                  {categoryOptions.map((category) => (
+                  {['All Food', ...new Set(
+                    barProducts
+                      .filter(bp => isFoodProduct(bp.product))
+                      .map(bp => bp.product?.category)
+                      .filter((cat): cat is string => cat !== undefined && cat !== null && cat.trim() !== '')
+                  )].map((category) => (
                     <button
                       key={category}
-                      onClick={() => setSelectedCategory(category)}
+                      onClick={() => setSelectedCategory(category === 'All Food' ? 'All' : category)}
                       className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transform transition-all duration-200 hover:scale-105 ${
-                        selectedCategory === category
-                          ? 'bg-orange-500 text-white scale-105 shadow-lg'
+                        (selectedCategory === 'All' && category === 'All Food') || selectedCategory === category
+                          ? 'bg-green-500 text-white scale-105 shadow-lg'
                           : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       }`}
                     >
@@ -2013,15 +2066,30 @@ export default function MenuPage() {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search products..."
-                    className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Search food..."
+                    className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
               </div>
               <div className="relative">
                 <div className="overflow-x-auto scrollbar-hide px-4 pb-4">
                   <div className="flex gap-4 pb-4" style={{ paddingLeft: '16px' }}>
-                    {filteredProducts.map((barProduct, index) => {
+                    {barProducts
+                      .filter(bp => isFoodProduct(bp.product))
+                      .filter(bp => {
+                        if (selectedCategory === 'All') return true;
+                        return bp.product?.category === selectedCategory;
+                      })
+                      .filter(bp => {
+                        if (!searchQuery.trim()) return true;
+                        return bp.product?.name.toLowerCase().includes(searchQuery.toLowerCase());
+                      })
+                      .sort((a, b) => {
+                        const nameA = a.product?.name || '';
+                        const nameB = b.product?.name || '';
+                        return nameA.localeCompare(nameB);
+                      })
+                      .map((barProduct, index) => {
                       const product = barProduct.product;
                       if (!product) return null;
                       const displayImage = product ? getDisplayImage(product) : null;
@@ -2031,12 +2099,151 @@ export default function MenuPage() {
                           className="flex-shrink-0 w-32 transform transition-all duration-300 hover:scale-105"
                           style={{ 
                             animationDelay: `${index * 50}ms`,
-                            opacity: interactiveMenuCollapsed ? 0 : 1,
-                            transform: `translateY(${interactiveMenuCollapsed ? '20px' : '0'})`
+                            opacity: foodMenuCollapsed ? 0 : 1,
+                            transform: `translateY(${foodMenuCollapsed ? '20px' : '0'})`
                           }}
                         >
                           <div
-                            className="bg-white overflow-hidden border-2 border-orange-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-40"
+                            className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-80"
+                            onClick={() => addToCart(barProduct)}
+                          >
+                            <div className="w-full h-48 relative bg-gray-100">
+                              {displayImage ? (
+                                <img
+                                  src={displayImage}
+                                  alt={product.name || 'Product'}
+                                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const parent = e.currentTarget.parentElement;
+                                    if (parent) {
+                                      const Icon = getCategoryIcon(product.category || 'Uncategorized');
+                                      parent.innerHTML = '';
+                                      const iconContainer = document.createElement('div');
+                                      parent.appendChild(iconContainer);
+                                      ReactDOM.createRoot(iconContainer).render(<Icon size={48} className="text-4xl text-gray-400 font-semibold" />);
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
+                                  {(() => {
+                                    const Icon = getCategoryIcon(product.category || 'Uncategorized');
+                                    return <Icon size={48} className="text-gray-400" />;
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 p-4 flex flex-col justify-between">
+                              <h3 className={`text-sm font-medium text-gray-900 text-left leading-tight ${product.name && product.name.length > 20 ? 'text-xs' : ''}`}>{product.name || 'Product'}</h3>
+                              <p className="text-sm text-gray-600 mt-2 text-left">{tempFormatCurrency(barProduct.sale_price)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* DRINKS Menu Section - COLLAPSIBLE */}
+      <div className="bg-gray-50 px-4">
+        <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
+          <div className="p-4 flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50">
+            <div>
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🍺 DRINKS</h2>
+            </div>
+            <button
+              onClick={toggleDrinksMenu}
+              className="text-blue-600 hover:text-blue-700 p-2 transform transition-transform duration-200 hover:scale-110"
+            >
+              <ChevronDown 
+                size={20} 
+                className={`transform transition-transform duration-300 ease-in-out ${
+                  drinksMenuCollapsed ? 'rotate-0' : 'rotate-180'
+                }`}
+              />
+            </button>
+          </div>
+          
+          <div 
+            className={`overflow-hidden transition-all duration-500 ease-in-out ${
+              drinksMenuCollapsed 
+                ? 'max-h-0 opacity-0' 
+                : 'max-h-[1000px] opacity-100'
+            }`}
+          >
+            <div ref={drinksMenuRef} className="relative overflow-hidden">
+              <div className="p-4 border-b">
+                <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
+                  {['All Drinks', ...new Set(
+                    barProducts
+                      .filter(bp => isDrinkProduct(bp.product))
+                      .map(bp => bp.product?.category)
+                      .filter((cat): cat is string => cat !== undefined && cat !== null && cat.trim() !== '')
+                  )].map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category === 'All Drinks' ? 'All' : category)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transform transition-all duration-200 hover:scale-105 ${
+                        (selectedCategory === 'All' && category === 'All Drinks') || selectedCategory === category
+                          ? 'bg-blue-500 text-white scale-105 shadow-lg'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+                {/* Search Field */}
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search drinks..."
+                    className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div className="relative">
+                <div className="overflow-x-auto scrollbar-hide px-4 pb-4">
+                  <div className="flex gap-4 pb-4" style={{ paddingLeft: '16px' }}>
+                    {barProducts
+                      .filter(bp => isDrinkProduct(bp.product))
+                      .filter(bp => {
+                        if (selectedCategory === 'All') return true;
+                        return bp.product?.category === selectedCategory;
+                      })
+                      .filter(bp => {
+                        if (!searchQuery.trim()) return true;
+                        return bp.product?.name.toLowerCase().includes(searchQuery.toLowerCase());
+                      })
+                      .sort((a, b) => {
+                        const nameA = a.product?.name || '';
+                        const nameB = b.product?.name || '';
+                        return nameA.localeCompare(nameB);
+                      })
+                      .map((barProduct, index) => {
+                      const product = barProduct.product;
+                      if (!product) return null;
+                      const displayImage = product ? getDisplayImage(product) : null;
+                      return (
+                        <div
+                          key={barProduct.id}
+                          className="flex-shrink-0 w-32 transform transition-all duration-300 hover:scale-105"
+                          style={{ 
+                            animationDelay: `${index * 50}ms`,
+                            opacity: drinksMenuCollapsed ? 0 : 1,
+                            transform: `translateY(${drinksMenuCollapsed ? '20px' : '0'})`
+                          }}
+                        >
+                          <div
+                            className="bg-white overflow-hidden border-2 border-blue-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-40"
                             onClick={() => addToCart(barProduct)}
                           >
                             <div className="w-full h-24 relative bg-gray-100">
@@ -2696,10 +2903,10 @@ export default function MenuPage() {
               Close My Tab
             </button>
             <button
-              onClick={() => menuRef.current?.scrollIntoView({ behavior: 'smooth' })} 
+              onClick={() => foodMenuRef.current?.scrollIntoView({ behavior: 'smooth' })} 
               className="w-full bg-gray-200 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-300"
             >
-              Order More Drinks
+              Order More Food
             </button>
           </div>
           <p className="text-xs text-gray-500 text-center mt-4">
