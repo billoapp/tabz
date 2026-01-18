@@ -833,12 +833,26 @@ export default function MenuPage() {
         // Refresh messages
         const { data: messages, error } = await supabase
           .from('tab_telegram_messages')
-          .select('*')
+          .select(`
+            *,
+            tab:tabs(
+              bar_id,
+              bars(
+                id,
+                name
+              )
+            )
+          `)
           .eq('tab_id', tab?.id || '')
           .order('created_at', { ascending: false });
         
         if (!error && messages) {
-          setTelegramMessages(messages);
+          // Add bar name to messages for staff messages
+          const messagesWithBarName = messages.map((msg: any) => ({
+            ...msg,
+            bar_name: msg.tab?.bars?.name || null
+          }));
+          setTelegramMessages(messagesWithBarName);
           
           // Calculate and update unread messages count
           const unreadCount = messages.filter((msg: any) => 
@@ -1837,7 +1851,12 @@ export default function MenuPage() {
       const { data, error } = await telegram.getTabMessages(tab.id);
       
       if (!error && data) {
-        setTelegramMessages(data);
+        // Add bar name to messages for staff messages
+        const messagesWithBarName = data.map((msg: any) => ({
+          ...msg,
+          bar_name: msg.tab?.bars?.name || null
+        }));
+        setTelegramMessages(messagesWithBarName);
         
         // Calculate unread messages count
         const unreadCount = data.filter(msg => 

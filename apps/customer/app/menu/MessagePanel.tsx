@@ -177,6 +177,13 @@ export default function MessagePanel({ isOpen, onClose, tabId, initialMessages, 
                           </div>
                         )}
                         <div className="flex-1">
+                          {msg.initiated_by === 'staff' && msg.bar_name && (
+                            <div className="mb-1">
+                              <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                                {msg.bar_name} Staff
+                              </span>
+                            </div>
+                          )}
                           <p className="text-sm leading-relaxed">{msg.message}</p>
                           <div className={`flex items-center gap-2 mt-2 ${msg.initiated_by === 'customer' ? 'text-orange-700' : 'text-blue-700'}`}>
                             <span className="text-xs font-medium">

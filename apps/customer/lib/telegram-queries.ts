@@ -64,7 +64,16 @@ export const telegramMessageQueries = (supabase: TypedSupabaseClient) => ({
   getTabMessages: async (tabId: string, limit = 50) => {
     return supabase
       .from('tab_telegram_messages')
-      .select('*')
+      .select(`
+        *,
+        tab:tabs(
+          bar_id,
+          bars(
+            id,
+            name
+          )
+        )
+      `)
       .eq('tab_id', tabId)
       .order('created_at', { ascending: false })
       .limit(limit)

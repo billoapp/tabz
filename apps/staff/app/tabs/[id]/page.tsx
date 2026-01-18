@@ -765,7 +765,16 @@ export default function TabDetailPage() {
     try {
       const { data, error } = await (supabase as any)
         .from('tab_telegram_messages')
-        .select('*')
+        .select(`
+          *,
+          tab:tabs(
+            bar_id,
+            bars(
+              id,
+              name
+            )
+          )
+        `)
         .eq('tab_id', tabId)
         .order('created_at', { ascending: false }) as { data: any, error: any };
       
@@ -775,7 +784,14 @@ export default function TabDetailPage() {
       }
       
       console.log(`✅ Loaded ${data?.length || 0} messages`);
-      setTelegramMessages(data || []);
+      
+      // Add bar name to messages for staff messages
+      const messagesWithBarName = data?.map((msg: any) => ({
+        ...msg,
+        bar_name: msg.tab?.bars?.name || null
+      })) || [];
+      
+      setTelegramMessages(messagesWithBarName);
       
     } catch (error) {
       console.error('❌ Exception loading messages:', error);
@@ -1204,6 +1220,13 @@ export default function TabDetailPage() {
                     }`}>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
+                          {msg.initiated_by === 'staff' && msg.bar_name && (
+                            <div className="mb-2">
+                              <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                                {msg.bar_name} Staff
+                              </span>
+                            </div>
+                          )}
                           <p className="text-sm text-gray-800">{msg.message}</p>
                           <p className={`text-xs mt-1 ${
                       msg.initiated_by === 'customer' ? 'text-orange-700' : 'text-blue-700'
