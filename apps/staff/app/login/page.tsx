@@ -44,7 +44,7 @@ export default function LoginPage() {
         .from('bars')
         .select('*')
         .eq('id', barId)
-        .single();
+        .single() as { data: any, error: any };
 
       if (barError || !barData?.active) {
         throw new Error('Bar account is not active');

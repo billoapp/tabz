@@ -89,7 +89,7 @@ export default function OverdueTabsPage() {
     if (!confirm) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tabs')
         .update({ 
           status: 'closed',

@@ -32,7 +32,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await (supabase as any).auth.getUser() as { data: { user: any }, error: any };
       if (!user) {
         console.log('No authenticated user found');
         setIsLoading(false);
@@ -42,7 +42,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
       console.log('Loading bars for user:', user.id);
 
       // Query user_bars table
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_bars')
         .select(`
           bar_id,
@@ -52,7 +52,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
             name
           )
         `)
-        .eq('user_id', user.id);
+        .eq('user_id', user.id) as { data: any, error: any };
 
       if (error) {
         console.error('Error loading user_bars:', error);
@@ -63,11 +63,11 @@ export function BarProvider({ children }: { children: ReactNode }) {
           console.log('Using fallback bar_id from metadata:', barId);
 
           // Try to load the bar info
-          const { data: barData } = await supabase
+          const { data: barData } = await (supabase as any)
             .from('bars')
             .select('id, name')
             .eq('id', barId)
-            .single();
+            .single() as { data: any, error: any };
 
           const fallbackBar = {
             id: barId,
@@ -124,9 +124,9 @@ export function BarProvider({ children }: { children: ReactNode }) {
       }
 
       console.log('Calling set_bar_context RPC...');
-      const { error } = await supabase.rpc('set_bar_context', {
+      const { error } = await (supabase as any).rpc('set_bar_context', {
         p_bar_id: barId
-      });
+      }) as { data: any, error: any };
 
       if (error) {
         console.error('RPC error:', error);

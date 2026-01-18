@@ -26,16 +26,25 @@ export function useAuth() {
 
   const checkAuth = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      console.log('🔐 Checking authentication...');
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('❌ Auth session error:', error);
+        router.push('/login');
+        return;
+      }
       
       if (!session) {
+        console.log('❌ No session found, redirecting to login');
         router.push('/login');
         return;
       }
 
+      console.log('✅ Session found:', { userId: session.user.id, email: session.user.email });
       await loadUserData(session.user);
     } catch (error) {
-      console.error('Auth check error:', error);
+      console.error('❌ Auth check error:', error);
       router.push('/login');
     } finally {
       setLoading(false);
@@ -46,14 +55,25 @@ export function useAuth() {
     setUser(user);
     
     const barId = user.user_metadata?.bar_id;
+    console.log('🔐 Loading user data:', { userId: user.id, barId });
+    
     if (barId) {
-      const { data: barData } = await supabase
-        .from('bars')
-        .select('*')
-        .eq('id', barId)
-        .single();
-      
-      setBar(barData);
+      try {
+        const { data: barData, error } = await supabase
+          .from('bars')
+          .select('*')
+          .eq('id', barId)
+          .single();
+        
+        if (error) {
+          console.error('❌ Error loading bar data:', error);
+        } else {
+          console.log('✅ Bar data loaded:', barData);
+          setBar(barData);
+        }
+      } catch (error) {
+        console.error('❌ Exception loading bar data:', error);
+      }
     }
   };
 

@@ -41,7 +41,7 @@ export default function ReportsPage() {
         .from('bars')
         .select('name')
         .eq('id', userBarId)
-        .single();
+        .single() as { data: any, error: any };
       
       if (barError) throw barError;
       
@@ -59,7 +59,7 @@ export default function ReportsPage() {
           messages:tab_telegram_messages(id, status, created_at, staff_acknowledged_at, initiated_by, message_metadata)
         `)
         .eq('bar_id', userBarId)
-        .order('tab_number', { ascending: false });
+        .order('tab_number', { ascending: false }) as { data: any, error: any };
 
       if (tabsError) throw tabsError;
 

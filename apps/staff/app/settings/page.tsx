@@ -131,7 +131,7 @@ export default function SettingsPage() {
         .from('bars')
         .select('*')
         .eq('id', userBarId)
-        .single();
+        .single() as { data: any, error: any };
 
       if (error) {
         console.error('Error loading bar:', error);
@@ -243,13 +243,13 @@ export default function SettingsPage() {
         .select('id')
         .eq('slug', slug)
         .neq('id', userBarId)
-        .single();
+        .single() as { data: any, error: any };
 
       if (existingBar) {
         slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
       }
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bars')
         .update({
           name: editedInfo.name,
@@ -305,7 +305,7 @@ export default function SettingsPage() {
 
       const userBarId = user.user_metadata.bar_id;
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bars')
         .update({
           payment_mpesa_enabled: paymentSettings.payment_mpesa_enabled,
@@ -337,7 +337,7 @@ export default function SettingsPage() {
 
       const userBarId = user.user_metadata.bar_id;
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bars')
         .update({
           notification_new_orders: notifications.newOrders,
@@ -395,7 +395,7 @@ export default function SettingsPage() {
         }
       }
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bars')
         .update({
           business_hours_mode: businessHoursMode,
@@ -456,7 +456,7 @@ export default function SettingsPage() {
 
       const userBarId = user.user_metadata.bar_id;
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bars')
         .update({
           alert_timeout: alertSettings.timeout,
@@ -526,7 +526,7 @@ export default function SettingsPage() {
       }));
       
       // Save to database
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from('bars')
         .update({ 
           alert_custom_audio_url: publicUrl,
@@ -559,7 +559,7 @@ export default function SettingsPage() {
       const userBarId = user.user_metadata.bar_id;
 
       // Remove from database
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('bars')
         .update({ 
           alert_custom_audio_url: '',

@@ -179,6 +179,12 @@ export default function MenuPage() {
   const [responseTimeLoading, setResponseTimeLoading] = useState(false);
 
   const [showConnectionStatus, setShowConnectionStatus] = useState(false);
+  
+  // Not cold preferences for drinks
+  const [notColdPreferences, setNotColdPreferences] = useState<Record<string | number, boolean>>({});
+  
+  // Define drink categories that support "not cold" preference
+  const drinkCategories = ['Beer & Cider', 'Wine & Champagne', 'Spirits', 'Liqueurs & Specialty', 'Non-Alcoholic'];
 
   const loadAttempted = useRef(false);
 
@@ -262,6 +268,19 @@ export default function MenuPage() {
     // Default
     console.log('📦 Customer returning default LayoutGrid icon for:', categoryName);
     return LayoutGrid;
+  };
+
+  // Helper function to check if an item is a drink
+  const isDrinkItem = (item: any): boolean => {
+    return item.category ? drinkCategories.includes(item.category) : false;
+  };
+
+  // Toggle not cold preference
+  const toggleNotCold = (itemId: string | number) => {
+    setNotColdPreferences(prev => ({
+      ...prev,
+      [itemId]: !prev[itemId]
+    }));
   };
 
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1454,18 +1473,19 @@ export default function MenuPage() {
   const addToCart = (barProduct: BarProduct) => {
     const product = barProduct.product;
     if (!product) return;
-    const existing = cart.find(c => c.bar_product_id === barProduct.id);
-    const newCart = existing
-      ? cart.map(c => c.bar_product_id === barProduct.id ? { ...c, quantity: c.quantity + 1 } : c)
-      : [...cart, {
-        bar_product_id: barProduct.id,
-        product_id: barProduct.product_id,
-        name: product.name,
-        price: barProduct.sale_price,
-        category: product.category,
-        image_url: product.image_url,
-        quantity: 1
-      }];
+    
+    // Always add as a new item (no grouping by product)
+    const newItem = {
+      bar_product_id: barProduct.id,
+      product_id: barProduct.product_id,
+      name: product.name,
+      price: barProduct.sale_price,
+      category: product.category,
+      image_url: product.image_url,
+      quantity: 1
+    };
+    
+    const newCart = [...cart, newItem];
     setCart(newCart);
     sessionStorage.setItem('cart', JSON.stringify(newCart));
     
@@ -1480,9 +1500,9 @@ export default function MenuPage() {
     });
   };
 
-  const updateCartQuantity = (barProductId: string, delta: number) => {
-    const newCart = cart.map(item => {
-      if (item.bar_product_id === barProductId) {
+  const updateCartQuantity = (itemIndex: number, delta: number) => {
+    const newCart = cart.map((item, idx) => {
+      if (idx === itemIndex) {
         const newQty = item.quantity + delta;
         return newQty > 0 ? { ...item, quantity: newQty } : item;
       }
@@ -1496,12 +1516,14 @@ export default function MenuPage() {
     if (cart.length === 0) return;
     setSubmittingOrder(true);
     try {
-      const orderItems = cart.map(item => ({
+      const orderItems = cart.map((item, index) => ({
         product_id: item.product_id,
         name: item.name,
         quantity: item.quantity,
         price: item.price,
-        total: item.price * item.quantity
+        total: item.price * item.quantity,
+        category: item.category,
+        ...(isDrinkItem(item) && notColdPreferences[`cart-item-${index}`] && { not_cold: true })
       }));
       const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       const orderSubmissionTime = new Date().toISOString();
@@ -2094,45 +2116,62 @@ export default function MenuPage() {
 
               {/* Cart Items */}
               <div className="p-4 space-y-3 max-h-64 overflow-y-auto">
-                {cart.map(item => (
-                  <div key={item.bar_product_id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-orange-900">{item.name}</span>
-                        <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
-                          {item.category}
-                        </span>
+                {cart.map((item, index) => (
+                  <div key={`cart-item-${index}`} className="bg-orange-50 rounded-lg border border-orange-200">
+                    <div className="flex items-center justify-between p-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-orange-900">{item.name}</span>
+                        </div>
+                        <p className="text-sm text-orange-600">{tempFormatCurrency(item.price)} each</p>
                       </div>
-                      <p className="text-sm text-orange-600">{tempFormatCurrency(item.price)} each</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-lg">
+                          <button
+                            onClick={() => updateCartQuantity(index, -1)}
+                            className="p-2 hover:bg-orange-200 transition-colors"
+                          >
+                            <Minus size={16} className="text-orange-700" />
+                          </button>
+                          <span className="font-bold w-8 text-center text-orange-900">{item.quantity}</span>
+                          <button
+                            onClick={() => updateCartQuantity(index, 1)}
+                            className="p-2 hover:bg-orange-200 transition-colors"
+                          >
+                            <Plus size={16} className="text-orange-700" />
+                          </button>
+                        </div>
                         <button
-                          onClick={() => updateCartQuantity(item.bar_product_id, -1)}
-                          className="p-2 hover:bg-orange-200 transition-colors"
+                          onClick={() => {
+                            const newCart = cart.filter((_, idx) => idx !== index);
+                            setCart(newCart);
+                            sessionStorage.setItem('cart', JSON.stringify(newCart));
+                          }}
+                          className="p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                          title="Remove from cart"
                         >
-                          <Minus size={16} className="text-orange-700" />
-                        </button>
-                        <span className="font-bold w-8 text-center text-orange-900">{item.quantity}</span>
-                        <button
-                          onClick={() => updateCartQuantity(item.bar_product_id, 1)}
-                          className="p-2 hover:bg-orange-200 transition-colors"
-                        >
-                          <Plus size={16} className="text-orange-700" />
+                          <X size={18} className="text-white" />
                         </button>
                       </div>
-                      <button
-                        onClick={() => {
-                          const newCart = cart.filter(cartItem => cartItem.bar_product_id !== item.bar_product_id);
-                          setCart(newCart);
-                          sessionStorage.setItem('cart', JSON.stringify(newCart));
-                        }}
-                        className="p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-                        title="Remove from cart"
-                      >
-                        <X size={18} className="text-white" />
-                      </button>
                     </div>
+                    
+                    {/* Not Cold Preference for Drinks */}
+                    {isDrinkItem(item) && (
+                      <div className="px-3 pb-3">
+                        <div className="p-2 bg-blue-50 rounded-lg border border-blue-200">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={notColdPreferences[`cart-item-${index}`] || false}
+                              onChange={() => toggleNotCold(`cart-item-${index}`)}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                            />
+                            <span className="text-sm text-blue-700 font-medium">Not Cold</span>
+                            <span className="text-xs text-blue-600">(serve at room temperature)</span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

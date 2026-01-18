@@ -10,19 +10,26 @@ export const dynamic = 'force-dynamic';
 
 // Define proper types
 interface CartItem {
-  id: number;
+  bar_product_id?: number;
+  product_id?: number;
+  id?: number;
   name: string;
   price: number;
   quantity: number;
-  image: string;
+  image?: string;
+  image_url?: string;
+  category?: string;
+  not_cold?: boolean;
 }
 
 interface OrderItem {
-  product_id: number;
+  product_id: number | null;
   name: string;
   quantity: number;
   price: number;
   total: number;
+  category?: string;
+  not_cold?: boolean;
 }
 
 interface CurrentTab {
@@ -34,12 +41,18 @@ export default function CartPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [notColdPreferences, setNotColdPreferences] = useState<Record<string | number, boolean>>({});
+
+  // Define drink categories that support "not cold" preference
+  const drinkCategories = ['Beer & Cider', 'Wine & Champagne', 'Spirits', 'Liqueurs & Specialty', 'Non-Alcoholic'];
 
   useEffect(() => {
     const cartData = sessionStorage.getItem('cart');
     if (cartData) {
       try {
-        setCart(JSON.parse(cartData));
+        const parsedCart = JSON.parse(cartData);
+        console.log('🛒 Cart loaded from sessionStorage:', parsedCart);
+        setCart(parsedCart);
       } catch (error) {
         console.error('Error parsing cart data:', error);
         setCart([]);
@@ -47,20 +60,39 @@ export default function CartPage() {
     }
   }, []);
 
-  const updateQuantity = (id: number, delta: number) => {
-    const newCart = cart.map(item => {
-      if (item.id === id) {
-        const newQty = item.quantity + delta;
+  const updateQuantity = (itemId: string, delta: number) => {
+    // Extract index from itemId (format: "productId_index")
+    const index = parseInt(itemId.split('_').pop() || '0');
+    
+    const newCart = cart.map((item, idx) => {
+      if (idx === index) {
+        const newQty = (item.quantity || 0) + delta;
         return newQty > 0 ? { ...item, quantity: newQty } : item;
       }
       return item;
-    }).filter(item => item.quantity > 0);
+    }).filter(item => (item.quantity || 0) > 0);
     
     setCart(newCart);
     sessionStorage.setItem('cart', JSON.stringify(newCart));
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  const isDrinkItem = (item: CartItem): boolean => {
+    console.log('🔍 Checking if item is drink:', {
+      name: item.name,
+      category: item.category,
+      isDrink: item.category ? drinkCategories.includes(item.category) : false
+    });
+    return item.category ? drinkCategories.includes(item.category) : false;
+  };
+
+  const toggleNotCold = (itemId: number | string) => {
+    setNotColdPreferences(prev => ({
+      ...prev,
+      [itemId]: !prev[itemId]
+    }));
+  };
 
   const confirmOrder = async () => {
     if (cart.length === 0) return;
@@ -78,13 +110,18 @@ export default function CartPage() {
       const currentTab: CurrentTab = JSON.parse(tabData);
       console.log('📋 Submitting order for tab:', currentTab.id);
 
-      const orderItems: OrderItem[] = cart.map(item => ({
-        product_id: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        total: item.price * item.quantity
-      }));
+      const orderItems: OrderItem[] = cart.map((item, index) => {
+        const itemId = `${item.id || item.bar_product_id || item.product_id || 0}_${index}`;
+        return {
+          product_id: item.product_id || item.id || null,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity,
+          category: item.category,
+          ...(isDrinkItem(item) && notColdPreferences[itemId] && { not_cold: true })
+        };
+      });
 
       // Fix: Type assertion inside the insert method
       const { data: order, error } = await supabase
@@ -147,40 +184,63 @@ export default function CartPage() {
             </button>
           </div>
         ) : (
-          cart.map(item => (
-            <div key={item.id} className="bg-white rounded-xl p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl">{item.image}</div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{item.name}</h3>
-                    <p className="text-sm text-gray-600">KSh {item.price.toFixed(2)} each</p>
+          cart.map((item, index) => {
+            // Use index-based ID to ensure each cart item is unique
+            const itemId = `${item.id || item.bar_product_id}_${index}`;
+            const itemImage = item.image || item.image_url;
+            
+            return (
+              <div key={itemId} className="bg-white rounded-xl p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="text-3xl">{itemImage}</div>
+                    <div>
+                      <h3 className="font-semibold text-gray-800">{item.name}</h3>
+                      <p className="text-sm text-gray-600">KSh {item.price.toFixed(2)} each</p>
+                      <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
+                    </div>
                   </div>
+                  <p className="font-bold text-orange-600">
+                    KSh {(item.price * item.quantity).toFixed(2)}
+                  </p>
                 </div>
-                <p className="font-bold text-orange-600">
-                  KSh {(item.price * item.quantity).toFixed(2)}
-                </p>
+                
+                {/* Not Cold Preference for Drinks */}
+                {isDrinkItem(item) && (
+                  <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={notColdPreferences[itemId] || false}
+                        onChange={() => toggleNotCold(itemId)}
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                      />
+                      <span className="text-sm text-blue-700 font-medium">Not Cold</span>
+                      <span className="text-xs text-blue-600">(serve at room temperature)</span>
+                    </label>
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-3 justify-end">
+                  <button
+                    onClick={() => updateQuantity(itemId, -1)}
+                    className="bg-gray-100 p-2 rounded-lg hover:bg-gray-200"
+                    aria-label={`Decrease quantity of ${item.name}`}
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <span className="font-bold text-lg w-8 text-center">{item.quantity}</span>
+                  <button
+                    onClick={() => updateQuantity(itemId, 1)}
+                    className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"
+                    aria-label={`Increase quantity of ${item.name}`}
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
               </div>
-              
-              <div className="flex items-center gap-3 justify-end">
-                <button
-                  onClick={() => updateQuantity(item.id, -1)}
-                  className="bg-gray-100 p-2 rounded-lg hover:bg-gray-200"
-                  aria-label={`Decrease quantity of ${item.name}`}
-                >
-                  <Minus size={16} />
-                </button>
-                <span className="font-bold text-lg w-8 text-center">{item.quantity}</span>
-                <button
-                  onClick={() => updateQuantity(item.id, 1)}
-                  className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"
-                  aria-label={`Increase quantity of ${item.name}`}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

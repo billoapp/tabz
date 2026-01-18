@@ -284,7 +284,7 @@ export default function TabsPage() {
   
   const [tabs, setTabs] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('open');
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -321,11 +321,23 @@ export default function TabsPage() {
       try {
         const { data, error } = await supabase
           .from('bars')
-          .select('alert_timeout, alert_sound_enabled, alert_custom_audio_url, alert_custom_audio_name, alert_volume, alert_vibration_enabled')
+          .select('alert_timeout, alert_sound_enabled, alert_custom_audio_url, alert_custom_audio_name, alert_volume')
           .eq('id', bar.id)
-          .single();
+          .single() as { data: any, error: any };
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error loading alert settings:', error);
+          // Use default settings if query fails
+          setAlertSettings({
+            timeout: 5,
+            soundEnabled: true,
+            customAudioUrl: '',
+            customAudioName: '',
+            volume: 0.8,
+            vibrationEnabled: true
+          });
+          return;
+        }
 
         if (data) {
           setAlertSettings({
@@ -334,11 +346,20 @@ export default function TabsPage() {
             customAudioUrl: data.alert_custom_audio_url ?? '',
             customAudioName: data.alert_custom_audio_name ?? '',
             volume: data.alert_volume ?? 0.8,
-            vibrationEnabled: data.alert_vibration_enabled ?? true
+            vibrationEnabled: true // Default value since column doesn't exist
           });
         }
       } catch (error) {
         console.error('Error loading alert settings:', error);
+        // Use default settings if query fails
+        setAlertSettings({
+          timeout: 5,
+          soundEnabled: true,
+          customAudioUrl: '',
+          customAudioName: '',
+          volume: 0.8,
+          vibrationEnabled: true
+        });
       }
     };
 
@@ -362,11 +383,12 @@ export default function TabsPage() {
     if (!bar) return;
     
     try {
-      const { data: tabsData, error } = await supabase
+      const { data: tabsData, error } = await (supabase as any)
         .from('tabs')
         .select('*, bars(id, name, location)')
         .eq('bar_id', bar.id)
-        .order('tab_number', { ascending: false });
+        .in('status', ['open', 'overdue']) // Load both open and overdue tabs
+        .order('tab_number', { ascending: false }) as { data: any, error: any };
 
       if (error) throw error;
 
@@ -669,9 +691,9 @@ export default function TabsPage() {
   };
 
   const getTabBalance = (tab: any) => {
-    // Only count non-cancelled orders
-    const validOrders = tab.orders?.filter((o: any) => o.status !== 'cancelled') || [];
-    const ordersTotal = validOrders.reduce((sum: number, order: any) => 
+    // Only count CONFIRMED orders (not pending or cancelled)
+    const confirmedOrders = tab.orders?.filter((o: any) => o.status === 'confirmed') || [];
+    const ordersTotal = confirmedOrders.reduce((sum: number, order: any) => 
       sum + parseFloat(order.total), 0) || 0;
     const paymentsTotal = tab.payments?.filter((p: any) => p.status === 'success')
       .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
@@ -692,7 +714,6 @@ export default function TabsPage() {
     const matchesSearch = displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          tab.tab_number?.toString().includes(searchQuery) || 
                          tab.owner_identifier?.includes(searchQuery);
-    const matchesFilter = filterStatus === 'all' || tab.status === filterStatus;
     
     // Filter out cancelled orders when checking for pending
     const hasPendingOrders = tab.orders?.some((o: any) => 
@@ -700,9 +721,17 @@ export default function TabsPage() {
       o.status !== 'cancelled'
     );
     const hasPendingMessages = (tab.unreadMessages || 0) > 0;
-    const matchesPendingFilter = filterStatus !== 'pending' || hasPendingOrders || hasPendingMessages;
     
-    return matchesSearch && matchesFilter && matchesPendingFilter;
+    let matchesFilter = false;
+    if (filterStatus === 'pending') {
+      // For pending filter, show tabs that have pending orders OR messages
+      matchesFilter = hasPendingOrders || hasPendingMessages;
+    } else {
+      // For other filters, match the tab's actual status
+      matchesFilter = tab.status === filterStatus;
+    }
+    
+    return matchesSearch && matchesFilter;
   }).sort((a, b) => {
     const aHasPendingOrders = a.orders?.some((o: any) => 
       o.status === 'pending' && 
@@ -721,7 +750,7 @@ export default function TabsPage() {
     if (aHasPending && !bHasPending) return -1;
     if (!aHasPending && bHasPending) return 1;
     
-    const statusPriority = { open: 0, closed: 1, overdue: 2 };
+    const statusPriority = { open: 0, overdue: 1 };
     const aPriority = statusPriority[a.status as keyof typeof statusPriority] ?? 3;
     const bPriority = statusPriority[b.status as keyof typeof statusPriority] ?? 3;
     
@@ -733,9 +762,9 @@ export default function TabsPage() {
   const stats = {
     totalTabs: tabs.filter(t => t.status === 'open').length,
     totalRevenue: tabs.reduce((sum, tab) => {
-      // Only count non-cancelled orders for revenue
-      const validOrders = tab.orders?.filter((o: any) => o.status !== 'cancelled') || [];
-      return sum + (validOrders.reduce((s: number, o: any) => s + parseFloat(o.total), 0) || 0);
+      // Only count CONFIRMED orders for revenue (not pending or cancelled)
+      const confirmedOrders = tab.orders?.filter((o: any) => o.status === 'confirmed') || [];
+      return sum + (confirmedOrders.reduce((s: number, o: any) => s + parseFloat(o.total), 0) || 0);
     }, 0),
     pendingOrders: tabs.reduce((sum, tab) => 
       sum + (tab.orders?.filter((o: any) => 
@@ -890,19 +919,35 @@ export default function TabsPage() {
           </div>
           
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-            {['all', 'pending', 'open', 'overdue', 'closed'].map(status => (
-              <button
-                key={status}
-                onClick={() => setFilterStatus(status)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
-                  filterStatus === status 
-                    ? 'bg-orange-600 text-white shadow' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {status === 'pending' ? `⚡ Pending (${totalPending})` : status.charAt(0).toUpperCase() + status.slice(1)}
-              </button>
-            ))}
+            {['pending', 'open', 'overdue'].map(status => {
+              let count = 0;
+              let displayText = status.charAt(0).toUpperCase() + status.slice(1);
+              
+              if (status === 'pending') {
+                count = totalPending;
+                displayText = `⚡ Pending (${totalPending})`;
+              } else if (status === 'open') {
+                count = stats.totalTabs;
+                displayText = `Open (${stats.totalTabs})`;
+              } else if (status === 'overdue') {
+                count = tabs.filter(t => t.status === 'overdue').length;
+                displayText = `Overdue (${count})`;
+              }
+              
+              return (
+                <button
+                  key={status}
+                  onClick={() => setFilterStatus(status)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
+                    filterStatus === status 
+                      ? 'bg-orange-600 text-white shadow' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {displayText}
+                </button>
+              );
+            })}
           </div>
         </div>
 

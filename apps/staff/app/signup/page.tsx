@@ -98,7 +98,7 @@ export default function SignupPage() {
       if (authError) throw authError;
       if (!authData.user) throw new Error('Failed to create user');
 
-      const { data: barId, error: barError } = await supabase.rpc('signup_new_bar', {
+      const { data: barId, error: barError } = await (supabase as any).rpc('signup_new_bar', {
         p_user_id: authData.user.id,
         p_bar_name: formData.barName,
         p_location: formData.location,

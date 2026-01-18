@@ -296,35 +296,35 @@ export default function TabDetailPage() {
     setLoading(true);
     
     try {
-      const { data: tabData, error: tabError } = await supabase
+      const { data: tabData, error: tabError } = await (supabase as any)
         .from('tabs')
         .select('*')
         .eq('id', tabId)
-        .single();
+        .single() as { data: any, error: any };
 
       if (tabError) throw tabError;
 
-      const { data: barData, error: barError } = await supabase
+      const { data: barData, error: barError } = await (supabase as any)
         .from('bars')
         .select('id, name, location')
         .eq('id', tabData.bar_id)
-        .single();
+        .single() as { data: any, error: any };
 
       if (barError) throw barError;
 
-      const { data: ordersResult, error: ordersError } = await supabase
+      const { data: ordersResult, error: ordersError } = await (supabase as any)
         .from('tab_orders')
         .select('*')
         .eq('tab_id', tabId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: any, error: any };
 
       if (ordersError) throw ordersError;
 
-      const { data: paymentsResult, error: paymentsError } = await supabase
+      const { data: paymentsResult, error: paymentsError } = await (supabase as any)
         .from('tab_payments')
         .select('*')
         .eq('tab_id', tabId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: any, error: any };
 
       if (paymentsError) throw paymentsError;
 
@@ -462,7 +462,7 @@ export default function TabDetailPage() {
 
       const total = getCartTotal();
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
         .insert({
           tab_id: tabId,
@@ -470,7 +470,7 @@ export default function TabDetailPage() {
           total: total,
           status: 'pending',
           initiated_by: 'staff'
-        });
+        }) as { data: any, error: any };
 
       if (error) throw error;
 
@@ -505,17 +505,27 @@ export default function TabDetailPage() {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
         .update({ 
           status: 'confirmed',
           confirmed_at: new Date().toISOString()
         })
-        .eq('id', orderId);
+        .eq('id', orderId) as { data: any, error: any };
 
       if (error) throw error;
 
-      loadTabData();
+      // Show success message
+      showToast({
+        type: 'success',
+        title: 'Order Confirmed',
+        message: 'Order has been marked as served'
+      });
+
+      // Navigate back to dashboard after successful confirmation
+      setTimeout(() => {
+        router.push('/');
+      }, 1500); // Give user time to see the success message
       
     } catch (error) {
       console.error('Error marking served:', error);
@@ -538,13 +548,13 @@ export default function TabDetailPage() {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_orders')
         .update({ 
           status: 'cancelled',
           cancelled_at: new Date().toISOString()
         })
-        .eq('id', orderId);
+        .eq('id', orderId) as { data: any, error: any };
 
       if (error) throw error;
 
@@ -571,7 +581,7 @@ export default function TabDetailPage() {
     if (!amount || isNaN(Number(amount))) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('tab_payments')
         .insert({
           tab_id: tabId,
@@ -579,7 +589,7 @@ export default function TabDetailPage() {
           method: 'cash',
           status: 'success',
           reference: `CASH_${Date.now()}`
-        });
+        }) as { data: any, error: any };
 
       if (error) throw error;
 
@@ -642,7 +652,7 @@ export default function TabDetailPage() {
       return;
     }
 
-    // Determine closure type
+    // Allow closing regardless of balance - determine closure type
     if (balance > 0) {
       setCloseTabReason('overdue');
       setShowCloseConfirm(true);
@@ -672,7 +682,7 @@ export default function TabDetailPage() {
     try {
       if (balance > 0) {
         // Push to overdue
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('tabs')
           .update({ 
             status: 'overdue',
@@ -680,9 +690,12 @@ export default function TabDetailPage() {
             overdue_reason: 'Unpaid balance pushed to bad debt',
             closed_by: 'staff'
           })
-          .eq('id', tabId);
+          .eq('id', tabId) as { data: any, error: any };
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error pushing tab to overdue:', error);
+          throw error;
+        }
 
         showToast({
           type: 'success',
@@ -692,16 +705,19 @@ export default function TabDetailPage() {
         
       } else {
         // Close normally
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('tabs')
           .update({ 
             status: 'closed', 
             closed_at: new Date().toISOString(),
             closed_by: 'staff'
           })
-          .eq('id', tabId);
+          .eq('id', tabId) as { data: any, error: any };
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error closing tab:', error);
+          throw error;
+        }
 
         showToast({
           type: 'success',
@@ -710,14 +726,17 @@ export default function TabDetailPage() {
         });
       }
       
-      router.push('/');
+      // Wait a moment for the update to process, then redirect
+      setTimeout(() => {
+        router.push('/');
+      }, 1000);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error closing tab:', error);
       showToast({
         type: 'error',
         title: 'Failed to Close Tab',
-        message: 'Please try again'
+        message: error.message || 'Please try again. Check your connection and authentication.'
       });
     } finally {
       setClosingTab(false);
@@ -734,11 +753,11 @@ export default function TabDetailPage() {
     console.log('🔥 Loading telegram messages for tab:', tabId);
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('tab_telegram_messages')
         .select('*')
         .eq('tab_id', tabId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: any, error: any };
       
       if (error) {
         console.error('❌ Error loading messages:', error);
@@ -757,7 +776,7 @@ export default function TabDetailPage() {
   const acknowledgeLatestPendingCustomerMessage = async () => {
     try {
       // Find the most recent pending customer message
-      const { data: pendingMessage, error: fetchError } = await supabase
+      const { data: pendingMessage, error: fetchError } = await (supabase as any)
         .from('tab_telegram_messages')
         .select('id')
         .eq('tab_id', tabId)
@@ -765,7 +784,7 @@ export default function TabDetailPage() {
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .single() as { data: any, error: any };
       
       if (fetchError || !pendingMessage) {
         console.log('ℹ️ No pending customer messages to acknowledge');
@@ -857,11 +876,11 @@ export default function TabDetailPage() {
       console.log('✅ Acknowledging customer message:', messageId);
       
       // First, get the current message to check its status
-      const { data: currentMessage, error: fetchError } = await supabase
+      const { data: currentMessage, error: fetchError } = await (supabase as any)
         .from('tab_telegram_messages')
         .select('status, initiated_by')
         .eq('id', messageId)
-        .single();
+        .single() as { data: any, error: any };
       
       if (fetchError) {
         console.error('❌ Failed to fetch message:', fetchError);
@@ -895,7 +914,7 @@ export default function TabDetailPage() {
       }
       
       // Update the message status to acknowledged
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('tab_telegram_messages')
         .update({
           status: 'acknowledged',
@@ -905,7 +924,7 @@ export default function TabDetailPage() {
         .eq('id', messageId)
         .eq('initiated_by', 'customer') // Double-check it's a customer message
         .select()
-        .single();
+        .single() as { data: any, error: any };
       
       if (error) {
         console.error('❌ Failed to acknowledge message:', error);
@@ -1416,9 +1435,15 @@ export default function TabDetailPage() {
                         <div className="flex-1">
                           <div className="space-y-1 mb-2">
                             {orderItems.map((item: any, idx: number) => (
-                              <p key={idx} className="text-sm text-gray-700">
-                                {item.quantity}x {item.name}
-                              </p>
+                              <div key={idx} className="text-sm text-gray-700">
+                                <span>{item.quantity}x {item.name}</span>
+                                {/* Show "not cold" preference for customer orders */}
+                                {initiatedBy === 'customer' && item.not_cold && (
+                                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 font-medium">
+                                    🧊 Not Cold
+                                  </span>
+                                )}
+                              </div>
                             ))}
                           </div>
                           <p className="text-sm text-gray-500">{timeAgo(order.created_at)}</p>
