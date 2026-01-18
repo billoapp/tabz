@@ -118,7 +118,6 @@ export default function TabDetailPage() {
   const [loading, setLoading] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [tableNumber, setTableNumber] = useState<number | null>(null);
-  const [newOrderNotification, setNewOrderNotification] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
   // Connection status state
@@ -217,11 +216,12 @@ export default function TabDetailPage() {
       event: 'INSERT' as const,
       handler: async (payload: any) => {
         if (payload.new?.initiated_by === 'customer') {
-          setNewOrderNotification(payload.new);
-          
-          setTimeout(() => {
-            setNewOrderNotification(null);
-          }, 10000);
+          // Show toast notification instead of full-screen overlay
+          showToast({
+            type: 'info',
+            title: 'New Customer Order',
+            message: `Customer placed a new order for ${tempFormatCurrency(payload.new.total)}`
+          });
         }
         
         loadTabData();
@@ -1150,14 +1150,13 @@ export default function TabDetailPage() {
         </div>
 
         {newOrderNotification && (
-          <div className="fixed inset-0 bg-orange-500 bg-opacity-50 animate-pulse flex items-center justify-center z-50 pointer-events-none">
-            <div 
-              className="pointer-events-auto cursor-pointer"
-              onClick={() => {
-                handleMarkServed(newOrderNotification.id, newOrderNotification.initiated_by);
-                setNewOrderNotification(null);
-              }}
-            >
+          <div 
+            className="fixed inset-0 bg-orange-500 bg-opacity-50 animate-pulse flex items-center justify-center z-50 cursor-pointer"
+            onClick={() => {
+              setNewOrderNotification(null);
+            }}
+          >
+            <div className="pointer-events-none">
               <svg 
                 width="33vh" 
                 height="33vh" 

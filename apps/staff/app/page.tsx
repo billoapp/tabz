@@ -246,16 +246,13 @@ const HighVisibilityAlert = ({
   
   return (
     <>
-      {/* Simple flashing background */}
+      {/* Simple flashing background - clickable anywhere to dismiss */}
       <div 
-        className="fixed inset-0 bg-orange-500 bg-opacity-50 animate-pulse z-[9999] flex items-center justify-center pointer-events-none"
+        className="fixed inset-0 bg-orange-500 bg-opacity-50 animate-pulse z-[9999] flex items-center justify-center cursor-pointer"
         onClick={handleDismiss}
       >
         {/* Large bell icon - outline style, white, very large */}
-        <div 
-          className="pointer-events-auto cursor-pointer"
-          onClick={handleDismiss}
-        >
+        <div className="pointer-events-none">
           <svg 
             width="33vh" 
             height="33vh" 

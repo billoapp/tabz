@@ -10,6 +10,7 @@ This document tracks the simplification of the bell alert notification system ac
 - **Transparent Container**: Container should be transparent, bell uses flashing background
 - **Number Counter**: Large white number in bottom right, appears when 2+ pending orders
 - **Staff Dashboard Priority**: Most important system shows notifications for ALL tabs
+- **Click Anywhere to Dismiss**: Clicking anywhere on the screen dismisses the alert and stops sound
 
 ## Implementation Status
 
@@ -23,13 +24,11 @@ This document tracks the simplification of the bell alert notification system ac
 - **Functionality**: Properly counts all pending items across all tabs in the bar
 
 ### ✅ COMPLETED: Staff Tab Detail Page (`apps/staff/app/tabs/[id]/page.tsx`)
-- **Bell Icon**: Replaced Lucide Bell component with custom SVG outline bell
-- **Size**: Bell icon sized to 33vh (one-third viewport height)  
-- **Style**: White outline bell with strokeWidth={1}, no fill/background
-- **Container**: Transparent container with flashing orange background
-- **Counter**: Large white number (33vh) in bottom-right when 2+ pending customer orders
-- **Data Source**: Filters tab orders for pending customer orders only
-- **Functionality**: Shows notification for new customer orders on specific tab
+- **Notification Type**: Simple toast notification instead of full-screen overlay
+- **Behavior**: Shows brief toast when new customer orders arrive
+- **Auto-dismiss**: Toast expires automatically without user interaction
+- **Reasoning**: Tab detail page managed by main staff, no waiter access yet
+- **Prevents**: Independent flashing notifications across multiple browser tabs
 
 ## Technical Changes Made
 
@@ -39,12 +38,14 @@ This document tracks the simplification of the bell alert notification system ac
 3. **Size Scaling**: Both bell and counter use `33vh` for consistent large sizing
 4. **Data Flow**: Passes `totalPending` count to notification component
 5. **Import Cleanup**: Removed unused Bell import from lucide-react
+6. **Click Anywhere**: Full overlay is clickable to dismiss alert and stop sound
 
 ### Staff Tab Detail Changes  
-1. **Bell Rendering**: Custom SVG bell instead of Lucide Bell component
-2. **Size Scaling**: Bell sized to `33vh` for visibility from distance
-3. **Counter Logic**: Shows count when 2+ pending customer orders exist
-4. **Import Cleanup**: Removed unused Bell import from lucide-react
+1. **Notification Type**: Replaced full-screen overlay with simple toast notification
+2. **Auto-dismiss**: Toast expires automatically without requiring user interaction
+3. **Prevents Conflicts**: Eliminates independent flashing across multiple browser tabs
+4. **Single Management**: Aligns with main staff managing tab details (no waiter access yet)
+5. **Import Cleanup**: Removed unused Bell import from lucide-react
 
 ## Key Design Principles Applied
 - **Minimal**: No text, emojis, or complex styling
@@ -60,7 +61,10 @@ This document tracks the simplification of the bell alert notification system ac
 
 ## Testing Notes
 - Staff dashboard shows notifications for ALL tabs (most important)
-- Staff tab detail shows notifications for specific tab only
-- Both systems use same simplified bell design
-- Counter appears at 2+ pending items as requested
-- Bell and counter both scale to 33vh for distance visibility
+- Staff tab detail shows simple toast notifications only
+- Dashboard uses large bell design for distance visibility
+- Toast notifications auto-dismiss without user interaction
+- **Click anywhere on dashboard screen to dismiss alert and stop continuous sound**
+- **No conflicting notifications** - prevents multiple browser tabs from flashing independently
+- **Single point of control** - main staff manages all notifications from dashboard
+- **Clicking does NOT automatically mark orders as served** - staff must review and decide
