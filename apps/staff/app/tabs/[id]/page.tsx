@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X, MessageCircle, Send, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X, MessageCircle, Send, AlertTriangle, Bell } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
@@ -1150,26 +1150,16 @@ export default function TabDetailPage() {
         </div>
 
         {newOrderNotification && (
-          <div className="bg-green-500 text-white p-4 animate-pulse">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h3 className="font-bold mb-1">New Order!</h3>
-                <p className="text-sm">Customer ordered {tempFormatCurrency(newOrderNotification.total)}</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleMarkServed(newOrderNotification.id, newOrderNotification.initiated_by)}
-                  className="bg-white text-green-600 px-4 py-2 rounded-lg font-semibold hover:bg-green-50"
-                >
-                  Accept
-                </button>
-                <button
-                  onClick={() => setNewOrderNotification(null)}
-                  className="bg-white bg-opacity-20 px-4 py-2 rounded-lg font-semibold hover:bg-opacity-30"
-                >
-                  Dismiss
-                </button>
-              </div>
+          <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 pointer-events-none">
+            <div 
+              className="bg-orange-500 animate-pulse rounded-full p-6 shadow-2xl pointer-events-auto cursor-pointer hover:bg-orange-600 transition-colors flex flex-col items-center justify-center min-w-[140px] min-h-[140px]"
+              onClick={() => {
+                handleMarkServed(newOrderNotification.id, newOrderNotification.initiated_by);
+                setNewOrderNotification(null);
+              }}
+            >
+              <Bell size={48} className="text-white mb-1" />
+              <span className="text-white text-xs font-medium">New Order</span>
             </div>
           </div>
         )}
