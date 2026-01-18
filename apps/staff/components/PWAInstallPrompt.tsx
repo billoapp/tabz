@@ -70,7 +70,7 @@ export default function PWAInstallPrompt({ className = '' }: PWAInstallPromptPro
       
       console.log('PWA install choice:', choice);
       
-      if (choice.outcome === 'accepted') {
+      if ((choice as any).outcome === 'accepted') {
         console.log('✅ PWA installation accepted');
       } else {
         console.log('❌ PWA installation dismissed');
