@@ -211,12 +211,14 @@ const HighVisibilityAlert = ({
   isVisible, 
   type = 'order',
   onDismiss,
-  timeout = 5
+  timeout = 5,
+  pendingCount = 0
 }: { 
   isVisible: boolean; 
   type: 'order' | 'message';
   onDismiss: () => void;
   timeout: number;
+  pendingCount: number;
 }) => {
   const [count, setCount] = useState(timeout);
   
@@ -242,107 +244,42 @@ const HighVisibilityAlert = ({
     onDismiss();
   };
   
-  if (!isVisible) return null;
-  
   return (
     <>
-      {/* Overlay with black/red flashing background */}
+      {/* Simple flashing background */}
       <div 
-        className="fixed inset-0 z-[9998]"
-        style={{
-          animation: 'flash 0.5s infinite alternate',
-          backgroundColor: 'rgba(0, 0, 0, 0.9)'
-        }}
+        className="fixed inset-0 bg-orange-500 bg-opacity-50 animate-pulse z-[9999] flex items-center justify-center pointer-events-none"
         onClick={handleDismiss}
-      />
-      
-      {/* Main Alert Content */}
-      <div 
-        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center p-4"
       >
-        {/* Flashing border */}
+        {/* Large bell icon - outline style, white, very large */}
         <div 
-          className="absolute inset-0 border-[20px] border-orange-600 animate-pulse"
-          style={{
-            animation: 'borderPulse 1s infinite',
-            boxShadow: '0 0 100px rgba(255, 100, 0, 0.8) inset'
-          }}
-        />
-        
-        {/* Main alert container */}
-        <div 
-          className="relative bg-gradient-to-br from-orange-600 via-orange-500 to-amber-500 rounded-3xl p-8 max-w-2xl w-full text-center shadow-2xl"
-          style={{
-            animation: 'pulseGlow 2s infinite',
-            boxShadow: '0 0 150px rgba(255, 100, 0, 0.9)'
-          }}
+          className="pointer-events-auto cursor-pointer"
+          onClick={handleDismiss}
         >
-          {/* Large icon */}
-          <div className="mb-6">
-            <div className="relative inline-block">
-              {/* Outer glow */}
-              <div className="absolute inset-0 bg-amber-400 blur-3xl opacity-70 rounded-full animate-ping"></div>
-              
-              {/* Icon container */}
-              <div className="relative bg-white rounded-full p-6">
-                <BellRing 
-                  size={120} 
-                  className="text-orange-600 animate-bounce"
-                  style={{
-                    filter: 'drop-shadow(0 0 20px rgba(255, 200, 0, 0.9))'
-                  }}
-                />
-              </div>
-              
-              {/* Rotating rings */}
-              <div className="absolute -inset-4 border-4 border-amber-400 rounded-full animate-spin"></div>
-              <div className="absolute -inset-8 border-4 border-orange-400 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '3s' }}></div>
-            </div>
-          </div>
-          
-          {/* Title */}
-          <h1 className="text-5xl md:text-6xl font-black text-white mb-4 animate-pulse">
-            {type === 'order' ? '🚨 NEW ORDER! 🚨' : '📢 NEW MESSAGE! 📢'}
-          </h1>
-          
-          {/* Subtitle */}
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            {type === 'order' ? 'Customer placed an order' : 'Customer sent a message'}
-          </h2>
-          
-          {/* Action text */}
-          <p className="text-xl text-white mb-8">
-            Check the pending section immediately!
-          </p>
-          
-          {/* Countdown timer - Remove auto-hide since sound is continuous */}
-          <div className="bg-black bg-opacity-50 rounded-2xl p-4 mb-6 inline-block">
-            <p className="text-3xl font-mono font-bold text-amber-400">
-              🔔 Sound playing continuously
-            </p>
-          </div>
-          
-          {/* Instructions */}
-          <div className="bg-white bg-opacity-20 rounded-xl p-4">
-            <p className="text-lg text-white font-semibold">
-              Click anywhere or press ESC to dismiss and stop sound
-            </p>
-          </div>
+          <svg 
+            width="33vh" 
+            height="33vh" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="white" 
+            strokeWidth={1} 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            className="text-white"
+          >
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+          </svg>
         </div>
         
-        {/* Corner indicators */}
-        <div className="absolute top-4 left-4 w-16 h-16 bg-orange-600 rounded-full animate-pulse flex items-center justify-center">
-          <AlertCircle size={32} className="text-white" />
-        </div>
-        <div className="absolute top-4 right-4 w-16 h-16 bg-orange-600 rounded-full animate-pulse flex items-center justify-center">
-          <AlertCircle size={32} className="text-white" />
-        </div>
-        <div className="absolute bottom-4 left-4 w-16 h-16 bg-orange-600 rounded-full animate-pulse flex items-center justify-center">
-          <AlertCircle size={32} className="text-white" />
-        </div>
-        <div className="absolute bottom-4 right-4 w-16 h-16 bg-orange-600 rounded-full animate-pulse flex items-center justify-center">
-          <AlertCircle size={32} className="text-white" />
-        </div>
+        {/* Pending orders counter - only show if 2 or more */}
+        {pendingCount >= 2 && (
+          <div className="absolute bottom-8 right-8 pointer-events-none">
+            <span className="text-white font-bold" style={{ fontSize: '33vh', lineHeight: '1' }}>
+              {pendingCount}
+            </span>
+          </div>
+        )}
       </div>
     </>
   );
@@ -1120,6 +1057,7 @@ export default function TabsPage() {
           isVisible={showAlert} 
           type={alertType}
           timeout={alertSettings.timeout}
+          pendingCount={totalPending}
           onDismiss={() => setShowAlert(false)}
         />
 

@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X, MessageCircle, Send, AlertTriangle, Bell } from 'lucide-react';
+import { ArrowRight, Clock, CheckCircle, Phone, Wallet, Plus, RefreshCw, User, UserCog, ShoppingCart, Trash2, X, MessageCircle, Send, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
@@ -1158,7 +1158,20 @@ export default function TabDetailPage() {
                 setNewOrderNotification(null);
               }}
             >
-              <Bell size={300} className="text-white" fill="none" stroke="white" strokeWidth={1} />
+              <svg 
+                width="33vh" 
+                height="33vh" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="white" 
+                strokeWidth={1} 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                className="text-white"
+              >
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+              </svg>
             </div>
             {/* Pending orders counter - only show if 2 or more */}
             {tab?.orders?.filter((order: any) => order.status === 'pending' && order.initiated_by === 'customer').length >= 2 && (
