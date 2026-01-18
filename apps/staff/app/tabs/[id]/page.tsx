@@ -117,6 +117,7 @@ export default function TabDetailPage() {
   const [tab, setTab] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [displayName, setDisplayName] = useState('');
+  const [tableNumber, setTableNumber] = useState<number | null>(null);
   const [newOrderNotification, setNewOrderNotification] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
@@ -338,13 +339,16 @@ export default function TabDetailPage() {
       setTab(fullTabData);
 
       let name = `Tab ${tabData.tab_number || 'Unknown'}`;
+      let table = null;
       if (tabData.notes) {
         try {
           const notes = JSON.parse(tabData.notes);
           name = notes.display_name || name;
+          table = notes.table_number || null;
         } catch (e) {}
       }
       setDisplayName(name);
+      setTableNumber(table);
 
       // Check if tab should be marked as overdue based on business hours
       await checkTabOverdueStatus(tabData.id);
@@ -1075,6 +1079,9 @@ export default function TabDetailPage() {
           <div className="flex items-start justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold mb-1">{displayName}</h1>
+              {tableNumber && (
+                <p className="text-xl font-semibold text-yellow-300 mb-1">Table {tableNumber}</p>
+              )}
               <p className="text-orange-100">{tab.bar?.name || 'Bar'}</p>
               <p className="text-sm text-orange-100 mt-1">Opened {kenyaTimeAgo(tab.opened_at)}</p>
             </div>

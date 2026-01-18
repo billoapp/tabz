@@ -181,6 +181,12 @@ export default function MenuPage() {
 
   const [showConnectionStatus, setShowConnectionStatus] = useState(false);
   
+  // Table selection state
+  const [showTableModal, setShowTableModal] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  const [barTables, setBarTables] = useState<number[]>([]);
+  const [tableSelectionRequired, setTableSelectionRequired] = useState(false);
+  
   // Not cold preferences for drinks
   const [notColdPreferences, setNotColdPreferences] = useState<Record<string | number, boolean>>({});
   
@@ -1190,6 +1196,64 @@ export default function MenuPage() {
         } catch (error) {
           console.error('Error loading products:', error);
         }
+        
+        // Load bar table configuration
+        try {
+          const { data: barData, error: barError } = await supabase
+            .from('bars')
+            .select('table_count, table_setup_enabled')
+            .eq('id', (fullTab as any).bar.id)
+            .single();
+
+          if (!barError && barData) {
+            const tableCount = (barData as any).table_count || 0;
+            const tableSetupEnabled = (barData as any).table_setup_enabled || false;
+            
+            if (tableSetupEnabled && tableCount > 0) {
+              // Generate table numbers array (1 to tableCount)
+              const tables = Array.from({ length: tableCount }, (_, i) => i + 1);
+              setBarTables(tables);
+              setTableSelectionRequired(true);
+              
+              // Check if tab already has a table assigned
+              const tabNotes = (fullTab as any).notes;
+              let hasTableAssigned = false;
+              if (tabNotes) {
+                try {
+                  const notes = JSON.parse(tabNotes);
+                  if (notes.table_number) {
+                    setSelectedTable(notes.table_number);
+                    hasTableAssigned = true;
+                  }
+                } catch (e) {
+                  // Ignore JSON parse errors
+                }
+              }
+              
+              // Show table selection modal if no table assigned (with delay)
+              if (!hasTableAssigned) {
+                // Show a gentle notification first
+                const notificationTimeout = setTimeout(() => {
+                  showToast({
+                    type: 'info',
+                    title: 'Table Selection',
+                    message: 'We\'ll ask for your table number in a moment...'
+                  });
+                }, 2000);
+                
+                // Then show the modal after 3 seconds total
+                const modalTimeout = setTimeout(() => {
+                  setShowTableModal(true);
+                }, 3000);
+                
+                // Store timeouts for cleanup
+                (window as any).tableSelectionTimeouts = [notificationTimeout, modalTimeout];
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error loading bar table configuration:', error);
+        }
       }
       try {
         const { data: ordersData, error: ordersError } = await supabase
@@ -1308,6 +1372,64 @@ export default function MenuPage() {
       setLoading(false);
     }
     getPendingOrderTime();
+  };
+
+  const selectTable = async (tableNumber: number | null) => {
+    if (!tab) return;
+    
+    try {
+      // Update tab notes with table number
+      let currentNotes = {};
+      if (tab.notes) {
+        try {
+          currentNotes = JSON.parse(tab.notes);
+        } catch (e) {
+          // Ignore parse errors, use empty object
+        }
+      }
+      
+      const updatedNotes = {
+        ...currentNotes,
+        table_number: tableNumber
+      };
+      
+      const { error } = await (supabase as any)
+        .from('tabs')
+        .update({ notes: JSON.stringify(updatedNotes) })
+        .eq('id', tab.id);
+      
+      if (error) {
+        console.error('Error updating table number:', error);
+        showToast({
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to assign table number'
+        });
+        return;
+      }
+      
+      setSelectedTable(tableNumber);
+      setShowTableModal(false);
+      
+      // Update local tab state
+      setTab(prev => prev ? { ...prev, notes: JSON.stringify(updatedNotes) } : null);
+      
+      // Show success message
+      const tableText = tableNumber ? `Table ${tableNumber}` : 'No specific table';
+      showToast({
+        type: 'success',
+        title: 'Table Selected',
+        message: `You've been assigned to ${tableText}`
+      });
+      
+    } catch (error) {
+      console.error('Error in selectTable:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to assign table number'
+      });
+    }
   };
 
   const handleCloseTab = async () => {
@@ -1785,7 +1907,50 @@ export default function MenuPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold">{displayName}</h1>
-              <p className="text-xs text-white text-opacity-90">{barName}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-white text-opacity-90">{barName}</p>
+                {selectedTable && (
+                  <>
+                    <span className="text-xs text-white text-opacity-60">•</span>
+                    <button
+                      onClick={() => setShowTableModal(true)}
+                      className="text-xs bg-white bg-opacity-20 px-2 py-0.5 rounded-full hover:bg-opacity-30 transition-colors"
+                    >
+                      Table {selectedTable}
+                    </button>
+                  </>
+                )}
+                {selectedTable === null && tableSelectionRequired && (
+                  <>
+                    <span className="text-xs text-white text-opacity-60">•</span>
+                    <button
+                      onClick={() => setShowTableModal(true)}
+                      className="text-xs bg-white bg-opacity-20 px-2 py-0.5 rounded-full hover:bg-opacity-30 transition-colors"
+                    >
+                      Outside/Takeaway
+                    </button>
+                  </>
+                )}
+                {!selectedTable && selectedTable !== null && tableSelectionRequired && (
+                  <>
+                    <span className="text-xs text-white text-opacity-60">•</span>
+                    <button
+                      onClick={() => setShowTableModal(true)}
+                      className="text-xs bg-yellow-400 bg-opacity-80 text-yellow-900 px-2 py-0.5 rounded-full hover:bg-opacity-90 transition-colors animate-pulse"
+                    >
+                      Select Table
+                    </button>
+                  </>
+                )}
+                {tableSelectionRequired && (
+                  <button
+                    onClick={() => setShowTableModal(true)}
+                    className="text-xs text-white text-opacity-70 hover:text-white transition-colors ml-2"
+                  >
+                    Change Table
+                  </button>
+                )}
+              </div>
             </div>
             
             {/* Average Response Time Badge */}
@@ -2104,10 +2269,10 @@ export default function MenuPage() {
                           }}
                         >
                           <div
-                            className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-80"
+                            className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-40"
                             onClick={() => addToCart(barProduct)}
                           >
-                            <div className="w-full h-48 relative bg-gray-100">
+                            <div className="w-full h-24 relative bg-gray-100">
                               {displayImage ? (
                                 <img
                                   src={displayImage}
@@ -2121,7 +2286,7 @@ export default function MenuPage() {
                                       parent.innerHTML = '';
                                       const iconContainer = document.createElement('div');
                                       parent.appendChild(iconContainer);
-                                      ReactDOM.createRoot(iconContainer).render(<Icon size={48} className="text-4xl text-gray-400 font-semibold" />);
+                                      ReactDOM.createRoot(iconContainer).render(<Icon size={32} className="text-2xl text-gray-400 font-semibold" />);
                                     }
                                   }}
                                 />
@@ -2129,12 +2294,12 @@ export default function MenuPage() {
                                 <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
                                   {(() => {
                                     const Icon = getCategoryIcon(product.category || 'Uncategorized');
-                                    return <Icon size={48} className="text-gray-400" />;
+                                    return <Icon size={32} className="text-gray-400" />;
                                   })()}
                                 </div>
                               )}
                             </div>
-                            <div className="flex-1 p-4 flex flex-col justify-between">
+                            <div className="flex-1 p-3 flex flex-col justify-between">
                               <h3 className={`text-sm font-medium text-gray-900 text-left leading-tight ${product.name && product.name.length > 20 ? 'text-xs' : ''}`}>{product.name || 'Product'}</h3>
                               <p className="text-sm text-gray-600 mt-2 text-left">{tempFormatCurrency(barProduct.sale_price)}</p>
                             </div>
@@ -3217,6 +3382,52 @@ export default function MenuPage() {
         </div>
       )}
       
+      {/* Table Selection Modal */}
+      {showTableModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto transform animate-slideUp">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Utensils size={32} className="text-orange-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">What's your table number?</h2>
+              <p className="text-gray-600">
+                Please select your table number to help staff serve you better
+              </p>
+            </div>
+            
+            {/* Table Grid */}
+            <div className="grid grid-cols-5 gap-3 mb-6">
+              {barTables.map((tableNum) => (
+                <button
+                  key={tableNum}
+                  onClick={() => selectTable(tableNum)}
+                  className="aspect-square bg-orange-50 border-2 border-orange-200 rounded-lg hover:bg-orange-100 hover:border-orange-300 transition-all duration-200 flex items-center justify-center font-bold text-orange-700 hover:scale-105"
+                >
+                  {tableNum}
+                </button>
+              ))}
+            </div>
+            
+            {/* None Option */}
+            <button
+              onClick={() => selectTable(null)}
+              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-lg font-medium transition-colors mb-4"
+            >
+              NONE (Outside/Takeaway)
+            </button>
+            
+            {/* Skip for now (if needed) */}
+            <button
+              onClick={() => setShowTableModal(false)}
+              className="w-full text-gray-500 py-2 text-sm hover:text-gray-700"
+            >
+              Skip for now
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Message Panel Slide-in */}
       <MessagePanel
         isOpen={showMessagePanel}

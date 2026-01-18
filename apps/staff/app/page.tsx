@@ -690,6 +690,18 @@ export default function TabsPage() {
     return `Tab ${tab.tab_number || 'Unknown'}`;
   };
 
+  const getTableNumber = (tab: any) => {
+    if (tab.notes) {
+      try {
+        const notes = JSON.parse(tab.notes);
+        return notes.table_number || null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  };
+
   const getTabBalance = (tab: any) => {
     // Only count CONFIRMED orders (not pending or cancelled)
     const confirmedOrders = tab.orders?.filter((o: any) => o.status === 'confirmed') || [];
@@ -981,7 +993,14 @@ export default function TabsPage() {
                   >
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className={`text-lg font-bold truncate ${hasPendingOrders ? 'text-white' : 'text-gray-800'}`}>{getDisplayName(tab)}</h3>
+                        <div className="flex-1 min-w-0">
+                          <h3 className={`text-lg font-bold truncate ${hasPendingOrders ? 'text-white' : 'text-gray-800'}`}>{getDisplayName(tab)}</h3>
+                          {getTableNumber(tab) && (
+                            <p className={`text-sm font-medium ${hasPendingOrders ? 'text-yellow-300' : 'text-orange-600'}`}>
+                              Table {getTableNumber(tab)}
+                            </p>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                           {tab.unreadMessages > 0 && (
                             <div className="bg-blue-500 text-white rounded-lg p-1 relative">
