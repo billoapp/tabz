@@ -46,6 +46,8 @@ export default function OverdueTabsPage() {
     try {
       if (!bar) return;
       
+      console.log('🔍 Loading overdue tabs for bar:', bar.id);
+      
       const { data, error } = await supabase
         .from('tabs')
         .select(`
@@ -57,10 +59,17 @@ export default function OverdueTabsPage() {
         .eq('bar_id', bar.id) // Only show this bar's overdue tabs
         .order('moved_to_overdue_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error loading overdue tabs:', error);
+        throw error;
+      }
+      
+      console.log('✅ Loaded overdue tabs:', data?.length || 0);
       setOverdueTabs(data || []);
     } catch (error) {
       console.error('Error loading overdue tabs:', error);
+      // Show user-friendly error message
+      alert('Failed to load overdue tabs. Please refresh the page.');
     } finally {
       setLoading(false);
     }

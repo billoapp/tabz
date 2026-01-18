@@ -20,6 +20,7 @@ interface CartItem {
   image_url?: string;
   category?: string;
   not_cold?: boolean;
+  cold?: boolean; // Add cold option
 }
 
 interface OrderItem {
@@ -30,6 +31,7 @@ interface OrderItem {
   total: number;
   category?: string;
   not_cold?: boolean;
+  cold?: boolean; // Add cold option to order items
 }
 
 interface CurrentTab {
@@ -71,6 +73,18 @@ export default function CartPage() {
       }
       return item;
     }).filter(item => (item.quantity || 0) > 0);
+    
+    setCart(newCart);
+    sessionStorage.setItem('cart', JSON.stringify(newCart));
+  };
+
+  const toggleCold = (id: number) => {
+    const newCart = cart.map(item => {
+      if (item.id === id) {
+        return { ...item, cold: !item.cold };
+      }
+      return item;
+    });
     
     setCart(newCart);
     sessionStorage.setItem('cart', JSON.stringify(newCart));
@@ -119,7 +133,8 @@ export default function CartPage() {
           price: item.price,
           total: item.price * item.quantity,
           category: item.category,
-          ...(isDrinkItem(item) && notColdPreferences[itemId] && { not_cold: true })
+          not_cold: isDrinkItem(item) && notColdPreferences[itemId] ? true : false,
+          cold: item.cold || false // Include cold preference
         };
       });
 
