@@ -2257,7 +2257,7 @@ export default function MenuPage() {
                       return (
                         <div
                           key={barProduct.id}
-                          className="flex-shrink-0 w-42 transform transition-all duration-300 hover:scale-105"
+                          className="flex-shrink-0 flex-grow-0 w-42 transform transition-all duration-300 hover:scale-105"
                           style={{ 
                             animationDelay: `${index * 50}ms`,
                             opacity: foodMenuCollapsed ? 0 : 1,
@@ -2265,7 +2265,7 @@ export default function MenuPage() {
                           }}
                         >
                           <div
-                            className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-52"
+                            className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-52 w-full"
                             onClick={() => addToCart(barProduct)}
                           >
                             <div className="w-full h-32 relative bg-gray-100">
@@ -2396,7 +2396,7 @@ export default function MenuPage() {
                       return (
                         <div
                           key={barProduct.id}
-                          className="flex-shrink-0 w-32 transform transition-all duration-300 hover:scale-105"
+                          className="flex-shrink-0 flex-grow-0 w-32 transform transition-all duration-300 hover:scale-105"
                           style={{ 
                             animationDelay: `${index * 50}ms`,
                             opacity: drinksMenuCollapsed ? 0 : 1,
@@ -2404,7 +2404,7 @@ export default function MenuPage() {
                           }}
                         >
                           <div
-                            className="bg-white overflow-hidden border-2 border-blue-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-40"
+                            className="bg-white overflow-hidden border-2 border-blue-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-40 w-full"
                             onClick={() => addToCart(barProduct)}
                           >
                             <div className="w-full h-24 relative bg-gray-100">

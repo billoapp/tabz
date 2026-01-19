@@ -322,6 +322,68 @@ export default function MenuManagementPage() {
     return LayoutGrid;
   };
 
+  // Helper function to check if a category is a drink category
+  const isDrinkCategory = (categoryName: string): boolean => {
+    const category = categoryName.toLowerCase();
+    
+    return (
+      category.includes('beer') || 
+      category.includes('cider') ||
+      category.includes('wine') || 
+      category.includes('champagne') ||
+      category.includes('spirits') || 
+      category.includes('whiskey') || 
+      category.includes('gin') || 
+      category.includes('vodka') || 
+      category.includes('rum') || 
+      category.includes('tequila') ||
+      category.includes('liqueur') || 
+      category.includes('brandy') || 
+      category.includes('cocktail') ||
+      category.includes('non-alcoholic') || 
+      category.includes('soft drink') || 
+      category.includes('juice') || 
+      category.includes('water') || 
+      category.includes('energy') || 
+      category.includes('coffee') || 
+      category.includes('tea')
+    );
+  };
+
+  // Filter categories to only show drink categories for catalog tab
+  const drinkCategories = categories.filter(cat => isDrinkCategory(cat.name));
+
+  // Helper function to check if a product is a drink based on Supabase categories
+  const isDrinkProduct = (product: Product): boolean => {
+    if (!product?.category) return false;
+    
+    const category = product.category.toLowerCase();
+    
+    // Check against actual Supabase drink categories
+    return (
+      category.includes('beer') || 
+      category.includes('cider') ||
+      category.includes('wine') || 
+      category.includes('champagne') ||
+      category.includes('spirits') || 
+      category.includes('whiskey') || 
+      category.includes('gin') || 
+      category.includes('vodka') || 
+      category.includes('rum') || 
+      category.includes('tequila') ||
+      category.includes('liqueur') || 
+      category.includes('brandy') || 
+      category.includes('cocktail') ||
+      category.includes('non-alcoholic') || 
+      category.includes('soft drink') || 
+      category.includes('juice') || 
+      category.includes('water') || 
+      category.includes('energy') || 
+      category.includes('coffee') || 
+      category.includes('tea')
+    );
+  };
+
   // Upload image to server
   const uploadImageToServer = async (file: File): Promise<string> => {
     try {
@@ -542,24 +604,30 @@ export default function MenuManagementPage() {
     }
   };
 
-  const filteredProducts = products.filter((product) => {
-    if (selectedSupplier && product.supplier_id !== selectedSupplier.id) {
-      return false;
-    }
-    if (selectedCategory !== 'all' && product.category !== selectedCategory) {
-      return false;
-    }
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        product.name.toLowerCase().includes(query) ||
-        (product.sku && product.sku.toLowerCase().includes(query)) ||
-        (product.description && product.description.toLowerCase().includes(query)) ||
-        product.category.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
+  const filteredProducts = products
+    .filter((product) => {
+      // CATALOG TAB: Only show drinks
+      if (!isDrinkProduct(product)) {
+        return false;
+      }
+      
+      if (selectedSupplier && product.supplier_id !== selectedSupplier.id) {
+        return false;
+      }
+      if (selectedCategory !== 'all' && product.category !== selectedCategory) {
+        return false;
+      }
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          product.name.toLowerCase().includes(query) ||
+          (product.sku && product.sku.toLowerCase().includes(query)) ||
+          (product.description && product.description.toLowerCase().includes(query)) ||
+          product.category.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    });
 
   // ========== CUSTOM PRODUCTS FUNCTIONS ==========
   const handleCreateCustomProduct = async () => {
@@ -1164,7 +1232,7 @@ export default function MenuManagementPage() {
               <LayoutGrid size={16} />
               All
             </button>
-            {categories.map((cat) => {
+            {drinkCategories.map((cat) => {
               const Icon = getCategoryIcon(cat.name);
               return (
                 <button
@@ -1619,7 +1687,7 @@ export default function MenuManagementPage() {
                 >
                   All
                 </button>
-                {categories.map((cat) => (
+                {drinkCategories.map((cat) => (
                   <button
                     key={cat.name}
                     onClick={() => setSelectedCategory(cat.name)}
@@ -1769,7 +1837,7 @@ export default function MenuManagementPage() {
                         className="w-full px-3 py-2 border rounded-lg"
                       >
                         <option value="">Select category</option>
-                        {categories.map((cat) => (
+                        {drinkCategories.map((cat) => (
                           <option key={cat.name} value={cat.name}>{cat.name}</option>
                         ))}
                       </select>
@@ -1885,7 +1953,7 @@ export default function MenuManagementPage() {
                         className="w-full px-3 py-2 border rounded-lg"
                       >
                         <option value="">Select category</option>
-                        {categories.map((cat) => (
+                        {drinkCategories.map((cat) => (
                           <option key={cat.name} value={cat.name}>{cat.name}</option>
                         ))}
                       </select>
