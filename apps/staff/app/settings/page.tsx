@@ -81,6 +81,22 @@ export default function SettingsPage() {
   });
   const [savingTableSettings, setSavingTableSettings] = useState(false);
 
+  // M-Pesa Setup State
+  const [mpesaSettings, setMpesaSettings] = useState({
+    mpesa_enabled: false,
+    mpesa_environment: 'sandbox' as 'sandbox' | 'production',
+    mpesa_business_shortcode: '',
+    mpesa_consumer_key: '',
+    mpesa_consumer_secret: '',
+    mpesa_passkey: '',
+    mpesa_setup_completed: false,
+    mpesa_last_test_at: null as string | null,
+    mpesa_test_status: 'pending' as 'pending' | 'success' | 'failed'
+  });
+  const [savingMpesaSettings, setSavingMpesaSettings] = useState(false);
+  const [testingMpesa, setTestingMpesa] = useState(false);
+  const [showMpesaSetup, setShowMpesaSetup] = useState(false);
+
   // Business Hours State
   const [businessHoursMode, setBusinessHoursMode] = useState<BusinessHoursMode>('simple');
   const [savingHours, setSavingHours] = useState(false);
@@ -202,6 +218,19 @@ export default function SettingsPage() {
       setTableSettings({
         table_setup_enabled: data.table_setup_enabled ?? false,
         table_count: data.table_count ?? 20
+      });
+
+      // Load M-Pesa settings
+      setMpesaSettings({
+        mpesa_enabled: data.mpesa_enabled ?? false,
+        mpesa_environment: data.mpesa_environment ?? 'sandbox',
+        mpesa_business_shortcode: data.mpesa_business_shortcode ?? '',
+        mpesa_consumer_key: '', // Never load encrypted keys to UI
+        mpesa_consumer_secret: '', // Never load encrypted keys to UI
+        mpesa_passkey: '', // Never load encrypted keys to UI
+        mpesa_setup_completed: data.mpesa_setup_completed ?? false,
+        mpesa_last_test_at: data.mpesa_last_test_at ?? null,
+        mpesa_test_status: data.mpesa_test_status ?? 'pending'
       });
 
       // Load business hours
@@ -620,6 +649,153 @@ export default function SettingsPage() {
       alert('Failed to save table settings. Please try again.');
     } finally {
       setSavingTableSettings(false);
+    }
+  };
+
+  const handleSaveMpesaSettings = async () => {
+    // Validate M-Pesa credentials
+    if (mpesaSettings.mpesa_enabled) {
+      if (!mpesaSettings.mpesa_business_shortcode || 
+          !mpesaSettings.mpesa_consumer_key || 
+          !mpesaSettings.mpesa_consumer_secret || 
+          !mpesaSettings.mpesa_passkey) {
+        alert('❌ All M-Pesa credentials are required when M-Pesa is enabled.');
+        return;
+      }
+
+      // Validate business shortcode format
+      if (!/^\d{5,7}$/.test(mpesaSettings.mpesa_business_shortcode)) {
+        alert('❌ Business shortcode must be 5-7 digits.');
+        return;
+      }
+    }
+
+    setSavingMpesaSettings(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        router.push('/login');
+        return;
+      }
+
+      const userBarId = user.user_metadata.bar_id;
+
+      // Prepare update data
+      const updateData: any = {
+        mpesa_enabled: mpesaSettings.mpesa_enabled,
+        mpesa_environment: mpesaSettings.mpesa_environment,
+        mpesa_business_shortcode: mpesaSettings.mpesa_business_shortcode,
+        mpesa_setup_completed: false, // Reset until tested
+        mpesa_test_status: 'pending'
+      };
+
+      // Only update credentials if they were provided
+      if (mpesaSettings.mpesa_consumer_key) {
+        // Inline encryption function to avoid import issues
+        const encryptCredential = (plaintext: string): string => {
+          const crypto = require('crypto');
+          const ENCRYPTION_KEY = process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!';
+          
+          const iv = crypto.randomBytes(16);
+          const key = Buffer.from(ENCRYPTION_KEY.slice(0, 32));
+          const cipher = crypto.createCipher('aes-256-gcm', key);
+          
+          let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+          encrypted += cipher.final('hex');
+          
+          const authTag = cipher.getAuthTag();
+          
+          return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
+        };
+        
+        updateData.mpesa_consumer_key_encrypted = encryptCredential(mpesaSettings.mpesa_consumer_key);
+        updateData.mpesa_consumer_secret_encrypted = encryptCredential(mpesaSettings.mpesa_consumer_secret);
+        updateData.mpesa_passkey_encrypted = encryptCredential(mpesaSettings.mpesa_passkey);
+      }
+
+      const { error } = await (supabase as any)
+        .from('bars')
+        .update(updateData)
+        .eq('id', userBarId);
+
+      if (error) throw error;
+
+      // Clear sensitive data from state
+      setMpesaSettings(prev => ({
+        ...prev,
+        mpesa_consumer_key: '',
+        mpesa_consumer_secret: '',
+        mpesa_passkey: '',
+        mpesa_setup_completed: false,
+        mpesa_test_status: 'pending'
+      }));
+
+      alert('✅ M-Pesa settings saved! Please test the connection.');
+    } catch (error) {
+      console.error('Error saving M-Pesa settings:', error);
+      alert('Failed to save M-Pesa settings. Please try again.');
+    } finally {
+      setSavingMpesaSettings(false);
+    }
+  };
+
+  const handleTestMpesa = async () => {
+    if (!mpesaSettings.mpesa_business_shortcode) {
+      alert('❌ Please save M-Pesa settings first.');
+      return;
+    }
+
+    setTestingMpesa(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        return;
+      }
+
+      const userBarId = user.user_metadata.bar_id;
+
+      // Test M-Pesa credentials
+      const response = await fetch('/api/payments/mpesa/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          barId: userBarId
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setMpesaSettings(prev => ({
+          ...prev,
+          mpesa_setup_completed: true,
+          mpesa_test_status: 'success',
+          mpesa_last_test_at: new Date().toISOString()
+        }));
+
+        alert('✅ M-Pesa credentials validated successfully! Your setup is complete.');
+      } else {
+        throw new Error(result.error || 'Test failed');
+      }
+    } catch (error: any) {
+      console.error('Error testing M-Pesa:', error);
+      
+      setMpesaSettings(prev => ({
+        ...prev,
+        mpesa_setup_completed: false,
+        mpesa_test_status: 'failed',
+        mpesa_last_test_at: new Date().toISOString()
+      }));
+
+      alert('❌ M-Pesa test failed: ' + error.message);
+    } finally {
+      setTestingMpesa(false);
     }
   };
 
@@ -1498,6 +1674,221 @@ export default function SettingsPage() {
                 <Save size={20} />
                 {savingPaymentSettings ? 'Saving...' : 'Save Payment Settings'}
               </button>
+            </div>
+          )}
+
+          {/* M-Pesa Setup Section */}
+          {!isNewUser && (
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Phone size={20} className="text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-800">M-Pesa Setup</h3>
+                    <p className="text-sm text-gray-500">Configure M-Pesa payments with your Daraja credentials</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowMpesaSetup(!showMpesaSetup)}
+                  className="flex items-center gap-2 text-green-600 hover:text-green-700 font-medium"
+                >
+                  {showMpesaSetup ? 'Hide Setup' : 'Setup M-Pesa'}
+                </button>
+              </div>
+
+              {/* M-Pesa Status */}
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${
+                      mpesaSettings.mpesa_setup_completed 
+                        ? 'bg-green-500' 
+                        : mpesaSettings.mpesa_enabled 
+                        ? 'bg-yellow-500' 
+                        : 'bg-gray-400'
+                    }`}></div>
+                    <span className="text-sm font-medium text-gray-700">
+                      {mpesaSettings.mpesa_setup_completed 
+                        ? 'M-Pesa Active' 
+                        : mpesaSettings.mpesa_enabled 
+                        ? 'Setup Required' 
+                        : 'Not Configured'}
+                    </span>
+                  </div>
+                  {mpesaSettings.mpesa_last_test_at && (
+                    <span className="text-xs text-gray-500">
+                      Last tested: {new Date(mpesaSettings.mpesa_last_test_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                {mpesaSettings.mpesa_test_status === 'failed' && (
+                  <p className="text-xs text-red-600 mt-1">Last test failed. Please check your credentials.</p>
+                )}
+              </div>
+
+              {showMpesaSetup && (
+                <div className="space-y-4 border-t border-gray-200 pt-4">
+                  {/* Environment Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Environment
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setMpesaSettings({...mpesaSettings, mpesa_environment: 'sandbox'})}
+                        className={`p-3 rounded-lg text-center transition ${
+                          mpesaSettings.mpesa_environment === 'sandbox'
+                            ? 'bg-orange-100 border-2 border-orange-500 text-orange-700'
+                            : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="text-sm font-medium">Sandbox</span>
+                        <p className="text-xs text-gray-500 mt-1">For testing</p>
+                      </button>
+                      
+                      <button
+                        onClick={() => setMpesaSettings({...mpesaSettings, mpesa_environment: 'production'})}
+                        className={`p-3 rounded-lg text-center transition ${
+                          mpesaSettings.mpesa_environment === 'production'
+                            ? 'bg-green-100 border-2 border-green-500 text-green-700'
+                            : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="text-sm font-medium">Production</span>
+                        <p className="text-xs text-gray-500 mt-1">Live payments</p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Credentials Form */}
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Business Shortcode <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={mpesaSettings.mpesa_business_shortcode}
+                        onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_business_shortcode: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                        placeholder="e.g., 174379"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Your PayBill or Till number from Daraja</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Consumer Key <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={mpesaSettings.mpesa_consumer_key}
+                        onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_consumer_key: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                        placeholder="Enter your Daraja Consumer Key"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Consumer Secret <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={mpesaSettings.mpesa_consumer_secret}
+                        onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_consumer_secret: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                        placeholder="Enter your Daraja Consumer Secret"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Passkey <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={mpesaSettings.mpesa_passkey}
+                        onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_passkey: e.target.value})}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                        placeholder="Enter your Daraja Passkey"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Information Box */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-blue-800">
+                        <p className="font-medium mb-1">How to get Daraja credentials:</p>
+                        <ul className="text-xs space-y-1 ml-2">
+                          <li>• Visit <a href="https://developer.safaricom.co.ke" target="_blank" className="underline">developer.safaricom.co.ke</a></li>
+                          <li>• Create an account and log in</li>
+                          <li>• Create a new app and select "Lipa Na M-Pesa Online"</li>
+                          <li>• Copy the Consumer Key, Consumer Secret, and Passkey</li>
+                          <li>• Use your PayBill or Till number as Business Shortcode</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveMpesaSettings}
+                      disabled={savingMpesaSettings}
+                      className="flex-1 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                    >
+                      <Save size={20} />
+                      {savingMpesaSettings ? 'Saving...' : 'Save Credentials'}
+                    </button>
+                    
+                    {mpesaSettings.mpesa_business_shortcode && (
+                      <button
+                        onClick={handleTestMpesa}
+                        disabled={testingMpesa}
+                        className="flex-1 bg-blue-500 text-white py-3 rounded-lg font-semibold hover:bg-blue-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                      >
+                        {testingMpesa ? (
+                          <>
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                            Testing...
+                          </>
+                        ) : (
+                          <>
+                            <Phone size={20} />
+                            Test Connection
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Enable M-Pesa Toggle */}
+                  {mpesaSettings.mpesa_setup_completed && (
+                    <div className="border-t border-gray-200 pt-4">
+                      <label className="flex items-center justify-between p-3 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition">
+                        <div className="flex items-center gap-3">
+                          <Phone size={18} className="text-green-600" />
+                          <div>
+                            <span className="text-sm font-medium text-gray-700">Enable M-Pesa Payments</span>
+                            <p className="text-xs text-gray-500">Allow customers to pay via M-Pesa</p>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={mpesaSettings.mpesa_enabled}
+                          onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_enabled: e.target.checked})}
+                          className="w-5 h-5 text-green-500 rounded focus:ring-green-500"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
