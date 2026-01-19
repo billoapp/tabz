@@ -97,7 +97,10 @@ interface Supplier {
   id: string;
   name: string;
   logo_url?: string;
+  subscription_tier?: 'basic' | 'featured' | 'premium';
   active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface Category {
@@ -385,6 +388,29 @@ export default function MenuManagementPage() {
     );
   };
 
+  // Helper function to render supplier buttons
+  const renderSupplierButtons = () => {
+    if (!suppliers || suppliers.length === 0) return null;
+    
+    return suppliers.map((supplier: Supplier) => {
+      const isSelected = selectedSupplier?.id === supplier.id;
+      return (
+        <button
+          key={supplier.id}
+          onClick={() => setSelectedSupplier(supplier)}
+          className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+            isSelected ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          {supplier.logo_url && (
+            <img src={supplier.logo_url} alt={supplier.name} className="w-5 h-5 rounded-full object-cover" />
+          )}
+          {supplier.name}
+        </button>
+      );
+    });
+  };
+
   // Upload image to server
   const uploadImageToServer = async (file: File): Promise<string> => {
     try {
@@ -463,10 +489,24 @@ export default function MenuManagementPage() {
       if (categoriesRes.error) throw categoriesRes.error;
       if (productsRes.error) throw productsRes.error;
 
-      // ✅ Explicitly cast to expected types with proper filtering
-      setSuppliers((suppliersRes.data || []).filter(s => s !== null) as Supplier[]);
-      setCategories((categoriesRes.data || []).filter(c => c !== null) as Category[]);
-      setProducts((productsRes.data || []).filter(p => p !== null) as Product[]);
+      // ✅ Properly handle the data with type safety
+      if (suppliersRes.data) {
+        setSuppliers(suppliersRes.data as Supplier[]);
+      } else {
+        setSuppliers([]);
+      }
+      
+      if (categoriesRes.data) {
+        setCategories(categoriesRes.data as Category[]);
+      } else {
+        setCategories([]);
+      }
+      
+      if (productsRes.data) {
+        setProducts(productsRes.data as Product[]);
+      } else {
+        setProducts([]);
+      }
       
       // Debug logging
       console.log('📊 Loaded categories:', categoriesRes.data);
@@ -632,7 +672,7 @@ export default function MenuManagementPage() {
 
   // Group products by supplier for display
   const groupedProducts: Record<string, { supplier: Supplier; products: Product[] }> | null = groupBySupplier 
-    ? suppliers.reduce((acc: Record<string, { supplier: Supplier; products: Product[] }>, supplier) => {
+    ? suppliers.reduce((acc: Record<string, { supplier: Supplier; products: Product[] }>, supplier: Supplier) => {
         const supplierProducts = filteredProducts.filter(p => p.supplier_id === supplier.id);
         if (supplierProducts.length > 0) {
           acc[supplier.id] = {
@@ -1704,143 +1744,129 @@ export default function MenuManagementPage() {
                   >
                     All Suppliers
                   </button>
-                  {suppliers.map((supplier) => (
+                  {renderSupplierButtons()}
+                </div>
+              </div>
+
+              {/* Categories */}
+              <div className="mb-6">
+                <h3 className="font-semibold text-gray-800 mb-2">Browse by Category</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedCategory('all')}
+                    className={`px-4 py-2 rounded-lg ${selectedCategory === 'all' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'}`}
+                  >
+                    All
+                  </button>
+                  {drinkCategories.map((cat: Category) => (
                     <button
-                      key={supplier.id}
-                      onClick={() => setSelectedSupplier(supplier)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
-                        selectedSupplier?.id === supplier.id ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      key={cat.name}
+                      onClick={() => setSelectedCategory(cat.name)}
+                      className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                        selectedCategory === cat.name ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
                       }`}
                     >
-                      {supplier.logo_url && (
-                        <img src={supplier.logo_url} alt={supplier.name} className="w-5 h-5 rounded-full object-cover" />
-                      )}
-                      {supplier.name}
+                      {cat.name}
                     </button>
                   ))}
                 </div>
               </div>
-            </div>
 
-            {/* Categories */}
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-800 mb-2">Browse by Category</h3>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setSelectedCategory('all')}
-                  className={`px-4 py-2 rounded-lg ${selectedCategory === 'all' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'}`}
-                >
-                  All
-                </button>
-                {drinkCategories.map((cat) => (
-                  <button
-                    key={cat.name}
-                    onClick={() => setSelectedCategory(cat.name)}
-                    className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
-                      selectedCategory === cat.name ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Products Grid */}
-            {catalogLoading ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
-                <p className="text-gray-500">Loading catalog...</p>
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl">
-                <Database size={48} className="mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-500">No products found</p>
-                <p className="text-sm text-gray-400 mt-1">Try a different search or filter</p>
-              </div>
-            ) : groupBySupplier && groupedProducts ? (
-              <div className="space-y-6">
-                {Object.values(groupedProducts).map(({ supplier, products }) => (
-                  <div key={supplier.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-orange-50 to-red-50 px-4 py-3 border-b">
-                      <div className="flex items-center gap-3">
-                        {supplier.logo_url && (
-                          <img 
-                            src={supplier.logo_url} 
-                            alt={supplier.name}
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                        )}
-                        <div>
-                          <h3 className="font-semibold text-gray-800">{supplier.name}</h3>
-                          <p className="text-sm text-gray-600">{products.length} drink products</p>
+              {/* Products Grid */}
+              {catalogLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                  <p className="text-gray-500">Loading catalog...</p>
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-xl">
+                  <Database size={48} className="mx-auto mb-3 text-gray-300" />
+                  <p className="text-gray-500">No products found</p>
+                  <p className="text-sm text-gray-400 mt-1">Try a different search or filter</p>
+                </div>
+              ) : groupBySupplier && groupedProducts ? (
+                <div className="space-y-6">
+                  {Object.values(groupedProducts).map(({ supplier, products }: { supplier: Supplier; products: Product[] }) => (
+                    <div key={supplier.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-orange-50 to-red-50 px-4 py-3 border-b">
+                        <div className="flex items-center gap-3">
+                          {supplier.logo_url && (
+                            <img 
+                              src={supplier.logo_url} 
+                              alt={supplier.name}
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          )}
+                          <div>
+                            <h3 className="font-semibold text-gray-800">{supplier.name}</h3>
+                            <p className="text-sm text-gray-600">{products.length} drink products</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {products.map((product) => {
+                            const alreadyInMenu = isProductInMenu(product.id);
+                            const displayImage = getDisplayImage(product);
+                            return (
+                              <div key={product.id} className="bg-gray-50 rounded-lg shadow-sm p-3">
+                                <div className="flex gap-3">
+                                  {displayImage ? (
+                                    <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                                      <img
+                                        src={displayImage}
+                                        alt={product.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
+                                      {(() => {
+                                        const Icon = getCategoryIcon(product.category);
+                                        return <Icon size={20} className="text-orange-500" />;
+                                      })()}
+                                    </div>
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-start justify-between mb-1">
+                                      <h4 className="font-medium text-gray-800 text-sm truncate">{product.name}</h4>
+                                      {alreadyInMenu && (
+                                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full ml-2">
+                                          In Menu
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mb-1">{product.sku}</p>
+                                    <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
+                                      {product.category}
+                                    </span>
+                                    {!alreadyInMenu && (
+                                      <div className="flex items-center gap-2 mt-2">
+                                        <input
+                                          type="number"
+                                          placeholder="Price"
+                                          value={addingPrice[product.id] || ''}
+                                          onChange={(e) => setAddingPrice({...addingPrice, [product.id]: e.target.value})}
+                                          className="w-16 px-2 py-1 border rounded text-xs"
+                                        />
+                                        <button
+                                          onClick={() => handleAddToMenu(product)}
+                                          className="px-2 py-1 bg-orange-500 text-white rounded text-xs"
+                                        >
+                                          Add
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
-                    <div className="p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {products.map((product) => {
-                          const alreadyInMenu = isProductInMenu(product.id);
-                          const displayImage = getDisplayImage(product);
-                          return (
-                            <div key={product.id} className="bg-gray-50 rounded-lg shadow-sm p-3">
-                              <div className="flex gap-3">
-                                {displayImage ? (
-                                  <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                                    <img
-                                      src={displayImage}
-                                      alt={product.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
-                                    {(() => {
-                                      const Icon = getCategoryIcon(product.category);
-                                      return <Icon size={20} className="text-orange-500" />;
-                                    })()}
-                                  </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between mb-1">
-                                    <h4 className="font-medium text-gray-800 text-sm truncate">{product.name}</h4>
-                                    {alreadyInMenu && (
-                                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full ml-2">
-                                        In Menu
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-gray-500 mb-1">{product.sku}</p>
-                                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
-                                    {product.category}
-                                  </span>
-                                  {!alreadyInMenu && (
-                                    <div className="flex items-center gap-2 mt-2">
-                                      <input
-                                        type="number"
-                                        placeholder="Price"
-                                        value={addingPrice[product.id] || ''}
-                                        onChange={(e) => setAddingPrice({...addingPrice, [product.id]: e.target.value})}
-                                        className="w-16 px-2 py-1 border rounded text-xs"
-                                      />
-                                      <button
-                                        onClick={() => handleAddToMenu(product)}
-                                        className="px-2 py-1 bg-orange-500 text-white rounded text-xs"
-                                      >
-                                        Add
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredProducts.map((product) => {
@@ -1924,6 +1950,7 @@ export default function MenuManagementPage() {
                 })}
               </div>
             )}
+            </div>
           </div>
         )}
 

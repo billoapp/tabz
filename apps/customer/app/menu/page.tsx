@@ -2265,7 +2265,7 @@ export default function MenuPage() {
                           }}
                         >
                           <div
-                            className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-52 w-full"
+                            className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-52 w-42"
                             onClick={() => addToCart(barProduct)}
                           >
                             <div className="w-full h-32 relative bg-gray-100">
@@ -2404,7 +2404,7 @@ export default function MenuPage() {
                           }}
                         >
                           <div
-                            className="bg-white overflow-hidden border-2 border-blue-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-40 w-full"
+                            className="bg-white overflow-hidden border-2 border-blue-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-40 w-32"
                             onClick={() => addToCart(barProduct)}
                           >
                             <div className="w-full h-24 relative bg-gray-100">
