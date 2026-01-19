@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle, CreditCard, Phone, DollarSign, Send, Clock, Calendar, Sun, Moon, BellRing } from 'lucide-react';
+import { ArrowRight, Store, Bell, QrCode, Save, X, MessageSquare, Copy, Check, Edit2, Download, AlertCircle, CreditCard, Phone, DollarSign, Send, Clock, Calendar, Sun, Moon, BellRing, Grid3X3 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -77,6 +77,13 @@ export default function SettingsPage() {
   });
   const [savingAlertSettings, setSavingAlertSettings] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
+
+  // Table setup state
+  const [tableSettings, setTableSettings] = useState({
+    table_setup_enabled: false,
+    table_count: 20
+  });
+  const [savingTableSettings, setSavingTableSettings] = useState(false);
 
   // Business Hours State
   const [businessHoursMode, setBusinessHoursMode] = useState<BusinessHoursMode>('simple');
@@ -193,6 +200,12 @@ export default function SettingsPage() {
         customAudioUrl: data.alert_custom_audio_url ?? '',
         customAudioName: data.alert_custom_audio_name ?? '',
         volume: data.alert_volume ?? 0.8
+      });
+
+      // Load table settings
+      setTableSettings({
+        table_setup_enabled: data.table_setup_enabled ?? false,
+        table_count: data.table_count ?? 20
       });
 
       // Load business hours
@@ -578,6 +591,44 @@ export default function SettingsPage() {
     } catch (error) {
       console.error('Error removing audio:', error);
       alert('Failed to remove custom audio. Please try again.');
+    }
+  };
+
+  const handleSaveTableSettings = async () => {
+    // Validate table count
+    if (tableSettings.table_setup_enabled && (tableSettings.table_count < 1 || tableSettings.table_count > 100)) {
+      alert('❌ Table count must be between 1 and 100');
+      return;
+    }
+
+    setSavingTableSettings(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user || !user.user_metadata?.bar_id) {
+        alert('Authentication error. Please log in again.');
+        router.push('/login');
+        return;
+      }
+
+      const userBarId = user.user_metadata.bar_id;
+
+      const { error } = await (supabase as any)
+        .from('bars')
+        .update({
+          table_setup_enabled: tableSettings.table_setup_enabled,
+          table_count: tableSettings.table_setup_enabled ? tableSettings.table_count : 0
+        })
+        .eq('id', userBarId);
+
+      if (error) throw error;
+
+      alert('✅ Table setup settings saved successfully!');
+    } catch (error) {
+      console.error('Error saving table settings:', error);
+      alert('Failed to save table settings. Please try again.');
+    } finally {
+      setSavingTableSettings(false);
     }
   };
 
@@ -1261,6 +1312,123 @@ export default function SettingsPage() {
               >
                 <Save size={20} />
                 {savingHours ? 'Saving...' : 'Save Business Hours'}
+              </button>
+            </div>
+          )}
+
+          {/* Table Setup Section */}
+          {!isNewUser && (
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-teal-100 rounded-lg">
+                  <Grid3X3 size={20} className="text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Table Setup</h3>
+                  <p className="text-sm text-gray-500">Configure customer table selection</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Enable Table Setup Toggle */}
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <Grid3X3 size={18} className="text-teal-600" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Require Table Selection</span>
+                      <p className="text-xs text-gray-500">Customers must select their table before ordering</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={tableSettings.table_setup_enabled}
+                    onChange={(e) => setTableSettings({
+                      ...tableSettings, 
+                      table_setup_enabled: e.target.checked
+                    })}
+                    className="w-5 h-5 text-teal-500 rounded focus:ring-teal-500"
+                  />
+                </label>
+
+                {/* Table Count Configuration */}
+                {tableSettings.table_setup_enabled && (
+                  <div className="p-4 bg-teal-50 border border-teal-200 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Number of Tables
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={tableSettings.table_count}
+                        onChange={(e) => setTableSettings({
+                          ...tableSettings, 
+                          table_count: parseInt(e.target.value) || 1
+                        })}
+                        className="w-24 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none text-center font-medium"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600">
+                          Tables will be numbered 1 to {tableSettings.table_count}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Range: 1-100 tables
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Preview */}
+                    <div className="mt-3 p-3 bg-white border border-teal-200 rounded-lg">
+                      <p className="text-xs font-medium text-gray-700 mb-2">Preview:</p>
+                      <div className="grid grid-cols-6 gap-1">
+                        {Array.from({ length: Math.min(tableSettings.table_count, 12) }, (_, i) => (
+                          <div
+                            key={i + 1}
+                            className="w-8 h-8 bg-teal-100 border border-teal-300 rounded flex items-center justify-center text-xs font-medium text-teal-700"
+                          >
+                            {i + 1}
+                          </div>
+                        ))}
+                        {tableSettings.table_count > 12 && (
+                          <div className="w-8 h-8 bg-gray-100 border border-gray-300 rounded flex items-center justify-center text-xs text-gray-500">
+                            ...
+                          </div>
+                        )}
+                      </div>
+                      {tableSettings.table_count > 12 && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Showing first 12 of {tableSettings.table_count} tables
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Information Box */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">How Table Setup Works:</p>
+                      <ul className="text-xs space-y-1 ml-2">
+                        <li>• When enabled, customers must select their table number before ordering</li>
+                        <li>• Orders will be linked to the selected table for easy identification</li>
+                        <li>• Staff can see which table each order came from</li>
+                        <li>• When disabled, customers can order without table selection</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={handleSaveTableSettings}
+                disabled={savingTableSettings}
+                className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 disabled:bg-gray-300 flex items-center justify-center gap-2"
+              >
+                <Save size={20} />
+                {savingTableSettings ? 'Saving...' : 'Save Table Settings'}
               </button>
             </div>
           )}
