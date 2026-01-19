@@ -1395,8 +1395,8 @@ export default function MenuPage() {
 
   const selectTable = async (tableNumber: number | null) => {
     console.log('🪑 selectTable called with:', tableNumber);
-    if (!tab || !supabase) {
-      console.log('❌ No tab available or supabase client');
+    if (!tab) {
+      console.log('❌ No tab available');
       return;
     }
     
@@ -1526,8 +1526,6 @@ export default function MenuPage() {
   };
 
   const handleApproveOrder = async (orderId: string) => {
-    if (!supabase) return;
-    
     const supabaseClient = getSupabaseClient();
     if (!supabaseClient) return;
     
@@ -1589,7 +1587,7 @@ export default function MenuPage() {
   };
 
   const confirmRejectOrder = async () => {
-    if (!rejectingOrderId || !selectedRejectionReason || !supabase) {
+    if (!rejectingOrderId || !selectedRejectionReason) {
       showToast({
         type: 'error',
         title: 'Missing Reason',
