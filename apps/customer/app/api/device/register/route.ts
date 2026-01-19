@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if device already exists
-    const { data: existingDevice, error: checkError } = await supabase
+    const { data: existingDevice, error: checkError } = await (supabase as any)
       .from('devices')
       .select('id, device_id')
       .eq('device_id', deviceId)
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     if (existingDevice) {
       // First get the current install count
-      const { data: currentDevice } = await supabase
+      const { data: currentDevice } = await (supabase as any)
         .from('devices')
         .select('install_count')
         .eq('device_id', deviceId)
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       const newInstallCount = (currentDevice?.install_count || 0) + 1;
 
       // Update existing device
-      const { data: updatedDevice, error: updateError } = await supabase
+      const { data: updatedDevice, error: updateError } = await (supabase as any)
         .from('devices')
         .update({
           fingerprint,
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Create new device
-      const { data: newDevice, error: createError } = await supabase
+      const { data: newDevice, error: createError } = await (supabase as any)
         .from('devices')
         .insert({
           device_id: deviceId,
