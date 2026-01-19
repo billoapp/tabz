@@ -169,6 +169,7 @@ export default function MenuManagementPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [groupBySupplier, setGroupBySupplier] = useState(false);
 
   // Bar menu (published items)
   const [barProducts, setBarProducts] = useState<BarProduct[]>([]);
@@ -628,6 +629,20 @@ export default function MenuManagementPage() {
       }
       return true;
     });
+
+  // Group products by supplier for display
+  const groupedProducts: Record<string, { supplier: Supplier; products: Product[] }> | null = groupBySupplier 
+    ? suppliers.reduce((acc: Record<string, { supplier: Supplier; products: Product[] }>, supplier) => {
+        const supplierProducts = filteredProducts.filter(p => p.supplier_id === supplier.id);
+        if (supplierProducts.length > 0) {
+          acc[supplier.id] = {
+            supplier,
+            products: supplierProducts
+          };
+        }
+        return acc;
+      }, {} as Record<string, { supplier: Supplier; products: Product[] }>)
+    : null;
 
   // ========== CUSTOM PRODUCTS FUNCTIONS ==========
   const handleCreateCustomProduct = async () => {
@@ -1292,11 +1307,28 @@ export default function MenuManagementPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
-                            <h3 className="font-semibold text-gray-800">{product.name}</h3>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-gray-800">{product.name}</h3>
+                              {product.supplier?.logo_url && (
+                                <img 
+                                  src={product.supplier.logo_url} 
+                                  alt={product.supplier.name}
+                                  className="w-4 h-4 rounded-full object-cover"
+                                  title={`Supplied by ${product.supplier.name}`}
+                                />
+                              )}
+                            </div>
                             <p className="text-xs text-gray-500">SKU: {product.sku}</p>
-                            <span className="inline-block mt-1 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                              {product.category}
-                            </span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="inline-block text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                                {product.category}
+                              </span>
+                              {product.supplier && (
+                                <span className="text-xs text-gray-500">
+                                  by {product.supplier.name}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           {alreadyInMenu && (
                             <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium flex items-center gap-1">
@@ -1652,29 +1684,42 @@ export default function MenuManagementPage() {
                   className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
                 />
               </div>
-              {/* Supplier filter temporarily disabled */}
-              {/* <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setSelectedSupplier(null)}
-                  className={`px-3 py-1 rounded-full text-sm ${!selectedSupplier ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'}`}
-                >
-                  All Suppliers
-                </button>
-                {suppliers.map((supplier) => (
+              {/* Supplier Filtering */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-gray-700">Filter by Supplier</h3>
+                  <button
+                    onClick={() => setGroupBySupplier(!groupBySupplier)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                      groupBySupplier ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {groupBySupplier ? 'Grouped' : 'Group by Supplier'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedSupplier(null)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${!selectedSupplier ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  >
+                    All Suppliers
+                  </button>
+                  {suppliers.map((supplier) => (
                     <button
                       key={supplier.id}
                       onClick={() => setSelectedSupplier(supplier)}
-                      className={`px-3 py-1 rounded-full text-sm flex items-center gap-1 ${
-                        selectedSupplier?.id === supplier.id ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'
+                      className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+                        selectedSupplier?.id === supplier.id ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
                       {supplier.logo_url && (
-                        <img src={supplier.logo_url} alt="" className="w-4 h-4 rounded-full" />
+                        <img src={supplier.logo_url} alt={supplier.name} className="w-5 h-5 rounded-full object-cover" />
                       )}
                       {supplier.name}
                     </button>
                   ))}
-              </div> */}
+                </div>
+              </div>
             </div>
 
             {/* Categories */}
@@ -1713,6 +1758,89 @@ export default function MenuManagementPage() {
                 <p className="text-gray-500">No products found</p>
                 <p className="text-sm text-gray-400 mt-1">Try a different search or filter</p>
               </div>
+            ) : groupBySupplier && groupedProducts ? (
+              <div className="space-y-6">
+                {Object.values(groupedProducts).map(({ supplier, products }) => (
+                  <div key={supplier.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-orange-50 to-red-50 px-4 py-3 border-b">
+                      <div className="flex items-center gap-3">
+                        {supplier.logo_url && (
+                          <img 
+                            src={supplier.logo_url} 
+                            alt={supplier.name}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        )}
+                        <div>
+                          <h3 className="font-semibold text-gray-800">{supplier.name}</h3>
+                          <p className="text-sm text-gray-600">{products.length} drink products</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {products.map((product) => {
+                          const alreadyInMenu = isProductInMenu(product.id);
+                          const displayImage = getDisplayImage(product);
+                          return (
+                            <div key={product.id} className="bg-gray-50 rounded-lg shadow-sm p-3">
+                              <div className="flex gap-3">
+                                {displayImage ? (
+                                  <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                                    <img
+                                      src={displayImage}
+                                      alt={product.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex-shrink-0 flex items-center justify-center">
+                                    {(() => {
+                                      const Icon = getCategoryIcon(product.category);
+                                      return <Icon size={20} className="text-orange-500" />;
+                                    })()}
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between mb-1">
+                                    <h4 className="font-medium text-gray-800 text-sm truncate">{product.name}</h4>
+                                    {alreadyInMenu && (
+                                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full ml-2">
+                                        In Menu
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-500 mb-1">{product.sku}</p>
+                                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
+                                    {product.category}
+                                  </span>
+                                  {!alreadyInMenu && (
+                                    <div className="flex items-center gap-2 mt-2">
+                                      <input
+                                        type="number"
+                                        placeholder="Price"
+                                        value={addingPrice[product.id] || ''}
+                                        onChange={(e) => setAddingPrice({...addingPrice, [product.id]: e.target.value})}
+                                        className="w-16 px-2 py-1 border rounded text-xs"
+                                      />
+                                      <button
+                                        onClick={() => handleAddToMenu(product)}
+                                        className="px-2 py-1 bg-orange-500 text-white rounded text-xs"
+                                      >
+                                        Add
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredProducts.map((product) => {
@@ -1741,7 +1869,17 @@ export default function MenuManagementPage() {
                         )}
                         <div className="flex-1">
                           <div className="flex items-start justify-between mb-1">
-                            <h3 className="font-semibold text-gray-800">{product.name}</h3>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-gray-800">{product.name}</h3>
+                              {product.supplier?.logo_url && (
+                                <img 
+                                  src={product.supplier.logo_url} 
+                                  alt={product.supplier.name}
+                                  className="w-4 h-4 rounded-full object-cover"
+                                  title={`Supplied by ${product.supplier.name}`}
+                                />
+                              )}
+                            </div>
                             {alreadyInMenu && (
                               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                                 In Menu
@@ -1751,9 +1889,16 @@ export default function MenuManagementPage() {
                           <p className="text-xs text-gray-500 mb-1">{product.sku}</p>
                           <p className="text-xs text-gray-600 mb-2">{product.description}</p>
                           <div className="flex items-center justify-between">
-                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                              {product.category}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                                {product.category}
+                              </span>
+                              {product.supplier && (
+                                <span className="text-xs text-gray-500">
+                                  {product.supplier.name}
+                                </span>
+                              )}
+                            </div>
                             {!alreadyInMenu && (
                               <div className="flex items-center gap-2">
                                 <input
