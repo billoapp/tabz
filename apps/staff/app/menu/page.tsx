@@ -238,6 +238,7 @@ export default function MenuManagementPage() {
   // UI states
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showCsvGuide, setShowCsvGuide] = useState(false);
   const [bulkEditMode, setBulkEditMode] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
@@ -548,7 +549,7 @@ export default function MenuManagementPage() {
       if (!barId) return;
       const { data, error } = await supabase
         .from('custom_products')
-        .select('id, bar_id, name, description, category, image_url, sku, price, active, created_at, updated_at')
+        .select('*')
         .eq('bar_id', barId)
         .eq('active', true)
         .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
@@ -810,6 +811,7 @@ export default function MenuManagementPage() {
 
       await Promise.all([loadCustomProducts(), loadBarMenu()]);
       setEditingCustom(null);
+      setShowEditModal(false);
       setEditForm({ name: '', category: '', description: '', image_url: '', sale_price: 0 });
       alert('✅ Custom product updated!');
     } catch (error: any) {
@@ -2095,125 +2097,6 @@ export default function MenuManagementPage() {
               </div>
             )}
 
-            {/* Edit Custom Product Form */}
-            {editingCustom && (
-              <div className="bg-white rounded-xl p-6 mb-6 border-2 border-blue-200">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-800">Edit Custom Product</h3>
-                  <button 
-                    onClick={() => {
-                      setEditingCustom(null);
-                      setEditForm({ name: '', category: '', description: '', image_url: '', sale_price: 0 });
-                    }} 
-                    className="text-gray-500"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
-                      <input
-                        type="text"
-                        value={editForm.name || ''}
-                        onChange={(e) => setEditForm({...editForm, name: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        placeholder="e.g., Special Mojito"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                      <select
-                        value={editForm.category || ''}
-                        onChange={(e) => setEditForm({...editForm, category: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg"
-                      >
-                        <option value="">Select category</option>
-                        {drinkCategories.map((cat) => (
-                          <option key={cat.name} value={cat.name}>{cat.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                      <textarea
-                        value={editForm.description || ''}
-                        onChange={(e) => setEditForm({...editForm, description: e.target.value})}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        rows={2}
-                        placeholder="Optional product description"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Price (KSh)</label>
-                      <input
-                        type="number"
-                        value={editForm.sale_price || ''}
-                        onChange={(e) => setEditForm({...editForm, sale_price: parseFloat(e.target.value) || 0})}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        placeholder="e.g., 850"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Leave empty for unpublished product</p>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
-                    {editForm.image_url ? (
-                      <div className="flex items-center gap-3">
-                        <img src={editForm.image_url} alt="Preview" className="w-16 h-16 object-cover rounded" />
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleImageSelect('edit')}
-                            className="text-sm text-blue-600"
-                          >
-                            Change
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditForm({...editForm, image_url: ''})}
-                            className="text-sm text-red-600"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleImageSelect('edit')}
-                        className="w-full px-4 py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 text-center"
-                      >
-                        <Upload size={24} className="mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-600">Click to upload product image</p>
-                        <p className="text-xs text-gray-400">Optional - 4:5 aspect ratio recommended</p>
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={() => handleUpdateCustomProduct(editingCustom)}
-                      className="px-6 py-2 bg-blue-500 text-white rounded-lg font-medium"
-                    >
-                      Update Product
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingCustom(null);
-                        setEditForm({ name: '', category: '', description: '', image_url: '', sale_price: 0 });
-                      }}
-                      className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Custom Products List */}
             {customProducts.length === 0 ? (
               <div className="bg-white rounded-xl p-8 text-center">
@@ -2316,6 +2199,8 @@ export default function MenuManagementPage() {
                                 // Use published price if available, otherwise use custom product price
                                 sale_price: publishedProduct ? publishedProduct.sale_price : (cp.sale_price || 0),
                               });
+                              
+                              setShowEditModal(true);
                             }}
                             className="p-1 text-blue-500 hover:bg-blue-50 rounded"
                           >
@@ -2713,6 +2598,142 @@ export default function MenuManagementPage() {
               >
                 Got it!
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Custom Product Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Edit Custom Product</h3>
+                  <p className="text-sm text-gray-600">Update product details and pricing</p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingCustom(null);
+                    setEditForm({ name: '', category: '', description: '', image_url: '', sale_price: 0 });
+                  }} 
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
+                    <input
+                      type="text"
+                      value={editForm.name || ''}
+                      onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., Special Mojito"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                    <select
+                      value={editForm.category || ''}
+                      onChange={(e) => setEditForm({...editForm, category: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select category</option>
+                      {categories.map((cat) => (
+                        <option key={cat.name} value={cat.name}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea
+                      value={editForm.description || ''}
+                      onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows={3}
+                      placeholder="Optional product description"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (KSh)</label>
+                    <input
+                      type="number"
+                      value={editForm.sale_price || ''}
+                      onChange={(e) => setEditForm({...editForm, sale_price: parseFloat(e.target.value) || 0})}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., 850"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Leave empty to unpublish from menu</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
+                  {editForm.image_url ? (
+                    <div className="flex items-center gap-3">
+                      <img src={editForm.image_url} alt="Preview" className="w-20 h-20 object-cover rounded-lg border" />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleImageSelect('edit')}
+                          className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded"
+                        >
+                          Change Image
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditForm({...editForm, image_url: ''})}
+                          className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleImageSelect('edit')}
+                      className="w-full px-4 py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 text-center transition-colors"
+                    >
+                      <Upload size={24} className="mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-600">Click to upload product image</p>
+                      <p className="text-xs text-gray-400">Optional - 4:5 aspect ratio recommended</p>
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-6 mt-6 border-t">
+                <button
+                  onClick={() => {
+                    if (editingCustom) {
+                      handleUpdateCustomProduct(editingCustom);
+                    }
+                  }}
+                  className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors"
+                >
+                  Update Product
+                </button>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingCustom(null);
+                    setEditForm({ name: '', category: '', description: '', image_url: '', sale_price: 0 });
+                  }}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
