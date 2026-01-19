@@ -450,13 +450,9 @@ export default function MenuManagementPage() {
         .eq('active', true)
         .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
       if (error) throw error;
-      const publishedCustomIds = barProducts
-        .filter((bp) => bp.custom_product_id)
-        .map((bp) => bp.custom_product_id);
-      const unpublished = (data || []).filter(
-        (cp) => !publishedCustomIds.includes(cp.id)
-      );
-      setCustomProducts(unpublished);
+      
+      // Show ALL custom products, not just unpublished ones
+      setCustomProducts(data || []);
     } catch (error) {
       console.error('Error loading custom products:', error);
     }
@@ -567,8 +563,8 @@ export default function MenuManagementPage() {
 
   // ========== CUSTOM PRODUCTS FUNCTIONS ==========
   const handleCreateCustomProduct = async () => {
-    if (!newCustomItem.name || !newCustomItem.category || !newCustomItem.price) {
-      alert('Please fill in name, category, and price');
+    if (!newCustomItem.name || !newCustomItem.category) {
+      alert('Please fill in name and category');
       return;
     }
     try {
@@ -581,32 +577,38 @@ export default function MenuManagementPage() {
           description: newCustomItem.description || null,
           image_url: newCustomItem.image_url || null,
           sku: `CUSTOM-${Date.now().toString(36).toUpperCase()}`,
+          sale_price: newCustomItem.price ? parseFloat(newCustomItem.price) : null,
           active: true,
         })
         .select()
         .single();
       if (customError) throw customError;
 
-      const { error: barProductError } = await (supabase as any)
-        .from('bar_products')
-        .insert({
-          bar_id: barId,
-          product_id: null,
-          custom_product_id: customData.id,
-          name: newCustomItem.name,
-          description: newCustomItem.description || null,
-          category: newCustomItem.category,
-          image_url: newCustomItem.image_url || null,
-          sku: customData.sku,
-          sale_price: parseFloat(newCustomItem.price),
-          active: true,
-        });
-      if (barProductError) throw barProductError;
+      // Only add to bar_products if price is provided
+      if (newCustomItem.price && parseFloat(newCustomItem.price) > 0) {
+        const { error: barProductError } = await (supabase as any)
+          .from('bar_products')
+          .insert({
+            bar_id: barId,
+            product_id: null,
+            custom_product_id: customData.id,
+            name: newCustomItem.name,
+            description: newCustomItem.description || null,
+            category: newCustomItem.category,
+            image_url: newCustomItem.image_url || null,
+            sku: customData.sku,
+            sale_price: parseFloat(newCustomItem.price),
+            active: true,
+          });
+        if (barProductError) throw barProductError;
+        alert('✅ Custom product created and published to menu!');
+      } else {
+        alert('✅ Custom product created! Add a price to publish to menu.');
+      }
 
       setNewCustomItem({ name: '', category: '', description: '', image_url: '', price: '' });
       setShowAddCustom(false);
       await Promise.all([loadCustomProducts(), loadBarMenu()]);
-      alert('✅ Custom product created and added to menu!');
     } catch (error: any) {
       console.error('Error creating custom product:', error);
       alert('Failed to create: ' + error.message);
@@ -622,25 +624,62 @@ export default function MenuManagementPage() {
           description: editForm.description,
           image_url: editForm.image_url,
           category: editForm.category,
+          sale_price: editForm.sale_price || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', customProductId)
         .eq('bar_id', barId);
       if (error) throw error;
 
+      // Check if product is currently published
       const barProduct = barProducts.find(bp => bp.custom_product_id === customProductId);
-      if (barProduct) {
-        await (supabase as any)
-          .from('bar_products')
-          .update({
-            name: editForm.name,
-            description: editForm.description,
-            image_url: editForm.image_url,
-            category: editForm.category,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', barProduct.id);
+      
+      if (editForm.sale_price && editForm.sale_price > 0) {
+        // Product has price - should be published
+        if (barProduct) {
+          // Update existing bar_product
+          await (supabase as any)
+            .from('bar_products')
+            .update({
+              name: editForm.name,
+              description: editForm.description,
+              image_url: editForm.image_url,
+              category: editForm.category,
+              sale_price: editForm.sale_price,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', barProduct.id);
+        } else {
+          // Create new bar_product (publish)
+          const customProduct = customProducts.find(cp => cp.id === customProductId);
+          if (customProduct) {
+            await (supabase as any)
+              .from('bar_products')
+              .insert({
+                bar_id: barId,
+                product_id: null,
+                custom_product_id: customProductId,
+                name: editForm.name,
+                description: editForm.description,
+                image_url: editForm.image_url,
+                category: editForm.category,
+                sku: customProduct.sku,
+                sale_price: editForm.sale_price,
+                active: true,
+              });
+          }
+        }
+      } else {
+        // Product has no price - should be unpublished
+        if (barProduct) {
+          // Remove from bar_products (unpublish)
+          await (supabase as any)
+            .from('bar_products')
+            .delete()
+            .eq('id', barProduct.id);
+        }
       }
+
       await Promise.all([loadCustomProducts(), loadBarMenu()]);
       setEditingCustom(null);
       setEditForm({ name: '', category: '', description: '', image_url: '', sale_price: 0 });
@@ -1319,7 +1358,7 @@ export default function MenuManagementPage() {
             }`}
           >
             <ImageIcon size={18} />
-            Image Menus
+            Promotions
           </button>
         </div>
       </div>
@@ -1748,14 +1787,15 @@ export default function MenuManagementPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Price (KSh) *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Price (KSh)</label>
                       <input
                         type="number"
                         value={newCustomItem.price}
                         onChange={(e) => setNewCustomItem({...newCustomItem, price: e.target.value})}
                         className="w-full px-3 py-2 border rounded-lg"
-                        placeholder="e.g., 850"
+                        placeholder="e.g., 850 (optional - add later to publish)"
                       />
+                      <p className="text-xs text-gray-500 mt-1">Leave empty to create unpublished product</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
@@ -1797,10 +1837,129 @@ export default function MenuManagementPage() {
                       onClick={handleCreateCustomProduct}
                       className="px-6 py-2 bg-green-500 text-white rounded-lg font-medium"
                     >
-                      Create & Add to Menu
+                      {newCustomItem.price ? 'Create & Publish' : 'Create Product'}
                     </button>
                     <button
                       onClick={() => setShowAddCustom(false)}
+                      className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Edit Custom Product Form */}
+            {editingCustom && (
+              <div className="bg-white rounded-xl p-6 mb-6 border-2 border-blue-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-gray-800">Edit Custom Product</h3>
+                  <button 
+                    onClick={() => {
+                      setEditingCustom(null);
+                      setEditForm({ name: '', category: '', description: '', image_url: '', sale_price: 0 });
+                    }} 
+                    className="text-gray-500"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
+                      <input
+                        type="text"
+                        value={editForm.name || ''}
+                        onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        placeholder="e.g., Special Mojito"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                      <select
+                        value={editForm.category || ''}
+                        onChange={(e) => setEditForm({...editForm, category: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="">Select category</option>
+                        {categories.map((cat) => (
+                          <option key={cat.name} value={cat.name}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <textarea
+                        value={editForm.description || ''}
+                        onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        rows={2}
+                        placeholder="Optional product description"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Price (KSh)</label>
+                      <input
+                        type="number"
+                        value={editForm.sale_price || ''}
+                        onChange={(e) => setEditForm({...editForm, sale_price: parseFloat(e.target.value) || 0})}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        placeholder="e.g., 850"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Leave empty for unpublished product</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
+                    {editForm.image_url ? (
+                      <div className="flex items-center gap-3">
+                        <img src={editForm.image_url} alt="Preview" className="w-16 h-16 object-cover rounded" />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleImageSelect('edit')}
+                            className="text-sm text-blue-600"
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditForm({...editForm, image_url: ''})}
+                            className="text-sm text-red-600"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleImageSelect('edit')}
+                        className="w-full px-4 py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 text-center"
+                      >
+                        <Upload size={24} className="mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-600">Click to upload product image</p>
+                        <p className="text-xs text-gray-400">Optional - 4:5 aspect ratio recommended</p>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => handleUpdateCustomProduct(editingCustom)}
+                      className="px-6 py-2 bg-blue-500 text-white rounded-lg font-medium"
+                    >
+                      Update Product
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingCustom(null);
+                        setEditForm({ name: '', category: '', description: '', image_url: '', sale_price: 0 });
+                      }}
                       className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg"
                     >
                       Cancel
@@ -1835,6 +1994,7 @@ export default function MenuManagementPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {customProducts.map((cp) => {
                   const isPublished = barProducts.some(bp => bp.custom_product_id === cp.id);
+                  const hasPrice = cp.sale_price && cp.sale_price > 0;
                   return (
                     <div key={cp.id} className="bg-white rounded-xl shadow-sm p-4">
                       <div className="flex gap-3 mb-3">
@@ -1852,13 +2012,25 @@ export default function MenuManagementPage() {
                         <div className="flex-1">
                           <div className="flex items-start justify-between">
                             <h3 className="font-semibold text-gray-800">{cp.name}</h3>
-                            {isPublished && (
-                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                                Published
-                              </span>
-                            )}
+                            <div className="flex flex-col gap-1">
+                              {isPublished && (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                  Published
+                                </span>
+                              )}
+                              {!hasPrice && (
+                                <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
+                                  No Price
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <p className="text-xs text-gray-600 mb-1">{cp.category}</p>
+                          {hasPrice && (
+                            <p className="text-sm font-medium text-green-600 mb-1">
+                              {tempFormatCurrency(cp.sale_price || 0)}
+                            </p>
+                          )}
                           {cp.description && (
                             <p className="text-sm text-gray-500 mb-2">{cp.description}</p>
                           )}
@@ -1893,6 +2065,7 @@ export default function MenuManagementPage() {
                                 category: cp.category,
                                 description: cp.description || '',
                                 image_url: cp.image_url || '',
+                                sale_price: cp.sale_price || 0,
                               });
                             }}
                             className="p-1 text-blue-500 hover:bg-blue-50 rounded"
@@ -1919,7 +2092,7 @@ export default function MenuManagementPage() {
         {activeTab === 'images' && (
           <div>
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-2">Image Menus & Offers</h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-2">Promotions & Offers</h2>
               <p className="text-gray-600">Upload single images or slideshows for customers to view</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm p-6">
@@ -1929,8 +2102,8 @@ export default function MenuManagementPage() {
                     <ImageIcon size={24} className="text-purple-600" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-800">Static Menu Upload</h3>
-                    <p className="text-sm text-gray-500">Upload images for customers to view</p>
+                    <h3 className="font-bold text-gray-800">Upload Image</h3>
+                    <p className="text-sm text-gray-500">Upload images for customers your special offers</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -2006,7 +2179,7 @@ export default function MenuManagementPage() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Upload Single Menu Image
+                        Upload Single Image
                       </label>
                       <input
                         type="file"
@@ -2042,7 +2215,7 @@ export default function MenuManagementPage() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Upload Menu Slideshow (1-5 images)
+                        Upload Slideshow (1-5 images)
                       </label>
                       <input
                         type="file"

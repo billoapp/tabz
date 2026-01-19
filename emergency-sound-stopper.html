@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Emergency Sound Stopper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            display: block;
+            width: 100%;
+        }
+        button:hover {
+            background: #b91c1c;
+        }
+        .success {
+            background: #16a34a;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        .instructions {
+            background: #fef3c7;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #f59e0b;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔇 Emergency Sound Stopper</h1>
+        <p>Use this tool to immediately stop all bell notification sounds in your Tabeza staff app.</p>
+        
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Keep this page open</li>
+                <li>Go to your staff app tab</li>
+                <li>Press <code>F12</code> to open Developer Tools</li>
+                <li>Click the "Console" tab</li>
+                <li>Come back here and click "Copy Stop Command"</li>
+                <li>Paste the command in the console and press Enter</li>
+            </ol>
+        </div>
+
+        <button onclick="stopAllSounds()">🔇 Stop All Sounds (Current Page)</button>
+        <button onclick="copyStopCommand()">📋 Copy Stop Command for Staff App</button>
+        <button onclick="showManualInstructions()">📖 Show Manual Instructions</button>
+        
+        <div id="success" class="success">
+            ✅ Command copied to clipboard! Now paste it in your staff app's console.
+        </div>
+
+        <div id="manual" style="display: none; margin-top: 20px; padding: 15px; background: #f8fafc; border-radius: 5px;">
+            <h3>Manual Console Command:</h3>
+            <p>Copy and paste this into your staff app's browser console:</p>
+            <pre style="background: #1f2937; color: #f9fafb; padding: 15px; border-radius: 5px; overflow-x: auto;"><code id="manualCode">// Emergency sound stopper
+try {
+  // Stop continuous bell sound
+  if (window.continuousBellActive) {
+    window.continuousBellActive = false;
+    console.log('🔇 Stopped continuous bell');
+  }
+  
+  // Clear bell timeout
+  if (window.continuousBellTimeout) {
+    clearTimeout(window.continuousBellTimeout);
+    window.continuousBellTimeout = null;
+    console.log('🔇 Cleared bell timeout');
+  }
+  
+  // Stop custom audio
+  if (window.continuousAlertAudio) {
+    window.continuousAlertAudio.pause();
+    window.continuousAlertAudio.currentTime = 0;
+    window.continuousAlertAudio = null;
+    console.log('🔇 Stopped custom audio');
+  }
+  
+  // Stop all audio elements on the page
+  document.querySelectorAll('audio').forEach(audio => {
+    audio.pause();
+    audio.currentTime = 0;
+  });
+  
+  console.log('🔇 ALL SOUNDS STOPPED SUCCESSFULLY!');
+  alert('✅ All sounds have been stopped!');
+} catch (error) {
+  console.error('Error stopping sounds:', error);
+  alert('❌ Error stopping sounds. Try refreshing the page.');
+}</code></pre>
+        </div>
+    </div>
+
+    <script>
+        function stopAllSounds() {
+            try {
+                // Stop continuous bell sound
+                if (window.continuousBellActive) {
+                    window.continuousBellActive = false;
+                    console.log('🔇 Stopped continuous bell');
+                }
+                
+                // Clear bell timeout
+                if (window.continuousBellTimeout) {
+                    clearTimeout(window.continuousBellTimeout);
+                    window.continuousBellTimeout = null;
+                    console.log('🔇 Cleared bell timeout');
+                }
+                
+                // Stop custom audio
+                if (window.continuousAlertAudio) {
+                    window.continuousAlertAudio.pause();
+                    window.continuousAlertAudio.currentTime = 0;
+                    window.continuousAlertAudio = null;
+                    console.log('🔇 Stopped custom audio');
+                }
+                
+                // Stop all audio elements on the page
+                document.querySelectorAll('audio').forEach(audio => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                });
+                
+                console.log('🔇 ALL SOUNDS STOPPED SUCCESSFULLY!');
+                alert('✅ All sounds have been stopped on this page!');
+            } catch (error) {
+                console.error('Error stopping sounds:', error);
+                alert('❌ Error stopping sounds. This page might not have the staff app sounds.');
+            }
+        }
+
+        function copyStopCommand() {
+            const command = `// Emergency sound stopper
+try {
+  // Stop continuous bell sound
+  if (window.continuousBellActive) {
+    window.continuousBellActive = false;
+    console.log('🔇 Stopped continuous bell');
+  }
+  
+  // Clear bell timeout
+  if (window.continuousBellTimeout) {
+    clearTimeout(window.continuousBellTimeout);
+    window.continuousBellTimeout = null;
+    console.log('🔇 Cleared bell timeout');
+  }
+  
+  // Stop custom audio
+  if (window.continuousAlertAudio) {
+    window.continuousAlertAudio.pause();
+    window.continuousAlertAudio.currentTime = 0;
+    window.continuousAlertAudio = null;
+    console.log('🔇 Stopped custom audio');
+  }
+  
+  // Stop all audio elements on the page
+  document.querySelectorAll('audio').forEach(audio => {
+    audio.pause();
+    audio.currentTime = 0;
+  });
+  
+  console.log('🔇 ALL SOUNDS STOPPED SUCCESSFULLY!');
+  alert('✅ All sounds have been stopped!');
+} catch (error) {
+  console.error('Error stopping sounds:', error);
+  alert('❌ Error stopping sounds. Try refreshing the page.');
+}`;
+
+            navigator.clipboard.writeText(command).then(() => {
+                document.getElementById('success').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('success').style.display = 'none';
+                }, 3000);
+            }).catch(() => {
+                // Fallback for older browsers
+                showManualInstructions();
+            });
+        }
+
+        function showManualInstructions() {
+            document.getElementById('manual').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

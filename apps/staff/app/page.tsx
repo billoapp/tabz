@@ -6,6 +6,7 @@ import { Users, DollarSign, Menu, X, Search, ArrowRight, AlertCircle, RefreshCw,
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
 import { checkAndUpdateOverdueTabs } from '@/lib/businessHours';
+import { calculateResponseTimeFromTabs, formatResponseTime, type ResponseTimeResult } from '@tabeza/shared';
 
 // Format functions for thousand separators
 const formatCurrency = (amount: number | string, decimals = 0): string => {
@@ -19,47 +20,13 @@ const formatCurrency = (amount: number | string, decimals = 0): string => {
 
 // Calculate average response time for both confirmed orders and acknowledged messages
 const calculateAverageResponseTime = (tabs: any[], currentTime?: number): string => {
-  const confirmedOrders = tabs.flatMap(tab => 
-    (tab.orders || []).filter((o: any) => 
-      o.status === 'confirmed' && 
-      o.confirmed_at && 
-      o.created_at &&
-      o.initiated_by === 'customer'
-    )
-  );
-  
-  const orderResponseTimes = confirmedOrders.map(order => {
-    const created = new Date(order.created_at).getTime();
-    const confirmed = new Date(order.confirmed_at).getTime();
-    return (confirmed - created) / (1000 * 60);
+  const result = calculateResponseTimeFromTabs(tabs, {
+    timeframe: '24h', // Show last 24 hours for more relevant data
+    includeMessages: true,
+    includeOrders: true
   });
   
-  const acknowledgedMessages = tabs.flatMap(tab => 
-    (tab.messages || []).filter((m: any) => 
-      m.status === 'acknowledged' && 
-      m.staff_acknowledged_at && 
-      m.created_at &&
-      m.initiated_by === 'customer'
-    )
-  );
-  
-  const messageResponseTimes = acknowledgedMessages.map(message => {
-    const created = new Date(message.created_at).getTime();
-    const acknowledged = new Date(message.staff_acknowledged_at).getTime();
-    return (acknowledged - created) / (1000 * 60);
-  });
-  
-  const allResponseTimes = [...orderResponseTimes, ...messageResponseTimes];
-  
-  if (allResponseTimes.length === 0) return '0m';
-  
-  const avgMinutes = allResponseTimes.reduce((sum, time) => sum + time, 0) / allResponseTimes.length;
-  
-  if (avgMinutes >= 1) {
-    return `${avgMinutes.toFixed(1)}m`;
-  } else {
-    return '<1m';
-  }
+  return result.formattedString;
 };
 
 // Calculate pending wait time for items still waiting for response

@@ -12,7 +12,7 @@ import { useSound } from '@/hooks/useSound';
 import { telegramMessageQueries } from '@/lib/telegram-queries';
 import { MessageAlert, InitiatedBy } from '../../../../packages/shared/types';
 import { TokensService } from '../../../../packages/shared/tokens-service';
-import { useRealtimeSubscription, ConnectionStatusIndicator } from '../../../../packages/shared';
+import { useRealtimeSubscription, ConnectionStatusIndicator, calculateResponseTime, formatResponseTime, type ResponseTimeResult } from '../../../../packages/shared';
 import { useToast } from '@/components/ui/Toast';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 import PDFViewer from '../../../../components/PDFViewer'; 
@@ -356,94 +356,35 @@ export default function MenuPage() {
 
   // NEW: Function to calculate average response time for this bar
   // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
-  // NEW: Function to calculate average response time for this bar (COPIED FROM STAFF APP)
+  // NEW: Function to calculate average response time for this bar (USING SHARED UTILITY)
   const calculateAverageResponseTime = async (barId: string) => {
     console.log('🔍 [CUSTOMER] Starting response time calculation for bar:', barId);
     setResponseTimeLoading(true);
+    
     try {
-      // Get all tabs for this bar with their orders and messages (SAME AS STAFF APP)
-      const { data: tabsData, error: tabsError } = await supabase
-        .from('tabs')
-        .select(`
-          id,
-          orders:tab_orders(id, status, created_at, confirmed_at, initiated_by),
-          messages:tab_telegram_messages(id, status, created_at, staff_acknowledged_at, initiated_by)
-        `)
-        .eq('bar_id', barId);
+      const result = await calculateResponseTime(barId, {
+        timeframe: '24h', // Show last 24 hours for more relevant data
+        includeMessages: true,
+        includeOrders: true
+      });
       
-      if (tabsError || !tabsData) {
-        console.error('❌ [CUSTOMER] Error fetching tabs:', tabsError);
+      if (result.error) {
+        console.error('❌ [CUSTOMER] Error calculating response time:', result.error);
         setAverageResponseTime(null);
-        setResponseTimeLoading(false);
         return;
       }
       
-      console.log('📋 [CUSTOMER] Loaded tabs with data:', tabsData.length);
-      
-      // Get confirmed orders (order placed → confirmed) - only customer-initiated orders
-      const confirmedOrders = (tabsData as any[]).flatMap((tab: any) => 
-        (tab.orders || []).filter((o: any) => 
-          o.status === 'confirmed' && 
-          o.confirmed_at && 
-          o.created_at &&
-          o.initiated_by === 'customer'
-        )
-      );
-      
-      console.log('📦 [CUSTOMER] Found confirmed customer orders:', confirmedOrders.length);
-      
-      // Calculate order response times (in minutes)
-      const orderResponseTimes = confirmedOrders.map((order: any) => {
-        const created = new Date(order.created_at).getTime();
-        const confirmed = new Date(order.confirmed_at).getTime();
-        const timeInMinutes = (confirmed - created) / (1000 * 60);
-        console.log('⏱️ [CUSTOMER] Order response time:', timeInMinutes.toFixed(1), 'minutes');
-        return timeInMinutes;
-      });
-      
-      // Get acknowledged customer messages (message sent → staff acknowledged)
-      const acknowledgedMessages = (tabsData as any[]).flatMap((tab: any) => 
-        (tab.messages || []).filter((m: any) => 
-          m.status === 'acknowledged' && 
-          m.staff_acknowledged_at && 
-          m.created_at &&
-          m.initiated_by === 'customer'
-        )
-      );
-      
-      console.log('💬 [CUSTOMER] Found acknowledged customer messages:', acknowledgedMessages.length);
-      
-      // Calculate message response times (in minutes)
-      const messageResponseTimes = acknowledgedMessages.map((message: any) => {
-        const created = new Date(message.created_at).getTime();
-        const acknowledged = new Date(message.staff_acknowledged_at).getTime();
-        const timeInMinutes = (acknowledged - created) / (1000 * 60);
-        console.log('⏱️ [CUSTOMER] Message response time:', timeInMinutes.toFixed(1), 'minutes');
-        return timeInMinutes;
-      });
-      
-      // Combine all response times
-      const allResponseTimes = [...orderResponseTimes, ...messageResponseTimes];
-      
-      console.log('📊 [CUSTOMER] Total response times:', allResponseTimes.length);
-      
-      if (allResponseTimes.length === 0) {
-        console.log('❌ [CUSTOMER] No response time data available');
-        setAverageResponseTime(null);
-        setResponseTimeLoading(false);
-        return;
-      }
-      
-      const avgMinutes = allResponseTimes.reduce((sum, time) => sum + time, 0) / allResponseTimes.length;
-      const roundedAvg = Math.round(avgMinutes);
+      // Round to nearest minute for display
+      const roundedAvg = Math.round(result.averageMinutes);
       setAverageResponseTime(roundedAvg);
       
       console.log('✅ [CUSTOMER] Average response time calculated:', {
-        average: roundedAvg + ' minutes',
-        totalSamples: allResponseTimes.length,
-        fromOrders: orderResponseTimes.length,
-        fromMessages: messageResponseTimes.length
+        average: result.formattedString,
+        roundedMinutes: roundedAvg,
+        totalSamples: result.sampleCount,
+        breakdown: result.breakdown
       });
+      
     } catch (error) {
       console.error('[CUSTOMER] Error calculating average response time:', error);
       setAverageResponseTime(null);
