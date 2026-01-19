@@ -188,19 +188,29 @@ const startContinuousBellSound = (volume: number) => {
 // Function to stop continuous alert sound
 const stopContinuousAlertSound = () => {
   try {
+    console.log('🔇 Stopping continuous alert sound...');
+    
     // Stop custom audio if playing
     if ((window as any).continuousAlertAudio) {
+      console.log('🔇 Stopping custom audio');
       (window as any).continuousAlertAudio.pause();
       (window as any).continuousAlertAudio.currentTime = 0;
       (window as any).continuousAlertAudio = null;
     }
     
     // Stop continuous bell sound
-    (window as any).continuousBellActive = false;
+    if ((window as any).continuousBellActive) {
+      console.log('🔇 Stopping continuous bell sound');
+      (window as any).continuousBellActive = false;
+    }
+    
     if ((window as any).continuousBellTimeout) {
+      console.log('🔇 Clearing bell timeout');
       clearTimeout((window as any).continuousBellTimeout);
       (window as any).continuousBellTimeout = null;
     }
+    
+    console.log('🔇 All alert sounds stopped');
   } catch (error) {
     console.log('Could not stop continuous alert sound:', error);
   }
@@ -239,9 +249,11 @@ const HighVisibilityAlert = ({
   }, [isVisible]);
 
   // Handle dismissal with sound stopping
-  const handleDismiss = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDismiss = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     console.log('🔔 Alert dismissed - stopping sound and hiding overlay');
     stopContinuousAlertSound();
     onDismiss();
@@ -263,6 +275,19 @@ const HighVisibilityAlert = ({
     document.addEventListener('keydown', handleKeyPress);
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [isVisible, onDismiss]);
+
+  // Auto-dismiss after timeout
+  useEffect(() => {
+    if (!isVisible) return;
+    
+    const timer = setTimeout(() => {
+      console.log('🔔 Alert auto-dismissed after timeout - stopping sound and hiding overlay');
+      stopContinuousAlertSound();
+      onDismiss();
+    }, timeout * 1000);
+    
+    return () => clearTimeout(timer);
+  }, [isVisible, timeout, onDismiss]);
   
   if (!isVisible) return null;
   
@@ -272,9 +297,11 @@ const HighVisibilityAlert = ({
       className="fixed inset-0 bg-orange-500 bg-opacity-50 animate-pulse z-[9999] flex items-center justify-center cursor-pointer"
       onClick={handleDismiss}
       onTouchStart={handleDismiss} // Add touch support for mobile
+      onMouseDown={handleDismiss} // Add mouse down for better responsiveness
       role="button"
       tabIndex={0}
       aria-label="Dismiss alert notification"
+      style={{ userSelect: 'none' }} // Prevent text selection
     >
       {/* Large bell icon - outline style, white, very large */}
       <div className="pointer-events-none select-none">
@@ -339,6 +366,14 @@ export default function TabsPage() {
     };
   }, []);
 
+  // Stop sound when alert is hidden
+  useEffect(() => {
+    if (!showAlert) {
+      console.log('🔔 Alert hidden - ensuring sound is stopped');
+      stopContinuousAlertSound();
+    }
+  }, [showAlert]);
+
   // Check vibration support
   useEffect(() => {
     setVibrationSupported('vibrate' in navigator);
@@ -397,17 +432,46 @@ export default function TabsPage() {
     loadAlertSettings();
   }, [bar]);
 
-  // Handle ESC key to dismiss alert
+  // Handle ESC key to dismiss alert and add global click handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && showAlert) {
+        console.log('🔔 Alert dismissed via ESC key - stopping sound and hiding overlay');
+        stopContinuousAlertSound();
+        setShowAlert(false);
+      }
+    };
+    
+    // Global click handler to stop sound when clicking anywhere
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (showAlert) {
+        console.log('🔔 Global click detected while alert is showing - stopping sound and hiding overlay');
+        stopContinuousAlertSound();
+        setShowAlert(false);
+      }
+    };
+    
+    // Global touch handler for mobile
+    const handleGlobalTouch = (e: TouchEvent) => {
+      if (showAlert) {
+        console.log('🔔 Global touch detected while alert is showing - stopping sound and hiding overlay');
         stopContinuousAlertSound();
         setShowAlert(false);
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    if (showAlert) {
+      // Only add global handlers when alert is showing
+      document.addEventListener('click', handleGlobalClick);
+      document.addEventListener('touchstart', handleGlobalTouch);
+    }
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('click', handleGlobalClick);
+      document.removeEventListener('touchstart', handleGlobalTouch);
+    };
   }, [showAlert]);
 
   // Load tabs function
@@ -1080,7 +1144,8 @@ export default function TabsPage() {
           timeout={alertSettings.timeout}
           pendingCount={totalPending}
           onDismiss={() => {
-            console.log('🔔 onDismiss called - setting showAlert to false');
+            console.log('🔔 onDismiss called - stopping sound and setting showAlert to false');
+            stopContinuousAlertSound();
             setShowAlert(false);
           }}
         />
