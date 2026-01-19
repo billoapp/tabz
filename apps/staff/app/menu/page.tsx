@@ -131,10 +131,17 @@ interface CustomProduct {
   category: string;
   image_url: string | null;
   sku: string;
-  sale_price?: number;
   active: boolean;
   created_at: string;
   updated_at?: string;
+}
+
+interface CustomProductEditForm {
+  name?: string;
+  category?: string;
+  description?: string;
+  image_url?: string;
+  sale_price?: number;
 }
 
 interface BarSettings {
@@ -193,7 +200,7 @@ export default function MenuManagementPage() {
   // Editing states
   const [editingPrice, setEditingPrice] = useState<string | null>(null);
   const [editingCustom, setEditingCustom] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<CustomProduct>>({
+  const [editForm, setEditForm] = useState<CustomProductEditForm>({
     name: '',
     category: '',
     description: '',
@@ -555,13 +562,8 @@ export default function MenuManagementPage() {
         .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
       if (error) throw error;
       
-      // Map price column to sale_price for interface compatibility
-      const mappedData = (data || []).map(item => ({
-        ...item,
-        sale_price: item.price // Map database 'price' to interface 'sale_price'
-      }));
-      
-      setCustomProducts(mappedData);
+      // Custom products don't have price - pricing is handled in bar_products
+      setCustomProducts(data || []);
     } catch (error) {
       console.error('Error loading custom products:', error);
     }
@@ -706,7 +708,6 @@ export default function MenuManagementPage() {
           description: newCustomItem.description || null,
           image_url: newCustomItem.image_url || null,
           sku: `CUSTOM-${Date.now().toString(36).toUpperCase()}`,
-          price: newCustomItem.price ? parseFloat(newCustomItem.price) : null, // Use 'price' column
           active: true,
         })
         .select()
@@ -753,7 +754,6 @@ export default function MenuManagementPage() {
           description: editForm.description,
           image_url: editForm.image_url,
           category: editForm.category,
-          price: editForm.sale_price || null, // Use 'price' column
           updated_at: new Date().toISOString(),
         })
         .eq('id', customProductId)
@@ -821,6 +821,12 @@ export default function MenuManagementPage() {
   };
 
   const handleDeleteCustomProduct = async (customProductId: string) => {
+    // Validate UUID
+    if (!customProductId || customProductId.trim() === '') {
+      alert('Error: Invalid product ID');
+      return;
+    }
+    
     if (!window.confirm('Delete this custom product? It will also be removed from your menu.')) return;
     try {
       const { error: barProductError } = await (supabase as any)
@@ -976,6 +982,12 @@ export default function MenuManagementPage() {
   };
 
   const handleRemoveFromMenu = async (menuItemId: string) => {
+    // Validate UUID
+    if (!menuItemId || menuItemId.trim() === '') {
+      alert('Error: Invalid menu item ID');
+      return;
+    }
+    
     if (!window.confirm('Remove this item from your menu?')) return;
     try {
       const { error } = await (supabase as any)
@@ -1693,8 +1705,9 @@ export default function MenuManagementPage() {
                                 </button>
                                 <button
                                   onClick={() => handleRemoveFromMenu(item.id)}
-                                  className="p-1 text-red-500 hover:bg-red-50 rounded"
+                                  className={`p-1 text-red-500 hover:bg-red-50 rounded ${!item.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                                   title="Remove from menu"
+                                  disabled={!item.id}
                                 >
                                   <Trash2 size={16} />
                                 </button>
@@ -2122,7 +2135,8 @@ export default function MenuManagementPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {customProducts.map((cp) => {
                   const isPublished = barProducts.some(bp => bp.custom_product_id === cp.id);
-                  const hasPrice = cp.sale_price && cp.sale_price > 0;
+                  const publishedProduct = barProducts.find(bp => bp.custom_product_id === cp.id);
+                  const hasPrice = publishedProduct && publishedProduct.sale_price > 0;
                   return (
                     <div key={cp.id} className="bg-white rounded-xl shadow-sm p-4">
                       <div className="flex gap-3 mb-3">
@@ -2153,9 +2167,9 @@ export default function MenuManagementPage() {
                             </div>
                           </div>
                           <p className="text-xs text-gray-600 mb-1">{cp.category}</p>
-                          {hasPrice && (
+                          {isPublished && publishedProduct && (
                             <p className="text-sm font-medium text-green-600 mb-1">
-                              {tempFormatCurrency(cp.sale_price || 0)}
+                              {tempFormatCurrency(publishedProduct.sale_price)}
                             </p>
                           )}
                           {cp.description && (
@@ -2181,7 +2195,11 @@ export default function MenuManagementPage() {
                             </button>
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-500">Published to menu</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-green-600 font-medium">
+                              {publishedProduct ? tempFormatCurrency(publishedProduct.sale_price) : 'Published'}
+                            </span>
+                          </div>
                         )}
                         <div className="flex gap-1">
                           <button
@@ -2196,8 +2214,8 @@ export default function MenuManagementPage() {
                                 category: cp.category,
                                 description: cp.description || '',
                                 image_url: cp.image_url || '',
-                                // Use published price if available, otherwise use custom product price
-                                sale_price: publishedProduct ? publishedProduct.sale_price : (cp.sale_price || 0),
+                                // Get price from published product, not custom product
+                                sale_price: publishedProduct ? publishedProduct.sale_price : 0,
                               });
                               
                               setShowEditModal(true);
@@ -2208,7 +2226,8 @@ export default function MenuManagementPage() {
                           </button>
                           <button
                             onClick={() => handleDeleteCustomProduct(cp.id)}
-                            className="p-1 text-red-500 hover:bg-red-50 rounded"
+                            className={`p-1 text-red-500 hover:bg-red-50 rounded ${!cp.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={!cp.id}
                           >
                             <Trash2 size={16} />
                           </button>
