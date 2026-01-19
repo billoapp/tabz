@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../../../lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,12 +7,23 @@ export async function POST(request: NextRequest) {
     const { 
       deviceId, 
       fingerprint, 
+      version,
+      integrity,
       userAgent, 
+      timestamp,
+      // Legacy fields for backward compatibility
       screenResolution, 
       timezone, 
       language,
-      barId 
+      barId,
+      // New fields from updated schema
+      platform,
+      hardwareConcurrency,
+      deviceMemory,
+      pwaInstalled
     } = body;
+
+    console.log('📱 Device registration request:', { deviceId, fingerprint, version });
 
     // Validate required fields
     if (!deviceId || !fingerprint) {
@@ -23,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if device already exists
-    const { data: existingDevice, error: checkError } = await (supabase as any)
+    const { data: existingDevice, error: checkError } = await supabase
       .from('devices')
       .select('id, device_id')
       .eq('device_id', deviceId)
@@ -38,18 +49,32 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingDevice) {
+      // First get the current install count
+      const { data: currentDevice } = await supabase
+        .from('devices')
+        .select('install_count')
+        .eq('device_id', deviceId)
+        .single();
+
+      const newInstallCount = (currentDevice?.install_count || 0) + 1;
+
       // Update existing device
-      const { data: updatedDevice, error: updateError } = await (supabase as any)
+      const { data: updatedDevice, error: updateError } = await supabase
         .from('devices')
         .update({
           fingerprint,
           user_agent: userAgent,
+          platform: platform || null,
           screen_resolution: screenResolution,
           timezone,
           language,
+          hardware_concurrency: hardwareConcurrency || null,
+          device_memory: deviceMemory || null,
           last_bar_id: barId,
+          pwa_installed: pwaInstalled || false,
           last_seen: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          last_install_at: new Date().toISOString(),
+          install_count: newInstallCount
         })
         .eq('device_id', deviceId)
         .select()
@@ -70,18 +95,25 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Create new device
-      const { data: newDevice, error: createError } = await (supabase as any)
+      const { data: newDevice, error: createError } = await supabase
         .from('devices')
         .insert({
           device_id: deviceId,
           fingerprint,
           user_agent: userAgent,
+          platform: platform || null,
           screen_resolution: screenResolution,
           timezone,
           language,
+          hardware_concurrency: hardwareConcurrency || null,
+          device_memory: deviceMemory || null,
           last_bar_id: barId,
+          pwa_installed: pwaInstalled || false,
           is_active: true,
-          suspicious_activity_count: 0
+          suspicious_activity_count: 0,
+          install_count: 1,
+          total_tabs_created: 0,
+          total_amount_spent: 0.00
         })
         .select()
         .single();

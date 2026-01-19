@@ -169,24 +169,35 @@ export class DeviceIdentity {
     data: DeviceIdentityData
   ): Promise<void> {
     try {
+      // Collect additional device information
+      const deviceInfo = {
+        deviceId: data.id,
+        fingerprint: data.fingerprint,
+        version: data.version,
+        integrity: data.integrity,
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        screenResolution: `${screen.width}x${screen.height}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        language: navigator.language,
+        hardwareConcurrency: (navigator as any).hardwareConcurrency || null,
+        deviceMemory: (navigator as any).deviceMemory || null,
+        pwaInstalled: window.matchMedia('(display-mode: standalone)').matches,
+        timestamp: new Date().toISOString()
+      };
+
       const response = await fetch('/api/device/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deviceId: data.id,
-          fingerprint: data.fingerprint,
-          version: data.version,
-          integrity: data.integrity,
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString()
-        })
+        body: JSON.stringify(deviceInfo)
       });
       
       if (response.ok) {
         const result = await response.json();
         console.log('✅ Device registered with server:', result.serverId);
       } else {
-        console.warn('⚠️ Server registration failed:', response.status);
+        const errorText = await response.text();
+        console.warn('⚠️ Server registration failed:', response.status, errorText);
       }
     } catch (error) {
       console.warn('⚠️ Failed to register device with server:', error);

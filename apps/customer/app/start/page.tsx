@@ -519,6 +519,15 @@ function ConsentContent() {
     const deviceId = getDeviceId();
     
     try {
+      // Set bar context for RLS policies
+      const { error: contextError } = await (supabase as any)
+        .rpc('set_bar_context', { p_bar_id: barId });
+      
+      if (contextError) {
+        console.warn('⚠️ Failed to set bar context:', contextError);
+        // Continue anyway - the function might still work
+      }
+
       // Prepare display name
       let displayName: string | null = nickname.trim();
       if (!displayName) {

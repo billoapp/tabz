@@ -1724,6 +1724,14 @@ export default function MenuPage() {
         length: messageInput.trim().length
       });
       
+      // Set bar context for RLS policies
+      const { error: contextError } = await (supabase as any)
+        .rpc('set_bar_context', { p_bar_id: tab.bar_id });
+      
+      if (contextError) {
+        console.warn('⚠️ Failed to set bar context:', contextError);
+      }
+      
       // Use the database function first
       const { data, error: functionError } = await (supabase as any).rpc(
         'create_telegram_message',

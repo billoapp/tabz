@@ -19,6 +19,7 @@ export default function PWAInstallPrompt({ className = '' }: PWAInstallPromptPro
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       console.log('🔔 beforeinstallprompt event fired');
+      // Only prevent default if we're going to show our custom prompt
       e.preventDefault();
       const promptEvent = e as unknown as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
