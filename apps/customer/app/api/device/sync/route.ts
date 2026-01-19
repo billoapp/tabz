@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update last seen timestamp
+    // Update device last_seen timestamp
     const { data: updatedDevice, error: updateError } = await (supabase as any)
       .from('devices')
       .update({
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Device synced successfully',
-      lastSeen: updatedDevice?.last_seen
+      lastSeen: updatedDevice.last_seen
     });
 
   } catch (error) {

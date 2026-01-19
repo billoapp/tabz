@@ -32,7 +32,7 @@ const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
 export const dynamic = 'force-dynamic';
 
 // Guard against missing Supabase client during build
-if (!supabase) {
+if (typeof window !== 'undefined' && !supabase) {
   throw new Error('Supabase client not initialized. Check environment variables.');
 }
 
@@ -2265,15 +2265,24 @@ export default function MenuPage() {
                       return (
                         <div
                           key={barProduct.id}
-                          className="flex-shrink-0 flex-grow-0 w-42 transform transition-all duration-300 hover:scale-105"
+                          className="flex-shrink-0 flex-grow-0 transform transition-all duration-300 hover:scale-105"
                           style={{ 
+                            width: '80px',
+                            minWidth: '80px',
+                            maxWidth: '80px',
                             animationDelay: `${index * 50}ms`,
                             opacity: foodMenuCollapsed ? 0 : 1,
                             transform: `translateY(${foodMenuCollapsed ? '20px' : '0'})`
                           }}
                         >
                           <div
-                            className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-52 w-42"
+                            className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300"
+                            style={{
+                              height: '208px',
+                              width: '80px',
+                              minWidth: '80px',
+                              maxWidth: '80px'
+                            }}
                             onClick={() => addToCart(barProduct)}
                           >
                             <div className="w-full h-32 relative bg-gray-100">
