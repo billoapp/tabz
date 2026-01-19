@@ -36,6 +36,14 @@ if (typeof window !== 'undefined' && !supabase) {
   throw new Error('Supabase client not initialized. Check environment variables.');
 }
 
+// Type guard for supabase client
+const getSupabaseClient = () => {
+  if (!supabase) {
+    throw new Error('Supabase client not available');
+  }
+  return supabase;
+};
+
 interface Product {
   id: string;
   name: string;
@@ -136,7 +144,7 @@ export default function MenuPage() {
   const { showToast } = useToast();
   
   // Token service instance
-  const tokensService = new TokensService(supabase);
+  const tokensService = supabase ? new TokensService(supabase) : null;
   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
   const { showNotification } = useTokenNotifications();
 
@@ -339,8 +347,11 @@ export default function MenuPage() {
   useEffect(() => {
     const loadTokenBalance = async () => {
       console.log('🪙 Loading token balance...');
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      const supabaseClient = getSupabaseClient();
+      if (!supabaseClient) return;
+      
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (user && tokensService) {
         console.log('👤 User found for token balance:', user.id);
         const balance = await tokensService.getBalance(user.id);
         console.log('💰 Token balance result:', balance);
@@ -412,9 +423,12 @@ export default function MenuPage() {
   const loadNotificationPrefs = async () => {
     if (!tab) return;
     
+    const supabaseClient = getSupabaseClient();
+    if (!supabaseClient) return;
+    
     try {
       // Only query columns that exist in the database
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('tabs')
         .select('sound_enabled, vibration_enabled, notes')
         .eq('id', tab.id)
@@ -633,7 +647,9 @@ export default function MenuPage() {
         }
         
         // Refresh orders data
-        const { data: ordersData, error } = await supabase
+        const supabaseClient = getSupabaseClient();
+        if (!supabaseClient) return;
+        const { data: ordersData, error } = await supabaseClient
           .from('tab_orders')
           .select('*')
           .eq('tab_id', tab?.id || '')
@@ -662,7 +678,10 @@ export default function MenuPage() {
             return;
           }
           
-          const { data: fullTab, error } = await supabase
+          const supabaseClient = getSupabaseClient();
+          if (!supabaseClient) return;
+          
+          const { data: fullTab, error } = await supabaseClient
             .from('tabs')
             .select('*, bar:bars(id, name, location)')
             .eq('id', tab?.id || '')
@@ -701,7 +720,9 @@ export default function MenuPage() {
             payload.new?.status === 'success') {
           
           // Award tokens for order value
-          const { data: { user } } = await supabase.auth.getUser();
+          const supabaseClient = getSupabaseClient();
+          if (!supabaseClient || !tokensService) return;
+          const { data: { user } } = await supabaseClient.auth.getUser();
           if (user && tab?.bar_id) {
             const orderValue = Math.round(parseFloat(payload.new.amount) * 100); // Convert to cents
             
@@ -725,7 +746,7 @@ export default function MenuPage() {
                 });
                 
                 // Refresh token balance immediately
-                const { data: { user } } = await supabase.auth.getUser();
+                const { data: { user } } = await supabaseClient.auth.getUser();
                 if (user) {
                   const balance = await tokensService.getBalance(user.id);
                   setCurrentBalance(balance?.balance || 0);
@@ -741,7 +762,9 @@ export default function MenuPage() {
         }
         
         // Refresh payments data
-        const { data: paymentsData, error: paymentError } = await supabase
+        const supabaseClient = getSupabaseClient();
+        if (!supabaseClient) return;
+        const { data: paymentsData, error: paymentError } = await supabaseClient
           .from('tab_payments')
           .select('*')
           .eq('tab_id', tab?.id || '')
@@ -765,7 +788,9 @@ export default function MenuPage() {
         });
         
         // Refresh messages
-        const { data: messages, error } = await supabase
+        const supabaseClient = getSupabaseClient();
+        if (!supabaseClient) return;
+        const { data: messages, error } = await supabaseClient
           .from('tab_telegram_messages')
           .select(`
             *,
@@ -837,7 +862,7 @@ export default function MenuPage() {
     }
   ];
 
-  const { connectionStatus, retryCount, reconnect, isConnected } = useRealtimeSubscription(
+  const { connectionStatus, retryCount, reconnect, isConnected } = supabase ? useRealtimeSubscription(
     realtimeConfigs,
     [tab?.id, router, processedOrders],
     {
@@ -854,7 +879,12 @@ export default function MenuPage() {
         }
       }
     }
-  );
+  ) : {
+    connectionStatus: 'disconnected' as const,
+    retryCount: 0,
+    reconnect: () => {},
+    isConnected: false
+  };
 
   // Image zoom handlers
   const handleImageZoomIn = () => {
@@ -999,10 +1029,13 @@ export default function MenuPage() {
 
   // FIXED: Payment settings loading with correct column names
   const loadPaymentSettings = async (barId: string) => {
+    const supabaseClient = getSupabaseClient();
+    if (!supabaseClient) return;
+    
     try {
       console.log('💳 Loading payment settings for bar:', barId);
       // FIXED: Use correct column names from database
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('bars')
         .select('payment_mpesa_enabled, payment_card_enabled, payment_cash_enabled')
         .eq('id', barId)
@@ -1077,7 +1110,11 @@ export default function MenuPage() {
     }
     try {
       console.log('🔍 Menu page: Fetching full tab data from Supabase...');
-      const { data: fullTab, error: tabError } = await supabase
+      const supabaseClient = getSupabaseClient();
+      if (!supabaseClient) {
+        throw new Error('Supabase client not available');
+      }
+      const { data: fullTab, error: tabError } = await supabaseClient
         .from('tabs')
         .select('*, bar:bars(id, name, location)')
         .eq('id', currentTab.id)
@@ -1117,7 +1154,7 @@ export default function MenuPage() {
       setDisplayName(name);
       if ((fullTab as any).bar?.id) {
         try {
-          const { data: categoriesData, error: categoriesError } = await supabase
+          const { data: categoriesData, error: categoriesError } = await supabaseClient
             .from('categories')
             .select('name')
             .order('name');
@@ -1136,7 +1173,7 @@ export default function MenuPage() {
           console.error('Error loading categories:', error);
         }
         try {
-          const { data: barProductsData, error: barProductsError } = await supabase
+          const { data: barProductsData, error: barProductsError } = await supabaseClient
             .from('bar_products')
             .select('id, bar_id, product_id, custom_product_id, name, description, category, image_url, sale_price, active')
             .eq('bar_id', (fullTab as any).bar.id)
@@ -1168,7 +1205,7 @@ export default function MenuPage() {
         // Load bar table configuration
         try {
           console.log('🏢 Loading bar table configuration for bar:', (fullTab as any).bar.id);
-          const { data: barData, error: barError } = await supabase
+          const { data: barData, error: barError } = await supabaseClient
             .from('bars')
             .select('table_count, table_setup_enabled')
             .eq('id', (fullTab as any).bar.id)
@@ -1238,7 +1275,7 @@ export default function MenuPage() {
         }
       }
       try {
-        const { data: ordersData, error: ordersError } = await supabase
+        const { data: ordersData, error: ordersError } = await supabaseClient
           .from('tab_orders')
           .select('*')
           .eq('tab_id', currentTab.id)
@@ -1248,7 +1285,7 @@ export default function MenuPage() {
         console.error('Error loading orders:', error);
       }
       try {
-        const { data: paymentsData, error: paymentsError } = await supabase
+        const { data: paymentsData, error: paymentsError } = await supabaseClient
           .from('tab_payments')
           .select('*')
           .eq('tab_id', currentTab.id)
@@ -1261,7 +1298,7 @@ export default function MenuPage() {
       // Load bar settings (menu type, static menu URL and type)
       if ((fullTab as any).bar?.id) {
         try {
-          const { data: barData, error: barError } = await supabase
+          const { data: barData, error: barError } = await supabaseClient
             .from('bars')
             .select('menu_type, static_menu_url, static_menu_type')
             .eq('id', (fullTab as any).bar.id)
@@ -1358,8 +1395,8 @@ export default function MenuPage() {
 
   const selectTable = async (tableNumber: number | null) => {
     console.log('🪑 selectTable called with:', tableNumber);
-    if (!tab) {
-      console.log('❌ No tab available');
+    if (!tab || !supabase) {
+      console.log('❌ No tab available or supabase client');
       return;
     }
     
@@ -1382,7 +1419,12 @@ export default function MenuPage() {
       
       console.log('📝 Updating notes to:', updatedNotes);
       
-      const { error } = await (supabase as any)
+      const supabaseClient = getSupabaseClient();
+      if (!supabaseClient) {
+        throw new Error('Supabase client not available');
+      }
+      
+      const { error } = await (supabaseClient as any)
         .from('tabs')
         .update({ notes: JSON.stringify(updatedNotes) })
         .eq('id', tab.id);
@@ -1484,9 +1526,14 @@ export default function MenuPage() {
   };
 
   const handleApproveOrder = async (orderId: string) => {
+    if (!supabase) return;
+    
+    const supabaseClient = getSupabaseClient();
+    if (!supabaseClient) return;
+    
     setApprovingOrder(orderId);
     try {
-      const { error } = await (supabase as any)
+      const { error } = await (supabaseClient as any)
         .from('tab_orders')
         .update({ 
           status: 'confirmed', 
@@ -1542,7 +1589,7 @@ export default function MenuPage() {
   };
 
   const confirmRejectOrder = async () => {
-    if (!rejectingOrderId || !selectedRejectionReason) {
+    if (!rejectingOrderId || !selectedRejectionReason || !supabase) {
       showToast({
         type: 'error',
         title: 'Missing Reason',
@@ -1551,16 +1598,19 @@ export default function MenuPage() {
       return;
     }
 
+    const supabaseClient = getSupabaseClient();
+    if (!supabaseClient) return;
+    
     setApprovingOrder(rejectingOrderId);
     try {
-      const { error } = await (supabase as any)
+      const { error } = await (supabaseClient as any)
         .from('tab_orders')
         .update({ 
           status: 'cancelled', 
           cancelled_at: new Date().toISOString(),
           rejection_reason: selectedRejectionReason,
           cancelled_by: 'customer'
-        } as any)
+        })
         .eq('id', rejectingOrderId);
 
       if (error) throw error;
@@ -1665,7 +1715,9 @@ export default function MenuPage() {
   };
 
   const confirmOrder = async () => {
-    if (cart.length === 0) return;
+    const supabaseClient = getSupabaseClient();
+    if (cart.length === 0 || !supabaseClient) return;
+    
     setSubmittingOrder(true);
     try {
       const orderItems = cart.map((item, index) => ({
@@ -1681,7 +1733,7 @@ export default function MenuPage() {
       const orderSubmissionTime = new Date().toISOString();
       
       // ✅ DO NOT SET order_number - let database trigger handle it
-      const { error } = await (supabase as any)
+      const { error } = await supabaseClient
         .from('tab_orders')
         .insert({
           tab_id: tab!.id,
@@ -1689,7 +1741,7 @@ export default function MenuPage() {
           total: cartTotal,
           status: 'pending',
           initiated_by: 'customer'
-        });
+        } as any);
       if (error) throw error;
       sessionStorage.setItem('oldestPendingCustomerOrderTime', orderSubmissionTime);
       sessionStorage.removeItem('cart');
@@ -1715,6 +1767,9 @@ export default function MenuPage() {
       return;
     }
     
+    const supabaseClient = getSupabaseClient();
+    if (!supabaseClient) return;
+    
     setSendingMessage(true);
     
     try {
@@ -1725,15 +1780,15 @@ export default function MenuPage() {
       });
       
       // Set bar context for RLS policies
-      const { error: contextError } = await (supabase as any)
-        .rpc('set_bar_context', { p_bar_id: tab.bar_id });
+      const { error: contextError } = await supabaseClient
+        .rpc('set_bar_context', { p_bar_id: tab.bar_id } as any);
       
       if (contextError) {
         console.warn('⚠️ Failed to set bar context:', contextError);
       }
       
       // Use the database function first
-      const { data, error: functionError } = await (supabase as any).rpc(
+      const { data, error: functionError } = await supabaseClient.rpc(
         'create_telegram_message',
         {
           p_tab_id: tab.id,
@@ -1745,14 +1800,14 @@ export default function MenuPage() {
             character_count: messageInput.trim().length,
             platform: 'customer-web'
           }
-        }
+        } as any
       );
       
       // If function fails, try direct insert
       if (functionError) {
         console.warn('⚠️ Function failed, trying direct insert:', functionError);
         
-        const { data: insertData, error: insertError } = await (supabase as any)
+        const { data: insertData, error: insertError } = await supabaseClient
           .from('tab_telegram_messages')
           .insert({
             tab_id: tab.id,
@@ -1768,7 +1823,7 @@ export default function MenuPage() {
             customer_notified: true,
             customer_notified_at: new Date().toISOString(),
             initiated_by: 'customer'
-          })
+          } as any)
           .select()
           .single();
         
@@ -1809,8 +1864,11 @@ export default function MenuPage() {
   const loadTelegramMessages = async () => {
     if (!tab) return;
     
+    const supabaseClient = getSupabaseClient();
+    if (!supabaseClient) return;
+    
     try {
-      const telegram = telegramMessageQueries(supabase);
+      const telegram = telegramMessageQueries(supabaseClient);
       const { data, error } = await telegram.getTabMessages(tab.id);
       
       if (!error && data) {
@@ -2313,8 +2371,8 @@ export default function MenuPage() {
                               )}
                             </div>
                             <div className="flex-1 p-3 flex flex-col justify-between">
-                              <h3 className={`text-sm font-medium text-gray-900 text-left leading-tight ${product.name && product.name.length > 20 ? 'text-xs' : ''}`}>{product.name || 'Product'}</h3>
-                              <p className="text-sm text-gray-600 mt-2 text-left">{tempFormatCurrency(barProduct.sale_price)}</p>
+                              <h3 className={`text-sm font-medium text-gray-900 text-left leading-tight break-words overflow-hidden ${product.name && product.name.length > 20 ? 'text-xs' : ''}`} style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>{product.name || 'Product'}</h3>
+                              <p className="text-sm text-gray-600 mt-2 text-left break-words overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>{tempFormatCurrency(barProduct.sale_price)}</p>
                             </div>
                           </div>
                         </div>

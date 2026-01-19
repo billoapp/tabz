@@ -72,13 +72,27 @@ export default function PWAUpdateManager() {
       const updateInterval = setInterval(() => {
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.ready.then(registration => {
+            console.log('🔄 PWA Update Manager: Checking for updates...');
             registration.update();
           });
         }
       }, 10 * 60 * 1000);
 
+      // Also check for updates when the app becomes visible
+      const handleVisibilityChange = () => {
+        if (!document.hidden && 'serviceWorker' in navigator) {
+          console.log('🔄 PWA Update Manager: App became visible, checking for updates...');
+          navigator.serviceWorker.ready.then(registration => {
+            registration.update();
+          });
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
       return () => {
         clearInterval(updateInterval);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
         window.removeEventListener('online', handleOnline);
         window.removeEventListener('offline', handleOffline);
       };
@@ -91,20 +105,32 @@ export default function PWAUpdateManager() {
     setIsUpdating(true);
     
     try {
+      console.log('🔄 PWA Update Manager: Starting update process...');
+      
+      // Clear all caches first
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        console.log('🗑️ PWA Update Manager: Clearing caches:', cacheNames);
+        await Promise.all(
+          cacheNames.map(cacheName => caches.delete(cacheName))
+        );
+      }
+      
       // Send message to skip waiting
       newWorker.postMessage({ type: 'SKIP_WAITING' });
       
       // The controllerchange event will trigger a reload
       setTimeout(() => {
         if (isUpdating) {
+          console.log('🔄 PWA Update Manager: Force reloading...');
           window.location.reload();
         }
       }, 3000);
     } catch (error) {
       console.error('❌ PWA Update Manager: Failed to update:', error);
       setIsUpdating(false);
-      // Fallback: manual reload
-      window.location.reload();
+      // Fallback: manual reload with cache busting
+      window.location.href = window.location.href + '?v=' + Date.now();
     }
   };
 
@@ -226,6 +252,13 @@ export default function PWAUpdateManager() {
             <p className="text-xs text-gray-500 mt-3 text-center">
               Quick update • Your tab stays safe
             </p>
+            
+            {/* Debug info in development */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-600">
+                SW State: {newWorker?.state || 'unknown'} | Online: {isOnline ? 'Yes' : 'No'}
+              </div>
+            )}
           </div>
         </div>
       )}
