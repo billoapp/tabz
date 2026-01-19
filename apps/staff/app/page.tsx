@@ -239,49 +239,70 @@ const HighVisibilityAlert = ({
   }, [isVisible]);
 
   // Handle dismissal with sound stopping
-  const handleDismiss = () => {
+  const handleDismiss = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     console.log('🔔 Alert dismissed - stopping sound and hiding overlay');
     stopContinuousAlertSound();
     onDismiss();
   };
+
+  // Handle keyboard dismissal
+  useEffect(() => {
+    if (!isVisible) return;
+    
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        console.log('🔔 Alert dismissed via keyboard - stopping sound and hiding overlay');
+        stopContinuousAlertSound();
+        onDismiss();
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyPress);
+    return () => document.removeEventListener('keydown', handleKeyPress);
+  }, [isVisible, onDismiss]);
+  
+  if (!isVisible) return null;
   
   return (
-    <>
-      {isVisible && (
-        /* Simple flashing background - clickable anywhere to dismiss */
-        <div 
-          className="fixed inset-0 bg-orange-500 bg-opacity-50 animate-pulse z-[9999] flex items-center justify-center cursor-pointer"
-          onClick={handleDismiss}
+    /* Simple flashing background - clickable anywhere to dismiss */
+    <div 
+      className="fixed inset-0 bg-orange-500 bg-opacity-50 animate-pulse z-[9999] flex items-center justify-center cursor-pointer"
+      onClick={handleDismiss}
+      onTouchStart={handleDismiss} // Add touch support for mobile
+      role="button"
+      tabIndex={0}
+      aria-label="Dismiss alert notification"
+    >
+      {/* Large bell icon - outline style, white, very large */}
+      <div className="pointer-events-none select-none">
+        <svg 
+          width="33vh" 
+          height="33vh" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="white" 
+          strokeWidth={1} 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          className="text-white"
         >
-          {/* Large bell icon - outline style, white, very large */}
-          <div className="pointer-events-none">
-            <svg 
-              width="33vh" 
-              height="33vh" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="white" 
-              strokeWidth={1} 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-              className="text-white"
-            >
-              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
-              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
-            </svg>
-          </div>
-          
-          {/* Pending orders counter - only show if 2 or more */}
-          {pendingCount >= 2 && (
-            <div className="absolute bottom-8 right-8 pointer-events-none">
-              <span className="text-white font-bold" style={{ fontSize: '33vh', lineHeight: '1' }}>
-                {pendingCount}
-              </span>
-            </div>
-          )}
+          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+        </svg>
+      </div>
+      
+      {/* Pending orders counter - only show if 2 or more */}
+      {pendingCount >= 2 && (
+        <div className="absolute bottom-8 right-8 pointer-events-none select-none">
+          <span className="text-white font-bold" style={{ fontSize: '33vh', lineHeight: '1' }}>
+            {pendingCount}
+          </span>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

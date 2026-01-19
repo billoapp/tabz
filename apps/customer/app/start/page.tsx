@@ -327,8 +327,35 @@ function ConsentContent() {
         const hasExistingTab = existingTabs && existingTabs.length > 0;
         
         if (hasExistingTab) {
-          console.log('✅ User has existing tab, allowing access regardless of business hours');
-          // Continue to consent form
+          console.log('✅ User has existing tab, redirecting directly to menu');
+          
+          // Store the existing tab data and redirect to menu
+          const existingTab = existingTabs[0];
+          storeActiveTab(bar.id, existingTab);
+          sessionStorage.setItem('currentTab', JSON.stringify(existingTab));
+          sessionStorage.setItem('barName', bar.name);
+          
+          // Get display name from existing tab
+          try {
+            const notes = JSON.parse(existingTab.notes || '{}');
+            const displayName = notes.display_name || `Tab ${existingTab.tab_number}`;
+            sessionStorage.setItem('displayName', displayName);
+          } catch {
+            sessionStorage.setItem('displayName', `Tab ${existingTab.tab_number}`);
+          }
+          
+          // Redirect to menu instead of showing consent form
+          showToast({
+            type: 'success',
+            title: 'Welcome Back!',
+            message: `Continuing to your existing tab at ${bar.name}`
+          });
+          
+          setTimeout(() => {
+            router.replace('/menu');
+          }, 500);
+          
+          return; // Don't show consent form
         } else {
           // Check business hours only for new customers
           const isWithinBusinessHours = (barData: any) => {
@@ -478,151 +505,22 @@ function ConsentContent() {
 
     setCreating(true);
 
-    const deviceId = getDeviceId(); // FIXED: remove supabase parameter
-    const barDeviceKey = getBarDeviceKey(barId); // FIXED: use getBarDeviceKey instead of getBarDeviceKeySync
+    const deviceId = getDeviceId();
     
     try {
-      // Check for existing tab one more time (safety check)
-      const { data: existingTab } = await (supabase as any)
-        .from('tabs')
-        .select('*')
-        .eq('bar_id', barId)
-        .eq('owner_identifier', barDeviceKey)
-        .eq('status', 'open')
-        .maybeSingle();
-
-      if (existingTab) {
-        // Update nickname if provided
-        if (nickname.trim()) {
-          const notes = JSON.parse(existingTab.notes || '{}');
-          notes.display_name = nickname.trim();
-          
-          await (supabase as any)
-            .from('tabs')
-            .update({ notes: JSON.stringify(notes) })
-            .eq('id', existingTab.id);
-        }
-
-        const displayName = nickname.trim() || (() => {
-          try {
-            const notes = JSON.parse(existingTab.notes || '{}');
-            return notes.display_name || `Tab ${existingTab.tab_number}`;
-          } catch {
-            return `Tab ${existingTab.tab_number}`;
-          }
-        })();
-
-        // Store tab data
-        storeActiveTab(barId, existingTab);
-        sessionStorage.setItem('currentTab', JSON.stringify(existingTab));
-        sessionStorage.setItem('displayName', displayName);
-        sessionStorage.setItem('barName', barName);
-        
-        sessionStorage.removeItem('just_created_tab');
-        
-        showToast({
-          type: 'success',
-          title: 'Welcome Back!',
-          message: `Continuing to your ${displayName}`
-        });
-        
-        setTimeout(() => {
-          router.replace('/menu');
-        }, 300);
-        
-        return;
+      // Prepare display name
+      let displayName: string | null = nickname.trim();
+      if (!displayName) {
+        displayName = null; // Let the database function generate tab number
       }
 
-      // Create new tab
-      let displayName: string;
-      let tabNumber: number | null;
-      
-      if (nickname.trim()) {
-        // Check for nickname conflicts
-        const { data: existingNicknames } = await (supabase as any)
-          .from('tabs')
-          .select('notes')
-          .eq('bar_id', barId)
-          .eq('status', 'open')
-          .not('notes', 'is', null);
-
-        let finalNickname = nickname.trim();
-        
-        if (existingNicknames && existingNicknames.length > 0) {
-          const openNicknames = existingNicknames
-            .map((tab: any) => {
-              try {
-                const notes = JSON.parse(tab.notes || '{}');
-                return notes.display_name;
-              } catch {
-                return null;
-              }
-            })
-            .filter((name: any) => name && name.toLowerCase() === nickname.trim().toLowerCase());
-
-          if (openNicknames.length > 0) {
-            const suggestions = [
-              `${nickname.trim()} ${Math.floor(Math.random() * 999) + 1}`,
-              `${nickname.trim()}_${Math.floor(Math.random() * 999) + 1}`,
-              `${nickname.trim()}-${Math.floor(Math.random() * 999) + 1}`,
-              `${nickname.trim()}#${Math.floor(Math.random() * 999) + 1}`
-            ];
-
-            const suggestionList = suggestions.map((suggestion, index) => 
-              `${index + 1}. ${suggestion}`
-            ).join('\n');
-
-            const userChoice = prompt(
-              `The nickname "${nickname.trim()}" is already in use at this bar.\n\n` +
-              `Choose one of these suggestions:\n${suggestionList}\n\n` +
-              `Enter the number (1-4) to choose, or type your own:`,
-              suggestions[0]
-            );
-
-            if (userChoice) {
-              const choiceNum = parseInt(userChoice);
-              if (choiceNum >= 1 && choiceNum <= 4) {
-                finalNickname = suggestions[choiceNum - 1];
-              } else {
-                finalNickname = userChoice.trim();
-              }
-            } else {
-              setCreating(false);
-              return;
-            }
-          }
-        }
-        
-        displayName = finalNickname;
-        tabNumber = null;
-      } else {
-        // Get next tab number
-        const { data: existingTabs } = await (supabase as any)
-          .from('tabs')
-          .select('tab_number')
-          .eq('bar_id', barId)
-          .not('tab_number', 'is', null)
-          .order('tab_number', { ascending: false })
-          .limit(1);
-
-        const nextNumber = existingTabs && existingTabs.length > 0 
-          ? existingTabs[0].tab_number + 1 
-          : 1;
-        
-        displayName = `Tab ${nextNumber}`;
-        tabNumber = nextNumber;
-      }
-
-      // Create tab in database
-      const { data: tab, error: tabError } = await (supabase as any)
-        .from('tabs')
-        .insert({
-          bar_id: barId,
-          tab_number: tabNumber,
-          status: 'open',
-          owner_identifier: barDeviceKey,
-          notes: JSON.stringify({
-            display_name: displayName,
+      // Use atomic tab creation function to prevent race conditions
+      const { data: result, error } = await (supabase as any)
+        .rpc('create_tab_if_not_exists', {
+          p_bar_id: barId,
+          p_device_id: deviceId,
+          p_display_name: displayName,
+          p_notes: {
             has_nickname: !!nickname.trim(),
             device_id: deviceId,
             notifications_enabled: notificationsEnabled,
@@ -632,59 +530,101 @@ function ConsentContent() {
             accepted_at: new Date().toISOString(),
             bar_name: barName,
             created_via: 'consent_page'
-          })
-        })
-        .select()
-        .single();
+          }
+        });
 
-      if (tabError) {
-        throw new Error(tabError.message || 'Failed to create tab');
+      if (error) {
+        throw new Error(error.message || 'Failed to create tab');
       }
 
-      sessionStorage.setItem('just_created_tab', 'true');
-      
+      if (!result || !result.success) {
+        throw new Error(result?.message || 'Tab creation failed');
+      }
+
+      const tab = result.tab;
+      const isExisting = result.existing;
+
+      // Get display name from tab
+      let finalDisplayName: string;
+      try {
+        const notes = JSON.parse(tab.notes || '{}');
+        finalDisplayName = notes.display_name || `Tab ${tab.tab_number}`;
+      } catch {
+        finalDisplayName = `Tab ${tab.tab_number}`;
+      }
+
+      // Store tab data
       storeActiveTab(barId, tab);
       sessionStorage.setItem('currentTab', JSON.stringify(tab));
-      sessionStorage.setItem('displayName', displayName);
+      sessionStorage.setItem('displayName', finalDisplayName);
       sessionStorage.setItem('barName', barName);
       
-      // Award first connection tokens
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user && barId) {
-          const result = await tokensService.awardFirstConnectionTokens(user.id, barId);
-          
-          if (result) {
-            showNotification({
-              type: 'bonus',
-              title: '🎉 Welcome Bonus!',
-              message: `🎉 +${TOKENS_CONFIG.FIRST_CONNECT_TOKENS} tokens earned for connecting to ${barName}!`,
-              amount: TOKENS_CONFIG.FIRST_CONNECT_TOKENS,
-              autoHide: 5000,
-              timestamp: new Date().toISOString()
-            });
+      if (isExisting) {
+        sessionStorage.removeItem('just_created_tab');
+        showToast({
+          type: 'success',
+          title: 'Welcome Back!',
+          message: `Continuing to your ${finalDisplayName}`
+        });
+      } else {
+        sessionStorage.setItem('just_created_tab', 'true');
+        
+        // Award first connection tokens for new tabs only
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && barId) {
+            const tokenResult = await tokensService.awardFirstConnectionTokens(user.id, barId);
+            
+            if (tokenResult) {
+              showNotification({
+                type: 'bonus',
+                title: '🎉 Welcome Bonus!',
+                message: `🎉 +${TOKENS_CONFIG.FIRST_CONNECT_TOKENS} tokens earned for connecting to ${barName}!`,
+                amount: TOKENS_CONFIG.FIRST_CONNECT_TOKENS,
+                autoHide: 5000,
+                timestamp: new Date().toISOString()
+              });
+            }
           }
+        } catch (error) {
+          // Token awarding failed, but don't block tab creation
+          console.warn('Token awarding failed:', error);
         }
-      } catch (error) {
-        // Token awarding failed, but don't block tab creation
+        
+        showToast({
+          type: 'success',
+          title: 'Tab Created!',
+          message: `Welcome to ${barName}, ${finalDisplayName}!`
+        });
       }
-      
-      showToast({
-        type: 'success',
-        title: 'Tab Created!',
-        message: `Welcome to ${barName}, ${displayName}!`
-      });
       
       setTimeout(() => {
         router.replace('/menu');
       }, 300);
 
     } catch (error: any) {
-      showToast({
-        type: 'error',
-        title: 'Tab Creation Failed',
-        message: error.message || 'Please try again or contact staff'
-      });
+      console.error('Tab creation error:', error);
+      
+      // Handle specific error cases
+      if (error.message?.includes('unique_violation') || error.message?.includes('duplicate')) {
+        showToast({
+          type: 'info',
+          title: 'Tab Already Exists',
+          message: 'You already have a tab at this bar. Redirecting...'
+        });
+        
+        // Try to find and redirect to existing tab
+        setTimeout(() => {
+          router.replace('/menu');
+        }, 1000);
+      } else {
+        showToast({
+          type: 'error',
+          title: 'Tab Creation Failed',
+          message: error.message || 'Please try again or contact staff'
+        });
+      }
+      
       setCreating(false);
     }
   };

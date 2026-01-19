@@ -119,11 +119,6 @@ export default function MenuPage() {
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [selectedRejectionReason, setSelectedRejectionReason] = useState<string>('');
 
-  // Debug: Monitor showRejectModal changes
-  useEffect(() => {
-    console.log('🚫 showRejectModal changed to:', showRejectModal);
-  }, [showRejectModal]);
-
   // Rejection reasons enum (max 3 as requested)
   const rejectionReasons = [
     { value: 'wrong_items', label: 'Wrong items ordered' },
@@ -212,9 +207,6 @@ export default function MenuPage() {
   // Helper function to get icon for category based on final category list
   const getCategoryIcon = (categoryName: string) => {
     const category = categoryName.toLowerCase();
-    
-    // Debug logging
-    console.log('🔍 Customer getCategoryIcon called with:', categoryName);
     
     // DRINKS CATEGORIES
     if (category.includes('beer & cider') || category.includes('beer') || category.includes('cider')) {
@@ -1991,23 +1983,6 @@ export default function MenuPage() {
                     Change Table
                   </button>
                 )}
-                
-                {/* Debug button for testing */}
-                <button
-                  onClick={() => {
-                    console.log('🐛 Debug: Manual table modal trigger');
-                    console.log('🐛 Debug state:', { 
-                      showTableModal, 
-                      barTables: barTables.length, 
-                      tableSelectionRequired,
-                      selectedTable 
-                    });
-                    setShowTableModal(true);
-                  }}
-                  className="text-xs bg-red-500 bg-opacity-80 text-white px-2 py-0.5 rounded-full hover:bg-opacity-90 transition-colors ml-2"
-                >
-                  DEBUG: Show Table Modal
-                </button>
               </div>
             </div>
             
@@ -3452,10 +3427,6 @@ export default function MenuPage() {
               <p className="text-gray-600">
                 Please select your table number to help staff serve you better
               </p>
-              {/* Debug info */}
-              <div className="mt-2 text-xs text-gray-400">
-                Debug: {barTables.length} tables available: [{barTables.join(', ')}]
-              </div>
             </div>
             
             {/* Table Grid */}
