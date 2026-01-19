@@ -2298,9 +2298,9 @@ export default function MenuPage() {
                           key={barProduct.id}
                           className="flex-shrink-0 flex-grow-0 transform transition-all duration-300 hover:scale-105"
                           style={{ 
-                            width: '80px',
-                            minWidth: '80px',
-                            maxWidth: '80px',
+                            width: '240px',
+                            minWidth: '240px',
+                            maxWidth: '240px',
                             animationDelay: `${index * 50}ms`,
                             opacity: foodMenuCollapsed ? 0 : 1,
                             transform: `translateY(${foodMenuCollapsed ? '20px' : '0'})`
@@ -2309,10 +2309,10 @@ export default function MenuPage() {
                           <div
                             className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300"
                             style={{
-                              height: '208px',
-                              width: '80px',
-                              minWidth: '80px',
-                              maxWidth: '80px'
+                              height: '180px',
+                              width: '240px',
+                              minWidth: '240px',
+                              maxWidth: '240px'
                             }}
                             onClick={() => addToCart(barProduct)}
                           >
@@ -2343,9 +2343,9 @@ export default function MenuPage() {
                                 </div>
                               )}
                             </div>
-                            <div className="flex-1 p-3 flex flex-col justify-between">
-                              <h3 className={`text-sm font-medium text-gray-900 text-left leading-tight break-words overflow-hidden ${product.name && product.name.length > 20 ? 'text-xs' : ''}`} style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>{product.name || 'Product'}</h3>
-                              <p className="text-sm text-gray-600 mt-2 text-left break-words overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>{tempFormatCurrency(barProduct.sale_price)}</p>
+                            <div className="flex-1 p-1 flex flex-col justify-center">
+                              <h3 className={`text-xs font-medium text-gray-900 text-left leading-tight break-words overflow-hidden ${product.name && product.name.length > 20 ? 'text-xs' : ''}`} style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>{product.name || 'Product'}</h3>
+                              <p className="text-xs text-gray-600 text-left break-words overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>{tempFormatCurrency(barProduct.sale_price)}</p>
                             </div>
                           </div>
                         </div>

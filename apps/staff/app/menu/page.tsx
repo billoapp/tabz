@@ -548,14 +548,19 @@ export default function MenuManagementPage() {
       if (!barId) return;
       const { data, error } = await supabase
         .from('custom_products')
-        .select('*')
+        .select('id, bar_id, name, description, category, image_url, sku, price, active, created_at, updated_at')
         .eq('bar_id', barId)
         .eq('active', true)
         .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
       if (error) throw error;
       
-      // Show ALL custom products, not just unpublished ones
-      setCustomProducts(data || []);
+      // Map price column to sale_price for interface compatibility
+      const mappedData = (data || []).map(item => ({
+        ...item,
+        sale_price: item.price // Map database 'price' to interface 'sale_price'
+      }));
+      
+      setCustomProducts(mappedData);
     } catch (error) {
       console.error('Error loading custom products:', error);
     }
@@ -700,7 +705,7 @@ export default function MenuManagementPage() {
           description: newCustomItem.description || null,
           image_url: newCustomItem.image_url || null,
           sku: `CUSTOM-${Date.now().toString(36).toUpperCase()}`,
-          sale_price: newCustomItem.price ? parseFloat(newCustomItem.price) : null,
+          price: newCustomItem.price ? parseFloat(newCustomItem.price) : null, // Use 'price' column
           active: true,
         })
         .select()
@@ -747,7 +752,7 @@ export default function MenuManagementPage() {
           description: editForm.description,
           image_url: editForm.image_url,
           category: editForm.category,
-          sale_price: editForm.sale_price || null,
+          price: editForm.sale_price || null, // Use 'price' column
           updated_at: new Date().toISOString(),
         })
         .eq('id', customProductId)
@@ -2299,12 +2304,17 @@ export default function MenuManagementPage() {
                           <button
                             onClick={() => {
                               setEditingCustom(cp.id);
+                              
+                              // Check if this custom product is published in bar_products
+                              const publishedProduct = barProducts.find(bp => bp.custom_product_id === cp.id);
+                              
                               setEditForm({
                                 name: cp.name,
                                 category: cp.category,
                                 description: cp.description || '',
                                 image_url: cp.image_url || '',
-                                sale_price: cp.sale_price || 0,
+                                // Use published price if available, otherwise use custom product price
+                                sale_price: publishedProduct ? publishedProduct.sale_price : (cp.sale_price || 0),
                               });
                             }}
                             className="p-1 text-blue-500 hover:bg-blue-50 rounded"
