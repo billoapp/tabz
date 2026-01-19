@@ -164,9 +164,10 @@ export default function MenuPage() {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
 
-  // FIVE COLLAPSIBLE SECTIONS - food menu starts open, others closed
+  // THREE COLLAPSIBLE SECTIONS - food menu starts open, others closed
   const [foodMenuCollapsed, setFoodMenuCollapsed] = useState(false); // Start open
   const [drinksMenuCollapsed, setDrinksMenuCollapsed] = useState(true);
+  const [promoCollapsed, setPromoCollapsed] = useState(true); // PROMO panel - starts closed
   const [cartCollapsed, setCartCollapsed] = useState(true);
   const [paymentCollapsed, setPaymentCollapsed] = useState(true);
 
@@ -927,7 +928,7 @@ export default function MenuPage() {
     setImageScale(1);
   };
 
-  // Toggle functions for FIVE EXCLUSIVE collapsible sections
+  // Toggle functions for THREE EXCLUSIVE collapsible sections
   const toggleFoodMenu = () => {
     if (!foodMenuCollapsed) {
       // If already open, just close it
@@ -936,6 +937,7 @@ export default function MenuPage() {
       // Open food menu, close others
       setFoodMenuCollapsed(false);
       setDrinksMenuCollapsed(true);
+      setPromoCollapsed(true);
       setCartCollapsed(true);
       setPaymentCollapsed(true);
       setShowStaticMenu(false);
@@ -950,6 +952,22 @@ export default function MenuPage() {
       // Open drinks menu, close others
       setDrinksMenuCollapsed(false);
       setFoodMenuCollapsed(true);
+      setPromoCollapsed(true);
+      setCartCollapsed(true);
+      setPaymentCollapsed(true);
+      setShowStaticMenu(false);
+    }
+  };
+
+  const togglePromoMenu = () => {
+    if (!promoCollapsed) {
+      // If already open, just close it
+      setPromoCollapsed(true);
+    } else {
+      // Open promo menu, close others
+      setPromoCollapsed(false);
+      setFoodMenuCollapsed(true);
+      setDrinksMenuCollapsed(true);
       setCartCollapsed(true);
       setPaymentCollapsed(true);
       setShowStaticMenu(false);
@@ -966,6 +984,7 @@ export default function MenuPage() {
       setCartCollapsed(false);
       setFoodMenuCollapsed(true);
       setDrinksMenuCollapsed(true);
+      setPromoCollapsed(true);
       setPaymentCollapsed(true);
       setShowStaticMenu(false);
     }
@@ -980,6 +999,7 @@ export default function MenuPage() {
       setPaymentCollapsed(false);
       setFoodMenuCollapsed(true);
       setDrinksMenuCollapsed(true);
+      setPromoCollapsed(true);
       setCartCollapsed(true);
       setShowStaticMenu(false);
     }
@@ -991,6 +1011,7 @@ export default function MenuPage() {
       setShowStaticMenu(true);
       setFoodMenuCollapsed(true);
       setDrinksMenuCollapsed(true);
+      setPromoCollapsed(true);
       setCartCollapsed(true);
       setPaymentCollapsed(true);
     } else {
@@ -1680,6 +1701,7 @@ export default function MenuPage() {
     setCartCollapsed(false);
     setFoodMenuCollapsed(true);
     setDrinksMenuCollapsed(true);
+    setPromoCollapsed(true);
     
     // Show toast notification for cart addition
     showToast({
@@ -2214,7 +2236,7 @@ export default function MenuPage() {
         <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
           <div className="p-4 flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50">
             <div>
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🍽️ FOOD</h2>
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">FOOD</h2>
             </div>
             <button
               onClick={toggleFoodMenu}
@@ -2353,7 +2375,7 @@ export default function MenuPage() {
         <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
           <div className="p-4 flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50">
             <div>
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🍺 DRINKS</h2>
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">DRINKS</h2>
             </div>
             <button
               onClick={toggleDrinksMenu}
@@ -2634,41 +2656,34 @@ export default function MenuPage() {
         </button>
       )}
 
-      {/* Menu Viewer - RENAMED from "Static Menu" */}
-      {(staticMenuUrl || staticMenuType === 'slideshow') && (
-        <div className="p-4">
-          {/* Section Header - NEW */}
-          <div className="mb-3">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PROMOS</h2>
+      {/* PROMO Section - COLLAPSIBLE */}
+      <div className="bg-gray-50 px-4">
+        <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
+          <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
+            <div>
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PROMO</h2>
+            </div>
+            <button
+              onClick={togglePromoMenu}
+              className="text-orange-600 hover:text-orange-700 p-2 transform transition-transform duration-200 hover:scale-110"
+            >
+              <ChevronDown 
+                size={20} 
+                className={`transform transition-transform duration-300 ease-in-out ${
+                  promoCollapsed ? 'rotate-0' : 'rotate-180'
+                }`}
+              />
+            </button>
           </div>
           
-          <div className="bg-white border border-gray-100 overflow-hidden rounded-lg">
-            {/* Menu Header - UPDATED text */}
-            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-700">Specials</h2>
-              </div>
-              <button
-                onClick={toggleStaticMenu}
-                className="text-orange-600 hover:text-orange-700 p-2 transform transition-transform duration-200 hover:scale-110"
-              >
-                <ChevronDown 
-                  size={20} 
-                  className={`transform transition-transform duration-300 ease-in-out ${
-                    !showStaticMenu ? 'rotate-0' : 'rotate-180'
-                  }`}
-                />
-              </button>
-            </div>
-            
-            {/* Static Menu Content */}
-            <div 
-              className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                !showStaticMenu 
-                  ? 'max-h-0 opacity-0' 
-                  : 'max-h-[70vh] opacity-100'
-              }`}
-            >
+          <div 
+            className={`overflow-hidden transition-all duration-500 ease-in-out ${
+              promoCollapsed 
+                ? 'max-h-0 opacity-0' 
+                : 'max-h-[70vh] opacity-100'
+            }`}
+          >
+            {(staticMenuUrl || staticMenuType === 'slideshow') ? (
               <div className="relative z-10 bg-gray-900 bg-opacity-95 flex flex-col h-[70vh] min-h-[400px]">
                 {/* Content */}
                 <div className="flex-1 overflow-hidden">
@@ -2754,7 +2769,7 @@ export default function MenuPage() {
                           style={{ 
                             transform: `scale(${imageScale})`, 
                             transformOrigin: 'center',
-                            filter: showStaticMenu ? 'brightness(1)' : 'brightness(0.8)'
+                            filter: !promoCollapsed ? 'brightness(1)' : 'brightness(0.8)'
                           }}
                         />
                       </div>
@@ -2790,10 +2805,16 @@ export default function MenuPage() {
                   )}
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-4">
+                <div className="text-center py-8 text-gray-500">
+                  <p>No promotional content available</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
       <div ref={ordersRef} className="p-4">
         {/* Section Header - NEW */}
