@@ -44,9 +44,8 @@ export default function SettingsPage() {
     payments: false
   });
 
-  // FIXED: Using correct database column names
+  // Payment settings (excluding M-Pesa which has its own section)
   const [paymentSettings, setPaymentSettings] = useState({
-    payment_mpesa_enabled: false,
     payment_card_enabled: false,
     payment_cash_enabled: true
   });
@@ -191,9 +190,8 @@ export default function SettingsPage() {
         }));
       }
       
-      // FIXED: Load payment settings with correct column names
+      // Load payment settings (excluding M-Pesa which has its own section)
       setPaymentSettings({
-        payment_mpesa_enabled: data.payment_mpesa_enabled ?? false,
         payment_card_enabled: data.payment_card_enabled ?? false,
         payment_cash_enabled: data.payment_cash_enabled ?? true
       });
@@ -324,8 +322,7 @@ export default function SettingsPage() {
 
   const handleSavePaymentSettings = async () => {
     // Validate that at least one payment method is enabled
-    if (!paymentSettings.payment_mpesa_enabled && 
-        !paymentSettings.payment_card_enabled && 
+    if (!paymentSettings.payment_card_enabled && 
         !paymentSettings.payment_cash_enabled) {
       alert('❌ At least one payment method must be enabled.');
       return;
@@ -346,7 +343,6 @@ export default function SettingsPage() {
       const { error } = await (supabase as any)
         .from('bars')
         .update({
-          payment_mpesa_enabled: paymentSettings.payment_mpesa_enabled,
           payment_card_enabled: paymentSettings.payment_card_enabled,
           payment_cash_enabled: paymentSettings.payment_cash_enabled
         })
@@ -682,45 +678,39 @@ export default function SettingsPage() {
 
       const userBarId = user.user_metadata.bar_id;
 
-      // Prepare update data
-      const updateData: any = {
+      console.log('🔧 Saving M-Pesa settings for bar:', userBarId);
+      console.log('📝 Settings to save:', {
         mpesa_enabled: mpesaSettings.mpesa_enabled,
         mpesa_environment: mpesaSettings.mpesa_environment,
         mpesa_business_shortcode: mpesaSettings.mpesa_business_shortcode,
-        mpesa_setup_completed: false, // Reset until tested
-        mpesa_test_status: 'pending'
-      };
+        hasCredentials: !!(mpesaSettings.mpesa_consumer_key && mpesaSettings.mpesa_consumer_secret && mpesaSettings.mpesa_passkey)
+      });
 
-      // Only update credentials if they were provided
-      if (mpesaSettings.mpesa_consumer_key) {
-        // Inline encryption function to avoid import issues
-        const encryptCredential = (plaintext: string): string => {
-          const crypto = require('crypto');
-          const ENCRYPTION_KEY = process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!';
-          
-          const iv = crypto.randomBytes(16);
-          const key = Buffer.from(ENCRYPTION_KEY.slice(0, 32));
-          const cipher = crypto.createCipher('aes-256-gcm', key);
-          
-          let encrypted = cipher.update(plaintext, 'utf8', 'hex');
-          encrypted += cipher.final('hex');
-          
-          const authTag = cipher.getAuthTag();
-          
-          return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
-        };
-        
-        updateData.mpesa_consumer_key_encrypted = encryptCredential(mpesaSettings.mpesa_consumer_key);
-        updateData.mpesa_consumer_secret_encrypted = encryptCredential(mpesaSettings.mpesa_consumer_secret);
-        updateData.mpesa_passkey_encrypted = encryptCredential(mpesaSettings.mpesa_passkey);
+      // Call API endpoint to save M-Pesa settings with server-side encryption
+      const response = await fetch('/api/mpesa-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          barId: userBarId,
+          mpesa_enabled: mpesaSettings.mpesa_enabled,
+          mpesa_environment: mpesaSettings.mpesa_environment,
+          mpesa_business_shortcode: mpesaSettings.mpesa_business_shortcode,
+          mpesa_consumer_key: mpesaSettings.mpesa_consumer_key,
+          mpesa_consumer_secret: mpesaSettings.mpesa_consumer_secret,
+          mpesa_passkey: mpesaSettings.mpesa_passkey
+        })
+      });
+
+      console.log('📡 API Response status:', response.status);
+
+      const result = await response.json();
+      console.log('📡 API Response data:', result);
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save M-Pesa settings');
       }
-
-      const { error } = await (supabase as any)
-        .from('bars')
-        .update(updateData)
-        .eq('id', userBarId);
-
-      if (error) throw error;
 
       // Clear sensitive data from state
       setMpesaSettings(prev => ({
@@ -733,9 +723,9 @@ export default function SettingsPage() {
       }));
 
       alert('✅ M-Pesa settings saved! Please test the connection.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving M-Pesa settings:', error);
-      alert('Failed to save M-Pesa settings. Please try again.');
+      alert('❌ Failed to save M-Pesa settings: ' + (error.message || 'Please try again.'));
     } finally {
       setSavingMpesaSettings(false);
     }

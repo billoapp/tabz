@@ -19,11 +19,21 @@ export default function PWAInstallPrompt({ className = '' }: PWAInstallPromptPro
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       console.log('🔔 beforeinstallprompt event fired');
-      // Only prevent default if we're going to show our custom prompt
-      e.preventDefault();
-      const promptEvent = e as unknown as BeforeInstallPromptEvent;
-      setDeferredPrompt(promptEvent);
-      setShowInstallBanner(true);
+      
+      // Check if we should show our custom prompt
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+      const shouldShowCustomPrompt = !isStandalone;
+      
+      if (shouldShowCustomPrompt) {
+        // Only prevent default if we're going to show our custom prompt
+        e.preventDefault();
+        const promptEvent = e as unknown as BeforeInstallPromptEvent;
+        setDeferredPrompt(promptEvent);
+        setShowInstallBanner(true);
+      } else {
+        // Don't prevent default if we're not showing custom prompt
+        console.log('🔔 PWA install prompt not prevented - already installed or letting browser handle it');
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);

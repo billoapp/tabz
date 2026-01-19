@@ -21,7 +21,7 @@ const ENCRYPTION_KEY = process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encrypt
 export function encryptCredential(plaintext: string): string {
   const iv = crypto.randomBytes(16);
   const key = Buffer.from(ENCRYPTION_KEY.slice(0, 32));
-  const cipher = crypto.createCipher('aes-256-gcm', key);
+  const cipher = crypto.createCipherGCM('aes-256-gcm', key, iv);
   
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
@@ -46,7 +46,7 @@ export function decryptCredential(encryptedData: string): string {
   const encrypted = parts[2];
   
   const key = Buffer.from(ENCRYPTION_KEY.slice(0, 32));
-  const decipher = crypto.createDecipher('aes-256-gcm', key);
+  const decipher = crypto.createDecipherGCM('aes-256-gcm', key, iv);
   decipher.setAuthTag(authTag);
   
   let decrypted = decipher.update(encrypted, 'hex', 'utf8');
