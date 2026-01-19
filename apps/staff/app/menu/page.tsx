@@ -2013,14 +2013,13 @@ export default function MenuManagementPage() {
                           <div className="flex items-start justify-between">
                             <h3 className="font-semibold text-gray-800">{cp.name}</h3>
                             <div className="flex flex-col gap-1">
-                              {isPublished && (
+                              {isPublished ? (
                                 <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                                   Published
                                 </span>
-                              )}
-                              {!hasPrice && (
+                              ) : (
                                 <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
-                                  No Price
+                                  Unpublished
                                 </span>
                               )}
                             </div>
