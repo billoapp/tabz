@@ -34,6 +34,7 @@ function ConsentContent() {
   
   // Form states
   const [loading, setLoading] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [barSlug, setBarSlug] = useState<string | null>(null);
   const [barId, setBarId] = useState<string | null>(null);
@@ -318,7 +319,7 @@ function ConsentContent() {
         
         const { data: existingTabs } = await (supabase as any)
           .from('tabs')
-          .select('status, opened_at')
+          .select('id, tab_number, status, opened_at, notes')
           .eq('bar_id', bar.id)
           .eq('owner_identifier', barDeviceKey)
           .in('status', ['open', 'overdue']);
@@ -328,6 +329,10 @@ function ConsentContent() {
         
         if (hasExistingTab) {
           console.log('✅ User has existing tab, redirecting directly to menu');
+          console.log('📊 Existing tab data:', existingTabs[0]);
+          
+          // Set redirecting state to prevent showing consent form
+          setRedirecting(true);
           
           // Store the existing tab data and redirect to menu
           const existingTab = existingTabs[0];
@@ -336,13 +341,16 @@ function ConsentContent() {
           sessionStorage.setItem('barName', bar.name);
           
           // Get display name from existing tab
+          let displayName: string;
           try {
             const notes = JSON.parse(existingTab.notes || '{}');
-            const displayName = notes.display_name || `Tab ${existingTab.tab_number}`;
-            sessionStorage.setItem('displayName', displayName);
-          } catch {
-            sessionStorage.setItem('displayName', `Tab ${existingTab.tab_number}`);
+            displayName = notes.display_name || `Tab ${existingTab.tab_number}`;
+            console.log('📝 Display name from notes:', displayName);
+          } catch (error) {
+            displayName = `Tab ${existingTab.tab_number}`;
+            console.log('📝 Fallback display name:', displayName);
           }
+          sessionStorage.setItem('displayName', displayName);
           
           // Redirect to menu instead of showing consent form
           showToast({
@@ -351,11 +359,14 @@ function ConsentContent() {
             message: `Continuing to your existing tab at ${bar.name}`
           });
           
+          console.log('🔄 Redirecting to menu in 500ms...');
           setTimeout(() => {
+            console.log('🔄 Executing redirect to /menu');
             router.replace('/menu');
           }, 500);
           
-          return; // Don't show consent form
+          // Keep loading state true to prevent showing consent form during redirect
+          return; // Don't show consent form and don't call setLoading(false)
         } else {
           // Check business hours only for new customers
           const isWithinBusinessHours = (barData: any) => {
@@ -630,13 +641,13 @@ function ConsentContent() {
   };
 
   // Loading state
-  if (loading) {
+  if (loading || redirecting) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center p-4">
         <div className="text-center text-white">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
           <p className="text-lg font-medium">
-            Loading bar information...
+            {redirecting ? 'Welcome back! Redirecting to your tab...' : 'Loading bar information...'}
           </p>
           {barSlug && <p className="text-sm mt-2 font-mono opacity-75">{barSlug}</p>}
         </div>

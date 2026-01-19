@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWA Update System Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007acc;
+        }
+        .success { border-left-color: #28a745; }
+        .warning { border-left-color: #ffc107; }
+        .error { border-left-color: #dc3545; }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #005a9e; }
+        .log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.pass { background: #28a745; color: white; }
+        .status.fail { background: #dc3545; color: white; }
+        .status.pending { background: #ffc107; color: black; }
+    </style>
+</head>
+<body>
+    <h1>🔄 PWA Update System Test</h1>
+    <p>This tool tests the PWA update system functionality for both staff and customer apps.</p>
+
+    <div class="test-section">
+        <h2>📋 Test Checklist</h2>
+        <div id="checklist">
+            <div>✅ Service Worker Support: <span id="sw-support" class="status pending">Testing...</span></div>
+            <div>✅ Service Worker Registration: <span id="sw-registration" class="status pending">Testing...</span></div>
+            <div>✅ Update Detection: <span id="update-detection" class="status pending">Testing...</span></div>
+            <div>✅ Message Handling: <span id="message-handling" class="status pending">Testing...</span></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎮 Manual Tests</h2>
+        <button onclick="testServiceWorkerRegistration()">Test SW Registration</button>
+        <button onclick="testUpdateDetection()">Simulate Update</button>
+        <button onclick="testMessagePassing()">Test Messages</button>
+        <button onclick="clearCache()">Clear Cache</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Test Results</h2>
+        <div id="log" class="log">
+            <div>🚀 PWA Update System Test Started</div>
+            <div>📅 Test Time: <span id="test-time"></span></div>
+            <div>🌐 User Agent: <span id="user-agent"></span></div>
+            <div>---</div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📖 Test Instructions</h2>
+        <ol>
+            <li><strong>Automatic Tests</strong>: The page will automatically test basic PWA functionality</li>
+            <li><strong>Manual Tests</strong>: Click the buttons above to test specific features</li>
+            <li><strong>Update Simulation</strong>: Use "Simulate Update" to test update notifications</li>
+            <li><strong>Real Update Test</strong>: Deploy a new version and wait 2-10 minutes for detection</li>
+        </ol>
+    </div>
+
+    <script>
+        // Initialize test environment
+        document.getElementById('test-time').textContent = new Date().toLocaleString();
+        document.getElementById('user-agent').textContent = navigator.userAgent;
+
+        let logContainer = document.getElementById('log');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            if (type === 'error') logEntry.style.color = '#ff6b6b';
+            if (type === 'success') logEntry.style.color = '#51cf66';
+            if (type === 'warning') logEntry.style.color = '#ffd43b';
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateStatus(id, status) {
+            const element = document.getElementById(id);
+            element.className = `status ${status}`;
+            element.textContent = status === 'pass' ? 'PASS' : status === 'fail' ? 'FAIL' : 'PENDING';
+        }
+
+        // Test 1: Service Worker Support
+        function testServiceWorkerSupport() {
+            log('🔍 Testing Service Worker Support...');
+            if ('serviceWorker' in navigator) {
+                log('✅ Service Worker API is supported', 'success');
+                updateStatus('sw-support', 'pass');
+                return true;
+            } else {
+                log('❌ Service Worker API not supported', 'error');
+                updateStatus('sw-support', 'fail');
+                return false;
+            }
+        }
+
+        // Test 2: Service Worker Registration
+        async function testServiceWorkerRegistration() {
+            log('🔍 Testing Service Worker Registration...');
+            
+            if (!testServiceWorkerSupport()) return;
+
+            try {
+                const registration = await navigator.serviceWorker.register('/sw.js');
+                log('✅ Service Worker registered successfully', 'success');
+                log(`📍 Scope: ${registration.scope}`);
+                updateStatus('sw-registration', 'pass');
+                
+                // Check for existing service worker
+                if (registration.active) {
+                    log('🟢 Active service worker found');
+                }
+                if (registration.waiting) {
+                    log('🟡 Waiting service worker found (update available!)');
+                }
+                if (registration.installing) {
+                    log('🔄 Installing service worker found');
+                }
+                
+                return registration;
+            } catch (error) {
+                log(`❌ Service Worker registration failed: ${error.message}`, 'error');
+                updateStatus('sw-registration', 'fail');
+                return null;
+            }
+        }
+
+        // Test 3: Update Detection Simulation
+        async function testUpdateDetection() {
+            log('🔍 Testing Update Detection...');
+            
+            const registration = await testServiceWorkerRegistration();
+            if (!registration) return;
+
+            try {
+                // Force update check
+                await registration.update();
+                log('✅ Update check completed', 'success');
+                updateStatus('update-detection', 'pass');
+                
+                // Listen for updates
+                registration.addEventListener('updatefound', () => {
+                    log('🎉 Update detected!', 'success');
+                    const newWorker = registration.installing;
+                    
+                    if (newWorker) {
+                        newWorker.addEventListener('statechange', () => {
+                            log(`📊 New worker state: ${newWorker.state}`);
+                            if (newWorker.state === 'installed') {
+                                log('🎯 New service worker installed and ready!', 'success');
+                            }
+                        });
+                    }
+                });
+                
+                log('👂 Listening for updates...');
+                
+            } catch (error) {
+                log(`❌ Update detection failed: ${error.message}`, 'error');
+                updateStatus('update-detection', 'fail');
+            }
+        }
+
+        // Test 4: Message Passing
+        async function testMessagePassing() {
+            log('🔍 Testing Message Passing...');
+            
+            if (!navigator.serviceWorker.controller) {
+                log('❌ No active service worker to test messaging', 'error');
+                updateStatus('message-handling', 'fail');
+                return;
+            }
+
+            try {
+                // Test SKIP_WAITING message
+                navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+                log('✅ SKIP_WAITING message sent', 'success');
+                
+                // Test custom message
+                navigator.serviceWorker.controller.postMessage({ 
+                    type: 'TEST_MESSAGE', 
+                    data: 'Hello from test!' 
+                });
+                log('✅ Test message sent', 'success');
+                updateStatus('message-handling', 'pass');
+                
+            } catch (error) {
+                log(`❌ Message passing failed: ${error.message}`, 'error');
+                updateStatus('message-handling', 'fail');
+            }
+        }
+
+        // Utility: Clear Cache
+        async function clearCache() {
+            log('🧹 Clearing caches...');
+            try {
+                const cacheNames = await caches.keys();
+                await Promise.all(cacheNames.map(name => caches.delete(name)));
+                log(`✅ Cleared ${cacheNames.length} caches`, 'success');
+            } catch (error) {
+                log(`❌ Cache clearing failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Utility: Clear Logs
+        function clearLogs() {
+            logContainer.innerHTML = `
+                <div>🚀 PWA Update System Test Started</div>
+                <div>📅 Test Time: ${new Date().toLocaleString()}</div>
+                <div>🌐 User Agent: ${navigator.userAgent}</div>
+                <div>---</div>
+            `;
+        }
+
+        // Auto-run basic tests on load
+        window.addEventListener('load', async () => {
+            log('🚀 Starting automatic tests...');
+            
+            // Test basic functionality
+            testServiceWorkerSupport();
+            await testServiceWorkerRegistration();
+            
+            log('✅ Automatic tests completed');
+            log('💡 Use manual test buttons for advanced testing');
+        });
+
+        // Listen for service worker updates
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            log('🔄 Service worker controller changed - page will reload', 'warning');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        });
+
+    </script>
+</body>
+</html>
