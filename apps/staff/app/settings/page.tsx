@@ -63,10 +63,6 @@ export default function SettingsPage() {
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
   const [feedbackError, setFeedbackError] = useState('');
 
-  // Pro feature modal state
-  const [showProModal, setShowProModal] = useState(false);
-  const [proFeature, setProFeature] = useState('');
-
   // Alert settings state
   const [alertSettings, setAlertSettings] = useState({
     timeout: 5,
@@ -449,11 +445,6 @@ export default function SettingsPage() {
     }
     
     setAdvancedHours(updatedHours);
-  };
-
-  const handleProFeature = (feature: string) => {
-    setProFeature(feature);
-    setShowProModal(true);
   };
 
   const handleSaveAlertSettings = async () => {
@@ -1447,46 +1438,36 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-3">
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                <label className="flex items-center justify-between p-3 bg-gray-100 rounded-lg opacity-60 cursor-not-allowed">
                   <div className="flex items-center gap-3">
-                    <Phone size={20} className="text-green-600" />
+                    <Phone size={20} className="text-gray-400" />
                     <div>
-                      <span className="text-sm font-medium text-gray-700">M-Pesa</span>
-                      <p className="text-xs text-gray-500">Mobile money payments</p>
+                      <span className="text-sm font-medium text-gray-500">M-Pesa</span>
+                      <p className="text-xs text-gray-400">Mobile money payments (Coming Soon)</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-                      Pro
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={paymentSettings.payment_mpesa_enabled}
-                      onChange={() => handleProFeature('M-Pesa Payments')}
-                      className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                    />
-                  </div>
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    disabled={true}
+                    className="w-5 h-5 text-gray-300 rounded focus:ring-gray-300 cursor-not-allowed"
+                  />
                 </label>
 
-                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                <label className="flex items-center justify-between p-3 bg-gray-100 rounded-lg opacity-60 cursor-not-allowed">
                   <div className="flex items-center gap-3">
-                    <CreditCard size={20} className="text-blue-600" />
+                    <CreditCard size={20} className="text-gray-400" />
                     <div>
-                      <span className="text-sm font-medium text-gray-700">Card Payments</span>
-                      <p className="text-xs text-gray-500">Credit/Debit cards</p>
+                      <span className="text-sm font-medium text-gray-500">Card Payments</span>
+                      <p className="text-xs text-gray-400">Credit/Debit cards (Coming Soon)</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-                      Pro
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={paymentSettings.payment_card_enabled}
-                      onChange={() => handleProFeature('Card Payments')}
-                      className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-                    />
-                  </div>
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    disabled={true}
+                    className="w-5 h-5 text-gray-300 rounded focus:ring-gray-300 cursor-not-allowed"
+                  />
                 </label>
 
                 <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
@@ -1778,74 +1759,6 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
-
-      {/* Pro Feature Modal */}
-      {showProModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-xl font-bold">✨</span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Upgrade to Pro</h3>
-                  <p className="text-sm text-gray-500">Unlock premium features</p>
-                </div>
-              </div>
-              <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-              <p className="text-sm text-gray-700 mb-3">
-                <strong>{proFeature}</strong> is a Pro feature that helps you:
-              </p>
-              <ul className="text-sm text-gray-600 space-y-2 ml-4">
-                {proFeature === 'M-Pesa Payments' ? (
-                  <>
-                    <li>• Accept mobile money payments instantly</li>
-                    <li>• Automatic payment confirmation</li>
-                    <li>• Reduced cash handling risks</li>
-                  </>
-                ) : proFeature === 'Card Payments' ? (
-                  <>
-                    <li>• Accept credit/debit card payments</li>
-                    <li>• Secure PCI-compliant processing</li>
-                    <li>• Faster checkout experience</li>
-                  </>
-                ) : (
-                  <>
-                    <li>• Advanced payment processing</li>
-                    <li>• Multiple payment options</li>
-                    <li>• Enhanced customer experience</li>
-                  </>
-                )}
-              </ul>
-            </div>
-
-            <div className="space-y-3">
-              <button 
-                onClick={() => setShowProModal(false)}
-                className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-700 transition"
-              >
-                Coming Soon
-              </button>
-              <button 
-                onClick={() => setShowProModal(false)}
-                className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition"
-              >
-                Close
-              </button>
-            </div>
-
-            <p className="text-xs text-gray-500 text-center mt-4">
-              Join the waitlist • Be notified when Pro launches
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Feedback Modal */}
       {showFeedbackModal && (
