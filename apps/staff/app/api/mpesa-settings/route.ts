@@ -3,14 +3,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import crypto from 'crypto';
 
-// Encryption key from environment
-const ENCRYPTION_KEY = process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!';
+// Encryption key from environment - ensure it's exactly 32 bytes
+const ENCRYPTION_KEY = (process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!').slice(0, 32).padEnd(32, '0');
 
 function encryptCredential(plaintext: string): string {
-  const cipher = crypto.createCipher('aes-256-cbc', ENCRYPTION_KEY);
-  let encrypted = cipher.update(plaintext, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return encrypted;
+  try {
+    // Use modern crypto API
+    const iv = crypto.randomBytes(16);
+    const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    
+    let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    // Combine IV and encrypted data
+    return iv.toString('hex') + ':' + encrypted;
+  } catch (error) {
+    console.error('Encryption error details:', error);
+    throw new Error(`Encryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -77,15 +88,28 @@ export async function POST(request: NextRequest) {
     // Only update credentials if they were provided
     if (mpesa_consumer_key && mpesa_consumer_secret && mpesa_passkey) {
       console.log('🔐 Encrypting credentials...');
+      console.log('Encryption key length:', ENCRYPTION_KEY.length);
+      console.log('Sample credential length:', mpesa_consumer_key.length);
+      
       try {
+        console.log('Encrypting consumer key...');
         updateData.mpesa_consumer_key_encrypted = encryptCredential(mpesa_consumer_key);
+        console.log('✅ Consumer key encrypted');
+        
+        console.log('Encrypting consumer secret...');
         updateData.mpesa_consumer_secret_encrypted = encryptCredential(mpesa_consumer_secret);
+        console.log('✅ Consumer secret encrypted');
+        
+        console.log('Encrypting passkey...');
         updateData.mpesa_passkey_encrypted = encryptCredential(mpesa_passkey);
-        console.log('✅ Credentials encrypted successfully');
+        console.log('✅ Passkey encrypted');
+        
+        console.log('✅ All credentials encrypted successfully');
       } catch (encryptError) {
         console.error('❌ Encryption error:', encryptError);
+        console.error('Error stack:', encryptError instanceof Error ? encryptError.stack : 'No stack trace');
         return NextResponse.json({
-          error: 'Failed to encrypt credentials'
+          error: 'Failed to encrypt credentials: ' + (encryptError instanceof Error ? encryptError.message : 'Unknown encryption error')
         }, { status: 500 });
       }
     }

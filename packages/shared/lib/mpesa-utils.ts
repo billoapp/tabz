@@ -13,25 +13,40 @@ export const MPESA_CONFIG = {
 } as const;
 
 // Encryption key from environment (must be 32 bytes for AES-256)
-const ENCRYPTION_KEY = process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!';
+const ENCRYPTION_KEY = (process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!').slice(0, 32).padEnd(32, '0');
 
 /**
  * Encrypt sensitive M-Pesa credentials using AES-256-CBC
  */
 export function encryptCredential(plaintext: string): string {
-  const cipher = crypto.createCipher('aes-256-cbc', ENCRYPTION_KEY);
+  const iv = crypto.randomBytes(16);
+  const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  return encrypted;
+  
+  // Combine IV and encrypted data
+  return iv.toString('hex') + ':' + encrypted;
 }
 
 /**
  * Decrypt M-Pesa credentials
  */
 export function decryptCredential(encryptedData: string): string {
-  const decipher = crypto.createDecipher('aes-256-cbc', ENCRYPTION_KEY);
-  let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+  const parts = encryptedData.split(':');
+  if (parts.length !== 2) {
+    throw new Error('Invalid encrypted data format');
+  }
+  
+  const iv = Buffer.from(parts[0], 'hex');
+  const encrypted = parts[1];
+  const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
+  
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
+  
   return decrypted;
 }
 
