@@ -16,42 +16,22 @@ export const MPESA_CONFIG = {
 const ENCRYPTION_KEY = process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!';
 
 /**
- * Encrypt sensitive M-Pesa credentials using AES-256-GCM
+ * Encrypt sensitive M-Pesa credentials using AES-256-CBC
  */
 export function encryptCredential(plaintext: string): string {
-  const iv = crypto.randomBytes(16);
-  const key = Buffer.from(ENCRYPTION_KEY.slice(0, 32));
-  const cipher = crypto.createCipherGCM('aes-256-gcm', key, iv);
-  
+  const cipher = crypto.createCipher('aes-256-cbc', ENCRYPTION_KEY);
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  
-  const authTag = cipher.getAuthTag();
-  
-  // Combine IV, authTag, and encrypted data
-  return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
+  return encrypted;
 }
 
 /**
  * Decrypt M-Pesa credentials
  */
 export function decryptCredential(encryptedData: string): string {
-  const parts = encryptedData.split(':');
-  if (parts.length !== 3) {
-    throw new Error('Invalid encrypted data format');
-  }
-  
-  const iv = Buffer.from(parts[0], 'hex');
-  const authTag = Buffer.from(parts[1], 'hex');
-  const encrypted = parts[2];
-  
-  const key = Buffer.from(ENCRYPTION_KEY.slice(0, 32));
-  const decipher = crypto.createDecipherGCM('aes-256-gcm', key, iv);
-  decipher.setAuthTag(authTag);
-  
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  const decipher = crypto.createDecipher('aes-256-cbc', ENCRYPTION_KEY);
+  let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
-  
   return decrypted;
 }
 

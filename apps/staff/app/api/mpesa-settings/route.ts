@@ -7,16 +7,10 @@ import crypto from 'crypto';
 const ENCRYPTION_KEY = process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!';
 
 function encryptCredential(plaintext: string): string {
-  const iv = crypto.randomBytes(16);
-  const key = Buffer.from(ENCRYPTION_KEY.slice(0, 32));
-  const cipher = crypto.createCipherGCM('aes-256-gcm', key, iv);
-  
+  const cipher = crypto.createCipher('aes-256-cbc', ENCRYPTION_KEY);
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  
-  const authTag = cipher.getAuthTag();
-  
-  return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
+  return encrypted;
 }
 
 export async function POST(request: NextRequest) {
