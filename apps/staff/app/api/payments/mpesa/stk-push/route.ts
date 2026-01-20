@@ -19,23 +19,26 @@ const MPESA_CONFIG = {
 const ENCRYPTION_KEY = process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!';
 
 function decryptCredential(encryptedData: string): string {
-  const parts = encryptedData.split(':');
-  if (parts.length !== 3) {
-    throw new Error('Invalid encrypted data format');
+  try {
+    const parts = encryptedData.split(':');
+    if (parts.length !== 2) {
+      throw new Error('Invalid encrypted data format - expected iv:encrypted_data');
+    }
+    
+    const iv = Buffer.from(parts[0], 'hex');
+    const encrypted = parts[1];
+    const key = Buffer.from(ENCRYPTION_KEY.slice(0, 32), 'utf8');
+    
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    return decrypted;
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw new Error(`Failed to decrypt credential: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
-  
-  const iv = Buffer.from(parts[0], 'hex');
-  const authTag = Buffer.from(parts[1], 'hex');
-  const encrypted = parts[2];
-  
-  const key = Buffer.from(ENCRYPTION_KEY.slice(0, 32));
-  const decipher = crypto.createDecipher('aes-256-gcm', key);
-  decipher.setAuthTag(authTag);
-  
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  
-  return decrypted;
 }
 
 async function generateMpesaToken(
@@ -150,6 +153,20 @@ export async function POST(request: NextRequest) {
       amount,
       description = 'Tab payment'
     } = await request.json();
+
+    // Basic rate limiting: Check recent STK pushes for this bar
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: recentPushes, error: rateLimitError } = await (supabase as any)
+      .from('mpesa_transactions')
+      .select('id')
+      .eq('bar_id', barId)
+      .gte('initiated_at', fiveMinutesAgo);
+
+    if (!rateLimitError && recentPushes && recentPushes.length >= 10) {
+      return NextResponse.json({
+        error: 'Rate limit exceeded. Maximum 10 STK pushes per 5 minutes per business.'
+      }, { status: 429 });
+    }
 
     // Validate required fields
     if (!barId || !tabId || !phoneNumber || !amount) {

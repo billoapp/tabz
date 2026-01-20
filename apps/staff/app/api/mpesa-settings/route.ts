@@ -65,11 +65,19 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // Validate business shortcode format
+      // Validate business shortcode format (PayBill only)
       if (!/^\d{5,7}$/.test(mpesa_business_shortcode)) {
         console.error('❌ Invalid business shortcode format:', mpesa_business_shortcode);
         return NextResponse.json({
-          error: 'Business shortcode must be 5-7 digits'
+          error: 'Business shortcode must be 5-7 digits. Till numbers are not supported - please use a PayBill number or link your Till to a shortcode.'
+        }, { status: 400 });
+      }
+
+      // Additional PayBill validation (block common Till patterns)
+      if (mpesa_business_shortcode.length === 6 && mpesa_business_shortcode.startsWith('5')) {
+        console.error('❌ Till number detected:', mpesa_business_shortcode);
+        return NextResponse.json({
+          error: 'Till numbers (starting with 5) are not supported for STK Push. Please use a PayBill number or link your Till to a shortcode.'
         }, { status: 400 });
       }
     }
