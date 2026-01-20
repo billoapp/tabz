@@ -1910,8 +1910,6 @@ export default function SettingsPage() {
                         <p className="text-xs text-green-600 mt-1">Credential is encrypted and stored securely</p>
                       )}
                     </div>
-                      />
-                    </div>
                   </div>
 
                   {/* Information Box */}
