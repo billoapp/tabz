@@ -6,9 +6,16 @@ import crypto from 'crypto';
 // Master key from environment (server-side only)
 const MASTER_KEY = process.env.MPESA_KMS_KEY;
 
-if (!MASTER_KEY || MASTER_KEY.length !== 32) {
+if (!MASTER_KEY) {
+  throw new Error('MPESA_KMS_KEY environment variable is required');
+}
+
+if (MASTER_KEY.length !== 32) {
   throw new Error('MPESA_KMS_KEY must be exactly 32 bytes');
 }
+
+// Ensure MASTER_KEY is defined for TypeScript
+const ENCRYPTION_KEY: string = MASTER_KEY;
 
 /**
  * Encrypt a credential using AES-256-GCM
@@ -20,7 +27,7 @@ export function encryptCredential(plaintext: string): Buffer {
     const iv = crypto.randomBytes(12);
     
     // Create cipher
-    const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(MASTER_KEY, 'utf8'), iv);
+    const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(ENCRYPTION_KEY, 'utf8'), iv);
     
     // Encrypt
     let encrypted = cipher.update(plaintext, 'utf8');
@@ -55,7 +62,7 @@ export function decryptCredential(encryptedBuffer: Buffer): string {
     const encrypted = encryptedBuffer.subarray(28);
     
     // Create decipher
-    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(MASTER_KEY, 'utf8'), iv);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(ENCRYPTION_KEY, 'utf8'), iv);
     decipher.setAuthTag(authTag);
     
     // Decrypt
