@@ -153,9 +153,76 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
-  return NextResponse.json(
-    { error: 'Method not allowed' },
-    { status: 405 }
-  );
+export async function GET(request: NextRequest) {
+  try {
+    const url = new URL(request.url);
+    const barId = url.searchParams.get('barId');
+
+    if (!barId) {
+      return NextResponse.json({ error: 'Bar ID is required' }, { status: 400 });
+    }
+
+    console.log('🔍 Fetching M-Pesa settings for bar:', barId);
+
+    // Get bar's M-Pesa configuration (without decrypting credentials)
+    const { data: barData, error: barError } = await (supabase as any)
+      .from('bars')
+      .select(`
+        id,
+        name,
+        mpesa_enabled,
+        mpesa_environment,
+        mpesa_business_shortcode,
+        mpesa_consumer_key_encrypted,
+        mpesa_consumer_secret_encrypted,
+        mpesa_passkey_encrypted,
+        mpesa_setup_completed,
+        mpesa_last_test_at,
+        mpesa_test_status
+      `)
+      .eq('id', barId)
+      .single();
+
+    if (barError || !barData) {
+      console.error('❌ Bar not found:', barError);
+      return NextResponse.json({ error: 'Bar not found' }, { status: 404 });
+    }
+
+    console.log('✅ M-Pesa settings fetched:', {
+      mpesa_enabled: barData.mpesa_enabled,
+      mpesa_environment: barData.mpesa_environment,
+      mpesa_business_shortcode: barData.mpesa_business_shortcode,
+      has_consumer_key: !!barData.mpesa_consumer_key_encrypted,
+      has_consumer_secret: !!barData.mpesa_consumer_secret_encrypted,
+      has_passkey: !!barData.mpesa_passkey_encrypted,
+      mpesa_setup_completed: barData.mpesa_setup_completed,
+      mpesa_test_status: barData.mpesa_test_status
+    });
+
+    // Return settings with masked credentials
+    return NextResponse.json({
+      success: true,
+      settings: {
+        mpesa_enabled: barData.mpesa_enabled ?? false,
+        mpesa_environment: barData.mpesa_environment ?? 'sandbox',
+        mpesa_business_shortcode: barData.mpesa_business_shortcode ?? '',
+        mpesa_consumer_key: barData.mpesa_consumer_key_encrypted ? '••••••••••••••••' : '',
+        mpesa_consumer_secret: barData.mpesa_consumer_secret_encrypted ? '••••••••••••••••' : '',
+        mpesa_passkey: barData.mpesa_passkey_encrypted ? '••••••••••••••••' : '',
+        mpesa_setup_completed: barData.mpesa_setup_completed ?? false,
+        mpesa_last_test_at: barData.mpesa_last_test_at,
+        mpesa_test_status: barData.mpesa_test_status ?? 'pending',
+        // Indicate which credentials are saved
+        has_credentials: !!(barData.mpesa_consumer_key_encrypted && 
+                           barData.mpesa_consumer_secret_encrypted && 
+                           barData.mpesa_passkey_encrypted)
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ M-Pesa settings fetch error:', error);
+    return NextResponse.json({
+      error: 'Internal server error: ' + (error instanceof Error ? error.message : 'Unknown error')
+    }, { status: 500 });
+  }
 }

@@ -218,18 +218,47 @@ export default function SettingsPage() {
         table_count: data.table_count ?? 20
       });
 
-      // Load M-Pesa settings
-      setMpesaSettings({
-        mpesa_enabled: data.mpesa_enabled ?? false,
-        mpesa_environment: data.mpesa_environment ?? 'sandbox',
-        mpesa_business_shortcode: data.mpesa_business_shortcode ?? '',
-        mpesa_consumer_key: '', // Never load encrypted keys to UI
-        mpesa_consumer_secret: '', // Never load encrypted keys to UI
-        mpesa_passkey: '', // Never load encrypted keys to UI
-        mpesa_setup_completed: data.mpesa_setup_completed ?? false,
-        mpesa_last_test_at: data.mpesa_last_test_at ?? null,
-        mpesa_test_status: data.mpesa_test_status ?? 'pending'
-      });
+      // Load M-Pesa settings via API to get masked credentials
+      try {
+        const mpesaResponse = await fetch(`/api/mpesa-settings?barId=${userBarId}`);
+        if (mpesaResponse.ok) {
+          const mpesaResult = await mpesaResponse.json();
+          if (mpesaResult.success) {
+            console.log('✅ M-Pesa settings loaded:', mpesaResult.settings);
+            setMpesaSettings(mpesaResult.settings);
+          } else {
+            console.warn('⚠️ Failed to load M-Pesa settings:', mpesaResult.error);
+            // Fallback to basic settings from bars table
+            setMpesaSettings({
+              mpesa_enabled: data.mpesa_enabled ?? false,
+              mpesa_environment: data.mpesa_environment ?? 'sandbox',
+              mpesa_business_shortcode: data.mpesa_business_shortcode ?? '',
+              mpesa_consumer_key: '',
+              mpesa_consumer_secret: '',
+              mpesa_passkey: '',
+              mpesa_setup_completed: data.mpesa_setup_completed ?? false,
+              mpesa_last_test_at: data.mpesa_last_test_at ?? null,
+              mpesa_test_status: data.mpesa_test_status ?? 'pending'
+            });
+          }
+        } else {
+          throw new Error('Failed to fetch M-Pesa settings');
+        }
+      } catch (mpesaError) {
+        console.error('❌ Error loading M-Pesa settings:', mpesaError);
+        // Fallback to basic settings from bars table
+        setMpesaSettings({
+          mpesa_enabled: data.mpesa_enabled ?? false,
+          mpesa_environment: data.mpesa_environment ?? 'sandbox',
+          mpesa_business_shortcode: data.mpesa_business_shortcode ?? '',
+          mpesa_consumer_key: '',
+          mpesa_consumer_secret: '',
+          mpesa_passkey: '',
+          mpesa_setup_completed: data.mpesa_setup_completed ?? false,
+          mpesa_last_test_at: data.mpesa_last_test_at ?? null,
+          mpesa_test_status: data.mpesa_test_status ?? 'pending'
+        });
+      }
 
       // Load business hours
       if (data.business_hours_mode) {
@@ -712,15 +741,30 @@ export default function SettingsPage() {
         throw new Error(result.error || 'Failed to save M-Pesa settings');
       }
 
-      // Clear sensitive data from state
-      setMpesaSettings(prev => ({
-        ...prev,
-        mpesa_consumer_key: '',
-        mpesa_consumer_secret: '',
-        mpesa_passkey: '',
-        mpesa_setup_completed: false,
-        mpesa_test_status: 'pending'
-      }));
+      console.log('✅ M-Pesa settings saved successfully');
+
+      // Reload M-Pesa settings to show masked credentials
+      try {
+        const reloadResponse = await fetch(`/api/mpesa-settings?barId=${userBarId}`);
+        if (reloadResponse.ok) {
+          const reloadResult = await reloadResponse.json();
+          if (reloadResult.success) {
+            console.log('✅ M-Pesa settings reloaded with masked credentials');
+            setMpesaSettings(reloadResult.settings);
+          }
+        }
+      } catch (reloadError) {
+        console.warn('⚠️ Failed to reload M-Pesa settings:', reloadError);
+        // Clear sensitive data from state as fallback
+        setMpesaSettings(prev => ({
+          ...prev,
+          mpesa_consumer_key: '',
+          mpesa_consumer_secret: '',
+          mpesa_passkey: '',
+          mpesa_setup_completed: false,
+          mpesa_test_status: 'pending'
+        }));
+      }
 
       alert('✅ M-Pesa settings saved! Please test the connection.');
     } catch (error: any) {
@@ -1771,39 +1815,101 @@ export default function SettingsPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Consumer Key <span className="text-red-500">*</span>
+                        {mpesaSettings.mpesa_consumer_key === '••••••••••••••••' && (
+                          <span className="ml-2 text-xs text-green-600 font-medium">✓ Saved</span>
+                        )}
                       </label>
-                      <input
-                        type="text"
-                        value={mpesaSettings.mpesa_consumer_key}
-                        onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_consumer_key: e.target.value})}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                        placeholder="Enter your Daraja Consumer Key"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={mpesaSettings.mpesa_consumer_key}
+                          onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_consumer_key: e.target.value})}
+                          className={`w-full px-4 py-3 border-2 rounded-lg focus:border-green-500 focus:outline-none ${
+                            mpesaSettings.mpesa_consumer_key === '••••••••••••••••' 
+                              ? 'border-green-200 bg-green-50' 
+                              : 'border-gray-200'
+                          }`}
+                          placeholder={mpesaSettings.mpesa_consumer_key === '••••••••••••••••' 
+                            ? 'Credential saved securely' 
+                            : 'Enter your Daraja Consumer Key'
+                          }
+                        />
+                        {mpesaSettings.mpesa_consumer_key === '••••••••••••••••' && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <Check size={16} className="text-green-500" />
+                          </div>
+                        )}
+                      </div>
+                      {mpesaSettings.mpesa_consumer_key === '••••••••••••••••' && (
+                        <p className="text-xs text-green-600 mt-1">Credential is encrypted and stored securely</p>
+                      )}
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Consumer Secret <span className="text-red-500">*</span>
+                        {mpesaSettings.mpesa_consumer_secret === '••••••••••••••••' && (
+                          <span className="ml-2 text-xs text-green-600 font-medium">✓ Saved</span>
+                        )}
                       </label>
-                      <input
-                        type="password"
-                        value={mpesaSettings.mpesa_consumer_secret}
-                        onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_consumer_secret: e.target.value})}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                        placeholder="Enter your Daraja Consumer Secret"
-                      />
+                      <div className="relative">
+                        <input
+                          type="password"
+                          value={mpesaSettings.mpesa_consumer_secret}
+                          onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_consumer_secret: e.target.value})}
+                          className={`w-full px-4 py-3 border-2 rounded-lg focus:border-green-500 focus:outline-none ${
+                            mpesaSettings.mpesa_consumer_secret === '••••••••••••••••' 
+                              ? 'border-green-200 bg-green-50' 
+                              : 'border-gray-200'
+                          }`}
+                          placeholder={mpesaSettings.mpesa_consumer_secret === '••••••••••••••••' 
+                            ? 'Credential saved securely' 
+                            : 'Enter your Daraja Consumer Secret'
+                          }
+                        />
+                        {mpesaSettings.mpesa_consumer_secret === '••••••••••••••••' && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <Check size={16} className="text-green-500" />
+                          </div>
+                        )}
+                      </div>
+                      {mpesaSettings.mpesa_consumer_secret === '••••••••••••••••' && (
+                        <p className="text-xs text-green-600 mt-1">Credential is encrypted and stored securely</p>
+                      )}
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Passkey <span className="text-red-500">*</span>
+                        {mpesaSettings.mpesa_passkey === '••••••••••••••••' && (
+                          <span className="ml-2 text-xs text-green-600 font-medium">✓ Saved</span>
+                        )}
                       </label>
-                      <input
-                        type="password"
-                        value={mpesaSettings.mpesa_passkey}
-                        onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_passkey: e.target.value})}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                        placeholder="Enter your Daraja Passkey"
+                      <div className="relative">
+                        <input
+                          type="password"
+                          value={mpesaSettings.mpesa_passkey}
+                          onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_passkey: e.target.value})}
+                          className={`w-full px-4 py-3 border-2 rounded-lg focus:border-green-500 focus:outline-none ${
+                            mpesaSettings.mpesa_passkey === '••••••••••••••••' 
+                              ? 'border-green-200 bg-green-50' 
+                              : 'border-gray-200'
+                          }`}
+                          placeholder={mpesaSettings.mpesa_passkey === '••••••••••••••••' 
+                            ? 'Credential saved securely' 
+                            : 'Enter your Daraja Passkey'
+                          }
+                        />
+                        {mpesaSettings.mpesa_passkey === '••••••••••••••••' && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <Check size={16} className="text-green-500" />
+                          </div>
+                        )}
+                      </div>
+                      {mpesaSettings.mpesa_passkey === '••••••••••••••••' && (
+                        <p className="text-xs text-green-600 mt-1">Credential is encrypted and stored securely</p>
+                      )}
+                    </div>
                       />
                     </div>
                   </div>
