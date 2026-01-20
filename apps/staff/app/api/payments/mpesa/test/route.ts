@@ -6,20 +6,19 @@ import { supabase } from '@/lib/supabase';
 import crypto from 'crypto';
 
 // Minimal M-Pesa utilities inlined to avoid import issues
-const ENCRYPTION_KEY = process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!';
+const ENCRYPTION_KEY = (process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!').slice(0, 32).padEnd(32, '0');
 
 function decryptCredential(encryptedData: string): string {
   const parts = encryptedData.split(':');
-  if (parts.length !== 3) {
-    throw new Error('Invalid encrypted data format');
+  if (parts.length !== 2) {
+    throw new Error('Invalid encrypted data format - expected iv:encrypted_data');
   }
   
   const iv = Buffer.from(parts[0], 'hex');
-  const authTag = Buffer.from(parts[1], 'hex');
-  const encrypted = parts[2];
+  const encrypted = parts[1];
+  const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
   
-  const decipher = crypto.createDecipher('aes-256-gcm', ENCRYPTION_KEY);
-  decipher.setAuthTag(authTag);
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
   
   let decrypted = decipher.update(encrypted, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
