@@ -1,31 +1,25 @@
-// M-Pesa settings API endpoint with server-side encryption
+// Production-grade M-Pesa settings API with secure credential storage
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
+import { encryptCredential, validateMpesaCredentials } from '@/lib/mpesa-encryption';
 
-// Encryption key from environment - ensure it's exactly 32 bytes
-const ENCRYPTION_KEY = (process.env.MPESA_ENCRYPTION_KEY || 'your-32-byte-encryption-key-here!!').slice(0, 32).padEnd(32, '0');
-
-function encryptCredential(plaintext: string): string {
-  try {
-    // Use modern crypto API
-    const iv = crypto.randomBytes(16);
-    const key = Buffer.from(ENCRYPTION_KEY, 'utf8');
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    
-    let encrypted = cipher.update(plaintext, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    
-    // Combine IV and encrypted data
-    return iv.toString('hex') + ':' + encrypted;
-  } catch (error) {
-    console.error('Encryption error details:', error);
-    throw new Error(`Encryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+// Use service role for backend operations (bypasses RLS)
+const supabaseServiceRole = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SECRET_KEY!, // Service role key
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
   }
-}
+);
+
+// Regular supabase client for user operations
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
-  console.log('🔧 M-Pesa settings API called');
+  console.log('🔧 M-Pesa settings API called (secure mode)');
   
   try {
     const body = await request.json();
@@ -56,6 +50,20 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Bar ID validated:', barId);
 
+    // Validate user has access to this bar (using regular client with RLS)
+    const { data: userBar, error: userBarError } = await supabase
+      .from('user_bars')
+      .select('bar_id')
+      .eq('bar_id', barId)
+      .single();
+
+    if (userBarError || !userBar) {
+      console.error('❌ User does not have access to this bar:', userBarError);
+      return NextResponse.json({
+        error: 'Access denied to this bar'
+      }, { status: 403 });
+    }
+
     // Validate M-Pesa credentials if enabled
     if (mpesa_enabled) {
       if (!mpesa_business_shortcode || !mpesa_consumer_key || !mpesa_consumer_secret || !mpesa_passkey) {
@@ -65,92 +73,90 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // Validate business shortcode format (PayBill only)
-      if (!/^\d{5,7}$/.test(mpesa_business_shortcode)) {
-        console.error('❌ Invalid business shortcode format:', mpesa_business_shortcode);
-        return NextResponse.json({
-          error: 'Business shortcode must be 5-7 digits. Till numbers are not supported - please use a PayBill number or link your Till to a shortcode.'
-        }, { status: 400 });
-      }
+      // Validate credentials format
+      const validation = validateMpesaCredentials({
+        businessShortCode: mpesa_business_shortcode,
+        consumerKey: mpesa_consumer_key,
+        consumerSecret: mpesa_consumer_secret,
+        passkey: mpesa_passkey
+      });
 
-      // Additional PayBill validation (block common Till patterns)
-      if (mpesa_business_shortcode.length === 6 && mpesa_business_shortcode.startsWith('5')) {
-        console.error('❌ Till number detected:', mpesa_business_shortcode);
+      if (!validation.isValid) {
+        console.error('❌ Invalid credentials format:', validation.errors);
         return NextResponse.json({
-          error: 'Till numbers (starting with 5) are not supported for STK Push. Please use a PayBill number or link your Till to a shortcode.'
+          error: 'Invalid credentials format',
+          details: validation.errors
         }, { status: 400 });
       }
     }
 
     console.log('✅ Validation passed');
 
-    // Prepare update data
-    const updateData: any = {
-      mpesa_enabled,
-      mpesa_environment,
-      mpesa_business_shortcode,
-      mpesa_setup_completed: false, // Reset until tested
-      mpesa_test_status: 'pending'
-    };
-
-    // Only update credentials if they were provided
+    // Encrypt credentials server-side
+    let encryptedCredentials: any = {};
+    
     if (mpesa_consumer_key && mpesa_consumer_secret && mpesa_passkey) {
       console.log('🔐 Encrypting credentials...');
-      console.log('Encryption key length:', ENCRYPTION_KEY.length);
-      console.log('Sample credential length:', mpesa_consumer_key.length);
       
       try {
-        console.log('Encrypting consumer key...');
-        updateData.mpesa_consumer_key_encrypted = encryptCredential(mpesa_consumer_key);
-        console.log('✅ Consumer key encrypted');
-        
-        console.log('Encrypting consumer secret...');
-        updateData.mpesa_consumer_secret_encrypted = encryptCredential(mpesa_consumer_secret);
-        console.log('✅ Consumer secret encrypted');
-        
-        console.log('Encrypting passkey...');
-        updateData.mpesa_passkey_encrypted = encryptCredential(mpesa_passkey);
-        console.log('✅ Passkey encrypted');
-        
-        console.log('✅ All credentials encrypted successfully');
+        encryptedCredentials = {
+          consumer_key_enc: encryptCredential(mpesa_consumer_key),
+          consumer_secret_enc: encryptCredential(mpesa_consumer_secret),
+          passkey_enc: encryptCredential(mpesa_passkey)
+        };
+        console.log('✅ Credentials encrypted successfully');
       } catch (encryptError) {
         console.error('❌ Encryption error:', encryptError);
-        console.error('Error stack:', encryptError instanceof Error ? encryptError.stack : 'No stack trace');
         return NextResponse.json({
           error: 'Failed to encrypt credentials: ' + (encryptError instanceof Error ? encryptError.message : 'Unknown encryption error')
         }, { status: 500 });
       }
     }
 
-    console.log('💾 Updating database...');
-    console.log('Update data:', { ...updateData, mpesa_consumer_key_encrypted: '[REDACTED]', mpesa_consumer_secret_encrypted: '[REDACTED]', mpesa_passkey_encrypted: '[REDACTED]' });
+    // Prepare credential data for secure table
+    const credentialData = {
+      tenant_id: barId,
+      environment: mpesa_environment || 'sandbox',
+      business_shortcode: mpesa_business_shortcode,
+      is_active: mpesa_enabled,
+      ...encryptedCredentials
+    };
 
-    // Update database with error handling for missing columns
-    const { error } = await (supabase as any)
-      .from('bars')
-      .update(updateData)
-      .eq('id', barId);
+    console.log('💾 Storing encrypted credentials...');
 
-    if (error) {
-      console.error('❌ Database error:', error);
-      
-      // Check if error is due to missing columns
-      if (error.message && error.message.includes('column') && error.message.includes('does not exist')) {
-        return NextResponse.json({
-          error: 'Database schema not updated. Please run the M-Pesa migration first. Missing columns: ' + error.message
-        }, { status: 500 });
-      }
-      
+    // Use service role to insert/update credentials (bypasses RLS)
+    const { error: credError } = await supabaseServiceRole
+      .from('mpesa_credentials')
+      .upsert(credentialData, {
+        onConflict: 'tenant_id,environment'
+      });
+
+    if (credError) {
+      console.error('❌ Credential storage error:', credError);
       return NextResponse.json({
-        error: 'Failed to save M-Pesa settings: ' + error.message
+        error: 'Failed to store M-Pesa credentials: ' + credError.message
       }, { status: 500 });
     }
 
-    console.log('✅ M-Pesa settings saved successfully');
+    // Log audit event
+    await supabaseServiceRole
+      .from('mpesa_credential_events')
+      .insert({
+        credential_id: null, // Will be updated by trigger
+        tenant_id: barId,
+        event_type: 'created',
+        event_data: {
+          environment: mpesa_environment,
+          business_shortcode: mpesa_business_shortcode,
+          enabled: mpesa_enabled
+        }
+      });
+
+    console.log('✅ M-Pesa credentials stored securely');
 
     return NextResponse.json({
       success: true,
-      message: 'M-Pesa settings saved successfully'
+      message: 'M-Pesa credentials saved securely'
     });
 
   } catch (error) {
@@ -172,58 +178,52 @@ export async function GET(request: NextRequest) {
 
     console.log('🔍 Fetching M-Pesa settings for bar:', barId);
 
-    // Get bar's M-Pesa configuration (without decrypting credentials)
-    const { data: barData, error: barError } = await (supabase as any)
-      .from('bars')
+    // Get credential metadata using service role (more reliable than view)
+    const { data: credData, error: credError } = await supabaseServiceRole
+      .from('mpesa_credentials')
       .select(`
         id,
-        name,
-        mpesa_enabled,
-        mpesa_environment,
-        mpesa_business_shortcode,
-        mpesa_consumer_key_encrypted,
-        mpesa_consumer_secret_encrypted,
-        mpesa_passkey_encrypted,
-        mpesa_setup_completed,
-        mpesa_last_test_at,
-        mpesa_test_status
+        environment,
+        business_shortcode,
+        initiator_name,
+        is_active,
+        created_at,
+        updated_at,
+        consumer_key_enc,
+        consumer_secret_enc,
+        passkey_enc,
+        security_credential_enc
       `)
-      .eq('id', barId)
-      .single();
+      .eq('tenant_id', barId)
+      .maybeSingle();
 
-    if (barError || !barData) {
-      console.error('❌ Bar not found:', barError);
-      return NextResponse.json({ error: 'Bar not found' }, { status: 404 });
+    if (credError) {
+      console.error('❌ Error fetching credentials:', credError);
+      return NextResponse.json({ error: 'Failed to fetch M-Pesa settings' }, { status: 500 });
     }
 
     console.log('✅ M-Pesa settings fetched:', {
-      mpesa_enabled: barData.mpesa_enabled,
-      mpesa_environment: barData.mpesa_environment,
-      mpesa_business_shortcode: barData.mpesa_business_shortcode,
-      has_consumer_key: !!barData.mpesa_consumer_key_encrypted,
-      has_consumer_secret: !!barData.mpesa_consumer_secret_encrypted,
-      has_passkey: !!barData.mpesa_passkey_encrypted,
-      mpesa_setup_completed: barData.mpesa_setup_completed,
-      mpesa_test_status: barData.mpesa_test_status
+      has_credentials: credData ? !!(credData.consumer_key_enc && credData.consumer_secret_enc && credData.passkey_enc) : false,
+      environment: credData?.environment,
+      business_shortcode: credData?.business_shortcode,
+      is_active: credData?.is_active
     });
 
-    // Return settings with masked credentials
+    // Return safe metadata only
     return NextResponse.json({
       success: true,
       settings: {
-        mpesa_enabled: barData.mpesa_enabled ?? false,
-        mpesa_environment: barData.mpesa_environment ?? 'sandbox',
-        mpesa_business_shortcode: barData.mpesa_business_shortcode ?? '',
-        mpesa_consumer_key: barData.mpesa_consumer_key_encrypted ? '••••••••••••••••' : '',
-        mpesa_consumer_secret: barData.mpesa_consumer_secret_encrypted ? '••••••••••••••••' : '',
-        mpesa_passkey: barData.mpesa_passkey_encrypted ? '••••••••••••••••' : '',
-        mpesa_setup_completed: barData.mpesa_setup_completed ?? false,
-        mpesa_last_test_at: barData.mpesa_last_test_at,
-        mpesa_test_status: barData.mpesa_test_status ?? 'pending',
+        mpesa_enabled: credData?.is_active ?? false,
+        mpesa_environment: credData?.environment ?? 'sandbox',
+        mpesa_business_shortcode: credData?.business_shortcode ?? '',
+        mpesa_consumer_key: credData?.consumer_key_enc ? '••••••••••••••••' : '',
+        mpesa_consumer_secret: credData?.consumer_secret_enc ? '••••••••••••••••' : '',
+        mpesa_passkey: credData?.passkey_enc ? '••••••••••••••••' : '',
+        mpesa_setup_completed: false, // Will be set by test endpoint
+        mpesa_last_test_at: null,
+        mpesa_test_status: 'pending',
         // Indicate which credentials are saved
-        has_credentials: !!(barData.mpesa_consumer_key_encrypted && 
-                           barData.mpesa_consumer_secret_encrypted && 
-                           barData.mpesa_passkey_encrypted)
+        has_credentials: credData ? !!(credData.consumer_key_enc && credData.consumer_secret_enc && credData.passkey_enc) : false
       }
     });
 
