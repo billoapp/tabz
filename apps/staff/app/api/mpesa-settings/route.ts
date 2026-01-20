@@ -1,6 +1,7 @@
 // Production-grade M-Pesa settings API with secure credential storage
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 import { encryptCredential, validateMpesaCredentials } from '@/lib/mpesa-encryption';
 
 // Use service role for backend operations (bypasses RLS)
@@ -15,8 +16,24 @@ const supabaseServiceRole = createClient(
   }
 );
 
-// Regular supabase client for user operations
-import { supabase } from '@/lib/supabase';
+// Create server-side client with cookies for authentication
+function createServerClient(request: NextRequest) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        headers: {
+          cookie: request.headers.get('cookie') || ''
+        }
+      }
+    }
+  );
+}
 
 export async function POST(request: NextRequest) {
   console.log('🔧 M-Pesa settings API called (secure mode)');
@@ -50,17 +67,50 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Bar ID validated:', barId);
 
+    // Create server-side client with cookies for proper authentication
+    const supabase = createServerClient(request);
+
+    // Get current user for authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('❌ Authentication failed:', authError);
+      return NextResponse.json({
+        error: 'Authentication required',
+        details: authError?.message
+      }, { status: 401 });
+    }
+
+    console.log('👤 Authenticated user:', user.id);
+
     // Validate user has access to this bar (using regular client with RLS)
     const { data: userBar, error: userBarError } = await supabase
       .from('user_bars')
       .select('bar_id')
       .eq('bar_id', barId)
+      .eq('user_id', user.id)
       .single();
+
+    console.log('🔍 User bar access check:', { userBar, userBarError });
 
     if (userBarError || !userBar) {
       console.error('❌ User does not have access to this bar:', userBarError);
+      
+      // Debug: Check all user bars
+      const { data: allUserBars } = await supabase
+        .from('user_bars')
+        .select('*')
+        .eq('user_id', user.id);
+      console.log('🏢 All user bars:', allUserBars);
+      
       return NextResponse.json({
-        error: 'Access denied to this bar'
+        error: 'Access denied to this bar',
+        debug: {
+          barId,
+          userBarError: userBarError?.message,
+          userId: user.id,
+          userBarsCount: allUserBars?.length || 0
+        }
       }, { status: 403 });
     }
 

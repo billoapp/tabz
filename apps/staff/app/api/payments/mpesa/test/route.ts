@@ -15,8 +15,24 @@ const supabaseServiceRole = createClient(
   }
 );
 
-// Regular supabase client for user operations
-import { supabase } from '@/lib/supabase';
+// Create server-side client with cookies for authentication
+function createServerClient(request: NextRequest) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        headers: {
+          cookie: request.headers.get('cookie') || ''
+        }
+      }
+    }
+  );
+}
 
 export async function POST(request: NextRequest) {
   console.log('🧪 M-Pesa test API called (secure mode)');
@@ -30,11 +46,28 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 Testing M-Pesa credentials for bar:', barId);
 
+    // Create server-side client with cookies for proper authentication
+    const supabase = createServerClient(request);
+
+    // Get current user for authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('❌ Authentication failed:', authError);
+      return NextResponse.json({
+        error: 'Authentication required',
+        details: authError?.message
+      }, { status: 401 });
+    }
+
+    console.log('👤 Authenticated user:', user.id);
+
     // Validate user has access to this bar (using regular client with RLS)
     const { data: userBar, error: userBarError } = await supabase
       .from('user_bars')
       .select('bar_id')
       .eq('bar_id', barId)
+      .eq('user_id', user.id)
       .single();
 
     if (userBarError || !userBar) {
