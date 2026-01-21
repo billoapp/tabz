@@ -743,28 +743,12 @@ export default function SettingsPage() {
 
       console.log('✅ M-Pesa settings saved successfully');
 
-      // Reload M-Pesa settings to show masked credentials
-      try {
-        const reloadResponse = await fetch(`/api/mpesa-settings?barId=${userBarId}`);
-        if (reloadResponse.ok) {
-          const reloadResult = await reloadResponse.json();
-          if (reloadResult.success) {
-            console.log('✅ M-Pesa settings reloaded with masked credentials');
-            setMpesaSettings(reloadResult.settings);
-          }
-        }
-      } catch (reloadError) {
-        console.warn('⚠️ Failed to reload M-Pesa settings:', reloadError);
-        // Clear sensitive data from state as fallback
-        setMpesaSettings(prev => ({
-          ...prev,
-          mpesa_consumer_key: '',
-          mpesa_consumer_secret: '',
-          mpesa_passkey: '',
-          mpesa_setup_completed: false,
-          mpesa_test_status: 'pending'
-        }));
-      }
+      // Keep the saved credentials in state (don't clear them after successful save)
+      setMpesaSettings(prev => ({
+        ...prev,
+        mpesa_setup_completed: true,
+        mpesa_test_status: 'pending'
+      }));
 
       alert('✅ M-Pesa settings saved! Please test the connection.');
     } catch (error: any) {
