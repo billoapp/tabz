@@ -13,7 +13,7 @@ export interface EnvironmentVariable {
   sensitive?: boolean;
 }
 
-export interface ValidationResult {
+export interface EnvironmentValidationResult {
   variable: string;
   present: boolean;
   valid: boolean;
@@ -26,7 +26,7 @@ export interface EnvironmentValidationReport {
   environment: 'development' | 'production' | 'unknown';
   timestamp: Date;
   allValid: boolean;
-  results: ValidationResult[];
+  results: EnvironmentValidationResult[];
   missing: string[];
   invalid: string[];
   recommendations: string[];
@@ -116,7 +116,7 @@ export class EnvironmentValidator {
    * Validate all required environment variables
    */
   validateRequiredVariables(): EnvironmentValidationReport {
-    const results: ValidationResult[] = [];
+    const results: EnvironmentValidationResult[] = [];
     const missing: string[] = [];
     const invalid: string[] = [];
     const recommendations: string[] = [];
@@ -169,7 +169,7 @@ export class EnvironmentValidator {
   /**
    * Validate a single environment variable
    */
-  private validateSingleVariable(variable: EnvironmentVariable): ValidationResult {
+  private validateSingleVariable(variable: EnvironmentVariable): EnvironmentValidationResult {
     const value = process.env[variable.name];
     const present = value !== undefined && value !== '';
     const errors: string[] = [];
