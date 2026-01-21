@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { decryptCredential, validateMpesaCredentials, generateMpesaToken } from '@/lib/mpesa-encryption';
+import { EnvironmentConfigManager } from '@tabeza/shared/lib/mpesa/config';
+import { STKPushService } from '@tabeza/shared/lib/mpesa/services/stkpush';
+import { MpesaCredentials, MpesaEnvironment } from '@tabeza/shared/lib/mpesa/types';
 
 // Use service role for backend operations (bypasses RLS)
 const supabaseServiceRole = createClient(
@@ -128,13 +131,22 @@ export async function POST(request: NextRequest) {
         is_active
       `)
       .eq('tenant_id', barId)
-      .eq('is_active', true)
       .single();
 
+    console.log('🔍 Credential query result:', { credData, credError });
+
     if (credError || !credData) {
-      console.error('❌ No active M-Pesa credentials found:', credError);
+      console.error('❌ No M-Pesa credentials found:', credError);
       return NextResponse.json({ 
-        error: 'M-Pesa credentials not configured or not active' 
+        error: 'M-Pesa credentials not configured' 
+      }, { status: 400 });
+    }
+
+    // Check if credentials are active
+    if (!credData.is_active) {
+      console.error('❌ M-Pesa credentials are not active');
+      return NextResponse.json({ 
+        error: 'M-Pesa credentials are not active' 
       }, { status: 400 });
     }
 
@@ -152,14 +164,51 @@ export async function POST(request: NextRequest) {
 
     try {
       console.log('🔓 Decrypting credentials...');
-      consumerKey = decryptCredential(credData.consumer_key_enc);
-      consumerSecret = decryptCredential(credData.consumer_secret_enc);
-      passkey = decryptCredential(credData.passkey_enc);
-      console.log('✅ Credentials decrypted successfully');
+      console.log('Credential data types:', {
+        consumer_key_enc: typeof credData.consumer_key_enc,
+        consumer_secret_enc: typeof credData.consumer_secret_enc,
+        passkey_enc: typeof credData.passkey_enc,
+        consumer_key_length: credData.consumer_key_enc?.length,
+        consumer_secret_length: credData.consumer_secret_enc?.length,
+        passkey_length: credData.passkey_enc?.length
+      });
+      
+      // Check if we have the encryption key
+      const encryptionKey = process.env.MPESA_KMS_KEY;
+      console.log('Encryption key available:', !!encryptionKey);
+      console.log('Encryption key length:', encryptionKey?.length);
+      
+      // Convert to Buffer if needed (Supabase returns bytea as Buffer or Uint8Array)
+      const consumerKeyBuffer = Buffer.isBuffer(credData.consumer_key_enc) 
+        ? credData.consumer_key_enc 
+        : Buffer.from(credData.consumer_key_enc);
+      const consumerSecretBuffer = Buffer.isBuffer(credData.consumer_secret_enc) 
+        ? credData.consumer_secret_enc 
+        : Buffer.from(credData.consumer_secret_enc);
+      const passkeyBuffer = Buffer.isBuffer(credData.passkey_enc) 
+        ? credData.passkey_enc 
+        : Buffer.from(credData.passkey_enc);
+      
+      consumerKey = decryptCredential(consumerKeyBuffer);
+      console.log('✅ Consumer key decrypted');
+      
+      consumerSecret = decryptCredential(consumerSecretBuffer);
+      console.log('✅ Consumer secret decrypted');
+      
+      passkey = decryptCredential(passkeyBuffer);
+      console.log('✅ Passkey decrypted');
+      
+      console.log('✅ All credentials decrypted successfully');
     } catch (error) {
       console.error('❌ Failed to decrypt M-Pesa credentials:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
+      
       return NextResponse.json({
-        error: 'Failed to decrypt M-Pesa credentials'
+        error: 'Failed to decrypt M-Pesa credentials',
+        details: error instanceof Error ? error.message : 'Unknown decryption error'
       }, { status: 500 });
     }
 

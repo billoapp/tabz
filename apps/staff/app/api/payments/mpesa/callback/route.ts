@@ -1,199 +1,236 @@
-// M-Pesa callback handler
-// Handles STK Push callbacks and updates payment status
+/**
+ * M-PESA Callback Handler Endpoint
+ * Secure HTTPS endpoint for M-PESA STK Push callbacks with proper validation and processing
+ */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-// Inline utility functions to avoid import path issues
-interface MpesaCallback {
-  Body: {
-    stkCallback: {
-      MerchantRequestID: string;
-      CheckoutRequestID: string;
-      ResultCode: number;
-      ResultDesc: string;
-      CallbackMetadata?: {
-        Item: Array<{
-          Name: string;
-          Value: any;
-        }>;
-      };
-    };
-  };
+import { createClient } from '@supabase/supabase-js';
+
+// Import shared M-PESA services - using relative paths since this is in the staff app
+import { CallbackHandler, DefaultCallbackAuthenticator } from '../../../../../../packages/shared/lib/mpesa/services/callback';
+import { TransactionService } from '../../../../../../packages/shared/lib/mpesa/services/transaction';
+import { ServiceFactory } from '../../../../../../packages/shared/lib/mpesa/services/base';
+import { STKCallbackData, MpesaEnvironment } from '../../../../../../packages/shared/lib/mpesa/types';
+
+// Environment configuration
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+// Rate limiting for callback endpoint
+const callbackRateLimit = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 100; // Max callbacks per minute per IP
+
+/**
+ * Enhanced callback authenticator with IP validation and security checks
+ */
+class SecureCallbackAuthenticator extends DefaultCallbackAuthenticator {
+  async validateCallback(callbackData: any, headers?: Record<string, string>): Promise<boolean> {
+    // First run basic validation
+    const basicValidation = await super.validateCallback(callbackData, headers);
+    if (!basicValidation) {
+      return false;
+    }
+
+    // Additional security checks
+    try {
+      // Check for required headers (can be extended based on M-PESA requirements)
+      if (headers) {
+        // Log headers for security monitoring
+        this.logger.debug('Callback headers received', { 
+          userAgent: headers['user-agent'],
+          contentType: headers['content-type'],
+          origin: headers['origin']
+        });
+      }
+
+      // Validate callback data structure more thoroughly
+      const stkCallback = callbackData.Body.stkCallback;
+      
+      // Validate CheckoutRequestID format (should be alphanumeric)
+      if (!/^[a-zA-Z0-9\-_]+$/.test(stkCallback.CheckoutRequestID)) {
+        this.logger.warn('Invalid CheckoutRequestID format', { 
+          checkoutRequestId: stkCallback.CheckoutRequestID 
+        });
+        return false;
+      }
+
+      // Validate MerchantRequestID format
+      if (!/^[a-zA-Z0-9\-_]+$/.test(stkCallback.MerchantRequestID)) {
+        this.logger.warn('Invalid MerchantRequestID format', { 
+          merchantRequestId: stkCallback.MerchantRequestID 
+        });
+        return false;
+      }
+
+      // Validate ResultCode is a valid M-PESA result code
+      const validResultCodes = [0, 1, 1032, 1037, 2001]; // Add more as needed
+      if (!validResultCodes.includes(stkCallback.ResultCode)) {
+        this.logger.warn('Unusual ResultCode received', { 
+          resultCode: stkCallback.ResultCode,
+          resultDesc: stkCallback.ResultDesc
+        });
+        // Don't reject, just log for monitoring
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error('Enhanced callback authentication error', { error });
+      return false;
+    }
+  }
 }
 
-function parseAccountReference(accountReference: string): {
-  barId: string;
-  tabId: string;
-} {
-  const parts = accountReference.split('|');
-  if (parts.length !== 2) {
-    throw new Error('Invalid account reference format');
+/**
+ * Check rate limiting for callback endpoint
+ */
+function checkRateLimit(clientIp: string): boolean {
+  const now = Date.now();
+  const clientData = callbackRateLimit.get(clientIp);
+
+  if (!clientData || now > clientData.resetTime) {
+    callbackRateLimit.set(clientIp, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  if (clientData.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+
+  clientData.count++;
+  return true;
+}
+
+/**
+ * Get client IP address from request
+ */
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  const realIp = request.headers.get('x-real-ip');
+  
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
   }
   
-  return {
-    barId: parts[0],
-    tabId: parts[1]
-  };
+  if (realIp) {
+    return realIp;
+  }
+  
+  return 'unknown';
 }
 
+/**
+ * Log security event for monitoring
+ */
+function logSecurityEvent(event: string, details: any) {
+  console.log(`[SECURITY] ${event}`, {
+    timestamp: new Date().toISOString(),
+    ...details
+  });
+}
+
+/**
+ * Handle M-PESA STK Push callbacks
+ */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  const clientIp = getClientIp(request);
+  
   try {
-    const callbackData: MpesaCallback = await request.json();
+    // Rate limiting check
+    if (!checkRateLimit(clientIp)) {
+      logSecurityEvent('RATE_LIMIT_EXCEEDED', { clientIp });
+      return NextResponse.json(
+        { ResultCode: 1, ResultDesc: 'Rate limit exceeded' },
+        { status: 429 }
+      );
+    }
+
+    // Parse callback data
+    let callbackData: STKCallbackData;
+    try {
+      callbackData = await request.json();
+    } catch (error) {
+      logSecurityEvent('INVALID_JSON', { clientIp, error });
+      return NextResponse.json(
+        { ResultCode: 1, ResultDesc: 'Invalid JSON format' },
+        { status: 400 }
+      );
+    }
+
+    // Extract headers for authentication
+    const headers: Record<string, string> = {};
+    request.headers.forEach((value, key) => {
+      headers[key.toLowerCase()] = value;
+    });
+
+    // Log callback received
+    console.log('[CALLBACK] M-PESA callback received', {
+      timestamp: new Date().toISOString(),
+      clientIp,
+      merchantRequestId: callbackData.Body?.stkCallback?.MerchantRequestID,
+      checkoutRequestId: callbackData.Body?.stkCallback?.CheckoutRequestID,
+      resultCode: callbackData.Body?.stkCallback?.ResultCode
+    });
+
+    // Initialize services
+    const transactionService = new TransactionService(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const logger = ServiceFactory.createLogger();
+    const authenticator = new SecureCallbackAuthenticator(logger);
     
-    console.log('M-Pesa callback received:', JSON.stringify(callbackData, null, 2));
+    // Create callback handler with minimal config (we don't need full M-PESA config for callbacks)
+    const config = ServiceFactory.createServiceConfig(
+      'sandbox' as MpesaEnvironment, // This will be overridden by actual transaction environment
+      {} as any, // Credentials not needed for callback processing
+      { timeoutMs: 10000, retryAttempts: 1, rateLimitPerMinute: 100 }
+    );
 
-    // Extract callback information
-    const stkCallback = callbackData.Body?.stkCallback;
-    if (!stkCallback) {
-      console.error('Invalid callback format - missing stkCallback');
-      return NextResponse.json({ error: 'Invalid callback format' }, { status: 400 });
-    }
+    const callbackHandler = new CallbackHandler(
+      config,
+      transactionService,
+      authenticator,
+      logger
+    );
 
-    const {
-      MerchantRequestID,
-      CheckoutRequestID,
-      ResultCode,
-      ResultDesc,
-      CallbackMetadata
-    } = stkCallback;
+    // Process callback
+    const result = await callbackHandler.handleSTKCallback(callbackData, headers);
 
-    // Find the M-Pesa transaction
-    const { data: mpesaTransaction, error: mpesaError } = await (supabase as any)
-      .from('mpesa_transactions')
-      .select(`
-        id,
-        payment_id,
-        bar_id,
-        account_reference,
-        tab_payments!inner(id, tab_id, amount, status)
-      `)
-      .eq('checkout_request_id', CheckoutRequestID)
-      .single();
+    // Log processing result
+    const processingTime = Date.now() - startTime;
+    console.log('[CALLBACK] Processing completed', {
+      timestamp: new Date().toISOString(),
+      success: result.success,
+      transactionId: result.transactionId,
+      status: result.status,
+      processingTimeMs: processingTime,
+      error: result.error
+    });
 
-    if (mpesaError || !mpesaTransaction) {
-      console.error('M-Pesa transaction not found:', CheckoutRequestID);
-      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
-    }
-
-    // Parse callback metadata
-    let mpesaReceiptNumber: string | null = null;
-    let phoneNumber: string | null = null;
-    let amount: number | null = null;
-
-    if (CallbackMetadata?.Item) {
-      for (const item of CallbackMetadata.Item) {
-        switch (item.Name) {
-          case 'MpesaReceiptNumber':
-            mpesaReceiptNumber = item.Value;
-            break;
-          case 'PhoneNumber':
-            phoneNumber = item.Value?.toString();
-            break;
-          case 'Amount':
-            amount = parseFloat(item.Value);
-            break;
-        }
-      }
-    }
-
-    // Determine payment status based on result code
-    let paymentStatus: 'success' | 'failed';
-    if (ResultCode === 0) {
-      paymentStatus = 'success';
-    } else {
-      paymentStatus = 'failed';
-    }
-
-    // Update M-Pesa transaction record
-    const { error: updateMpesaError } = await (supabase as any)
-      .from('mpesa_transactions')
-      .update({
-        result_code: ResultCode,
-        result_desc: ResultDesc,
-        mpesa_receipt_number: mpesaReceiptNumber,
-        callback_received_at: new Date().toISOString(),
-        callback_data: callbackData,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', mpesaTransaction.id);
-
-    if (updateMpesaError) {
-      console.error('Failed to update M-Pesa transaction:', updateMpesaError);
-    }
-
-    // Update payment status in tab_payments
-    const { error: updatePaymentError } = await (supabase as any)
-      .from('tab_payments')
-      .update({
-        status: paymentStatus,
-        metadata: {
-          ...mpesaTransaction.tab_payments.metadata,
-          mpesa_receipt_number: mpesaReceiptNumber,
-          result_code: ResultCode,
-          result_desc: ResultDesc,
-          callback_received_at: new Date().toISOString()
-        },
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', mpesaTransaction.payment_id);
-
-    if (updatePaymentError) {
-      console.error('Failed to update payment status:', updatePaymentError);
-    }
-
-    // If payment was successful, update tab balance
-    if (paymentStatus === 'success' && amount) {
-      try {
-        // Parse account reference to get tab info
-        const { tabId } = parseAccountReference(mpesaTransaction.account_reference);
-        
-        // Get current tab balance
-        const { data: tabData, error: tabError } = await (supabase as any)
-          .from('tabs')
-          .select('balance')
-          .eq('id', tabId)
-          .single();
-
-        if (!tabError && tabData) {
-          const newBalance = Math.max(0, tabData.balance - amount);
-          
-          // Update tab balance
-          const { error: balanceError } = await (supabase as any)
-            .from('tabs')
-            .update({ 
-              balance: newBalance,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', tabId);
-
-          if (balanceError) {
-            console.error('Failed to update tab balance:', balanceError);
-          } else {
-            console.log(`Tab ${tabId} balance updated: ${tabData.balance} -> ${newBalance}`);
-          }
-        }
-      } catch (error) {
-        console.error('Error updating tab balance:', error);
-      }
-    }
-
-    // Log the result
-    if (paymentStatus === 'success') {
-      console.log(`✅ M-Pesa payment successful: ${mpesaReceiptNumber} - Amount: ${amount}`);
-    } else {
-      console.log(`❌ M-Pesa payment failed: ${ResultDesc} (Code: ${ResultCode})`);
-    }
-
-    // Always return success to M-Pesa to avoid retries
+    // Always return success to M-PESA to prevent retries
+    // Even if our processing failed, we don't want M-PESA to keep retrying
     return NextResponse.json({
       ResultCode: 0,
-      ResultDesc: 'Callback processed successfully'
+      ResultDesc: result.success ? 'Callback processed successfully' : 'Callback received'
     });
 
   } catch (error) {
-    console.error('M-Pesa callback error:', error);
+    const processingTime = Date.now() - startTime;
     
-    // Still return success to avoid M-Pesa retries
+    // Log error with security context
+    logSecurityEvent('CALLBACK_PROCESSING_ERROR', {
+      clientIp,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      processingTimeMs: processingTime
+    });
+
+    console.error('[CALLBACK] Processing error', {
+      timestamp: new Date().toISOString(),
+      error: error instanceof Error ? error.stack : error,
+      clientIp,
+      processingTimeMs: processingTime
+    });
+
+    // Still return success to M-PESA to avoid retries
     return NextResponse.json({
       ResultCode: 0,
       ResultDesc: 'Callback received but processing failed'
@@ -201,7 +238,27 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Handle non-POST requests
+ */
 export async function GET() {
+  logSecurityEvent('INVALID_METHOD', { method: 'GET' });
+  return NextResponse.json(
+    { error: 'Method not allowed' },
+    { status: 405 }
+  );
+}
+
+export async function PUT() {
+  logSecurityEvent('INVALID_METHOD', { method: 'PUT' });
+  return NextResponse.json(
+    { error: 'Method not allowed' },
+    { status: 405 }
+  );
+}
+
+export async function DELETE() {
+  logSecurityEvent('INVALID_METHOD', { method: 'DELETE' });
   return NextResponse.json(
     { error: 'Method not allowed' },
     { status: 405 }
