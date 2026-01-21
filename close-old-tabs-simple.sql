@@ -23,11 +23,9 @@ WHERE t.status = 'open'
     AND (SELECT COUNT(*) FROM tab_orders WHERE tab_id = t.id AND status = 'pending') = 0
   )
   AND (
-    -- Should be closed: opened previous day OR currently after hours
+    -- Should be closed: opened previous day OR currently after hours for that bar
     t.opened_at::date < NOW()::date 
-    OR (EXTRACT(HOUR FROM (NOW() AT TIME ZONE 'Africa/Nairobi')) * 60 + 
-        EXTRACT(MINUTE FROM (NOW() AT TIME ZONE 'Africa/Nairobi'))) 
-       NOT BETWEEN (9 * 60 + 30) AND (23 * 60 + 35)
+    OR NOT is_within_business_hours_at_time(t.bar_id, NOW())
   )
 ORDER BY t.opened_at DESC;
 
@@ -48,11 +46,9 @@ WHERE status = 'open'
     AND (SELECT COUNT(*) FROM tab_orders WHERE tab_id = tabs.id AND status = 'pending') = 0
   )
   AND (
-    -- Should be closed: opened previous day OR currently after hours
+    -- Should be closed: opened previous day OR currently after hours for that bar
     opened_at::date < NOW()::date 
-    OR (EXTRACT(HOUR FROM (NOW() AT TIME ZONE 'Africa/Nairobi')) * 60 + 
-        EXTRACT(MINUTE FROM (NOW() AT TIME ZONE 'Africa/Nairobi'))) 
-       NOT BETWEEN (9 * 60 + 30) AND (23 * 60 + 35)
+    OR NOT is_within_business_hours_at_time(tabs.bar_id, NOW())
   );
 
 -- Show what was closed

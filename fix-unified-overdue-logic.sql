@@ -131,9 +131,9 @@ DECLARE
     v_tab RECORD;
     v_balance NUMERIC;
     v_tab_created_date DATE;
-    v_current_date DATE;
-    v_closing_time TIMESTAMPTZ;
-    v_is_past_closing BOOLEAN;
+    v_tab_opened_time TIMESTAMPTZ;
+    v_business_day_end TIMESTAMPTZ;
+    v_is_past_business_day BOOLEAN;
 BEGIN
     -- Get tab details
     SELECT 
@@ -157,25 +157,140 @@ BEGIN
         RETURN FALSE;
     END IF;
     
-    -- Get dates
-    v_tab_created_date := v_tab.created_date;
-    v_current_date := CURRENT_DATE;
+    -- Calculate when the business day ends for the day the tab was opened
+    v_business_day_end := calculate_business_day_end(v_tab.bar_id, v_tab.opened_at);
     
-    -- Only check overdue status for tabs created TODAY
-    -- Tabs from previous days should be handled separately
-    IF v_tab_created_date != v_current_date THEN
-        RETURN FALSE; -- Old tabs handled by cleanup process
+    -- If we can't determine business hours (24hr or not configured), never go overdue
+    IF v_business_day_end IS NULL THEN
+        RETURN FALSE;
     END IF;
-    
-    -- Check if we're currently past the closing time for the day the tab was created
-    -- Since tab was created today, we check current time against today's business hours
-    v_is_past_closing := NOT is_within_business_hours_at_time(v_tab.bar_id, NOW());
     
     -- Tab is overdue if:
     -- 1. Has outstanding balance AND
-    -- 2. Created today AND
-    -- 3. We're currently past closing time
-    RETURN v_balance > 0 AND v_is_past_closing;
+    -- 2. Current time is past the business day end for when tab was opened
+    RETURN v_balance > 0 AND NOW() > v_business_day_end;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create function to calculate business day end time for a specific date
+CREATE OR REPLACE FUNCTION calculate_business_day_end(
+    p_bar_id UUID, 
+    p_date TIMESTAMPTZ
+)
+RETURNS TIMESTAMPTZ AS $$
+DECLARE
+    v_bar RECORD;
+    v_day_name TEXT;
+    v_day_hours JSONB;
+    v_open_hour INTEGER;
+    v_open_minute INTEGER;
+    v_close_hour INTEGER;
+    v_close_minute INTEGER;
+    v_open_time TIMESTAMPTZ;
+    v_close_time TIMESTAMPTZ;
+    v_date_local DATE;
+BEGIN
+    -- Get bar business hours configuration
+    SELECT 
+        business_hours_mode,
+        business_hours_simple,
+        business_hours_advanced,
+        business_24_hours
+    INTO v_bar
+    FROM bars 
+    WHERE id = p_bar_id;
+    
+    -- If bar not found, return NULL (no business hours)
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+    
+    -- Handle 24 hours mode - never closes, so never overdue
+    IF v_bar.business_24_hours = true OR v_bar.business_hours_mode = '24hours' THEN
+        RETURN NULL;
+    END IF;
+    
+    -- If no business hours configured, return NULL
+    IF v_bar.business_hours_mode IS NULL THEN
+        RETURN NULL;
+    END IF;
+    
+    -- Convert to local date for day calculation
+    v_date_local := (p_date AT TIME ZONE 'Africa/Nairobi')::DATE;
+    
+    IF v_bar.business_hours_mode = 'simple' THEN
+        -- Simple mode: same hours every day
+        IF v_bar.business_hours_simple IS NULL THEN
+            RETURN NULL; -- No hours configured
+        END IF;
+        
+        -- Parse times
+        v_open_hour := SPLIT_PART(v_bar.business_hours_simple->>'openTime', ':', 1)::INTEGER;
+        v_open_minute := SPLIT_PART(v_bar.business_hours_simple->>'openTime', ':', 2)::INTEGER;
+        v_close_hour := SPLIT_PART(v_bar.business_hours_simple->>'closeTime', ':', 1)::INTEGER;
+        v_close_minute := SPLIT_PART(v_bar.business_hours_simple->>'closeTime', ':', 2)::INTEGER;
+        
+        -- Create timestamps for the specific date
+        v_open_time := (v_date_local || ' ' || 
+            LPAD(v_open_hour::TEXT, 2, '0') || ':' || 
+            LPAD(v_open_minute::TEXT, 2, '0'))::TIMESTAMPTZ AT TIME ZONE 'Africa/Nairobi';
+            
+        v_close_time := (v_date_local || ' ' || 
+            LPAD(v_close_hour::TEXT, 2, '0') || ':' || 
+            LPAD(v_close_minute::TEXT, 2, '0'))::TIMESTAMPTZ AT TIME ZONE 'Africa/Nairobi';
+        
+        -- Handle overnight hours (e.g., 20:00 to 04:00)
+        IF (v_bar.business_hours_simple->>'closeNextDay')::BOOLEAN = true OR v_close_time < v_open_time THEN
+            -- If close time is next day, add one day to close time
+            v_close_time := v_close_time + INTERVAL '1 day';
+        END IF;
+        
+    ELSIF v_bar.business_hours_mode = 'advanced' THEN
+        -- Advanced mode: different hours per day
+        IF v_bar.business_hours_advanced IS NULL THEN
+            RETURN NULL;
+        END IF;
+        
+        -- Get day name
+        v_day_name := CASE EXTRACT(DOW FROM v_date_local)
+            WHEN 0 THEN 'sunday'
+            WHEN 1 THEN 'monday'
+            WHEN 2 THEN 'tuesday'
+            WHEN 3 THEN 'wednesday'
+            WHEN 4 THEN 'thursday'
+            WHEN 5 THEN 'friday'
+            WHEN 6 THEN 'saturday'
+        END;
+        
+        v_day_hours := v_bar.business_hours_advanced->v_day_name;
+        
+        IF v_day_hours IS NULL OR v_day_hours->>'open' IS NULL OR v_day_hours->>'close' IS NULL THEN
+            RETURN NULL; -- Closed on this day
+        END IF;
+        
+        -- Parse times
+        v_open_hour := SPLIT_PART(v_day_hours->>'open', ':', 1)::INTEGER;
+        v_open_minute := SPLIT_PART(v_day_hours->>'open', ':', 2)::INTEGER;
+        v_close_hour := SPLIT_PART(v_day_hours->>'close', ':', 1)::INTEGER;
+        v_close_minute := SPLIT_PART(v_day_hours->>'close', ':', 2)::INTEGER;
+        
+        -- Create timestamps for the specific date
+        v_open_time := (v_date_local || ' ' || 
+            LPAD(v_open_hour::TEXT, 2, '0') || ':' || 
+            LPAD(v_open_minute::TEXT, 2, '0'))::TIMESTAMPTZ AT TIME ZONE 'Africa/Nairobi';
+            
+        v_close_time := (v_date_local || ' ' || 
+            LPAD(v_close_hour::TEXT, 2, '0') || ':' || 
+            LPAD(v_close_minute::TEXT, 2, '0'))::TIMESTAMPTZ AT TIME ZONE 'Africa/Nairobi';
+        
+        -- Handle overnight hours
+        IF (v_day_hours->>'closeNextDay')::BOOLEAN = true OR v_close_time < v_open_time THEN
+            -- If close time is next day, add one day to close time
+            v_close_time := v_close_time + INTERVAL '1 day';
+        END IF;
+    END IF;
+    
+    RETURN v_close_time;
 END;
 $$ LANGUAGE plpgsql;
 
