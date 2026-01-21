@@ -41,7 +41,7 @@ export type {
   STKPushRequest,
   STKPushResponse,
   PaymentInitiationResult,
-  PaymentStatus,
+  MpesaPaymentStatus,
   EnvironmentConfig,
   ServiceConfig,
   ValidationResult

@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { validateMpesaPhoneNumber, sanitizePhoneNumber } from '@tabeza/shared/lib/phoneValidation';
-import { MpesaRateLimiter, extractIpAddress } from '@tabeza/shared/lib/mpesa/middleware/rate-limiter';
-import { STKPushService } from '@tabeza/shared/lib/mpesa/services/stkpush';
-import { TransactionService } from '@tabeza/shared/lib/mpesa/services/transaction';
-import { MpesaConfig } from '@tabeza/shared/lib/mpesa/config';
-import { MpesaError, MpesaNetworkError, MpesaValidationError } from '@tabeza/shared/lib/mpesa/types';
+import { MpesaRateLimiter, extractIpAddress, STKPushService, TransactionService, MpesaError, MpesaNetworkError, MpesaValidationError } from '@tabeza/shared';
 
 export async function POST(request: NextRequest) {
   try {

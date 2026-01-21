@@ -133,7 +133,7 @@ export interface PaymentInitiationResult {
 }
 
 // Payment status result
-export interface PaymentStatus {
+export interface MpesaPaymentStatus {
   transactionId: string;
   status: TransactionStatus;
   amount: number;

@@ -3,9 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { encryptCredential, validateMpesaCredentials } from '@/lib/mpesa-encryption';
-import { EnvironmentConfigManager } from '@tabeza/shared/lib/mpesa/config';
-import { STKPushService } from '@tabeza/shared/lib/mpesa/services/stkpush';
-import { MpesaCredentials } from '@tabeza/shared/lib/mpesa/types';
+import { EnvironmentConfigManager, STKPushService, MpesaCredentials } from '@tabeza/shared';
 
 // Use service role for backend operations (bypasses RLS)
 const supabaseServiceRole = createClient(

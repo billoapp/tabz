@@ -23,7 +23,7 @@ import {
   STKPushRequest, 
   STKCallbackData,
   PaymentInitiationResult,
-  PaymentStatus 
+  MpesaPaymentStatus 
 } from '../types';
 
 describe('M-PESA End-to-End Integration Tests', () => {

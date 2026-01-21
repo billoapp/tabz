@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Import shared M-PESA services from the shared package
-import { CallbackHandler, DefaultCallbackAuthenticator, TransactionService, ServiceFactory, STKCallbackData, MpesaEnvironment } from '@tabeza/shared';
+import { CallbackHandler, DefaultCallbackAuthenticator, TransactionService, ServiceFactory, STKCallbackData, MpesaEnvironment, Logger, OrderStatusUpdateService } from '@tabeza/shared';
 
 // Environment configuration
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -22,6 +22,13 @@ const RATE_LIMIT_MAX_REQUESTS = 100; // Max callbacks per minute per IP
  * Enhanced callback authenticator with IP validation and security checks
  */
 class SecureCallbackAuthenticator extends DefaultCallbackAuthenticator {
+  private securityLogger: Logger;
+
+  constructor(logger: Logger) {
+    super(logger);
+    this.securityLogger = logger;
+  }
+
   async validateCallback(callbackData: any, headers?: Record<string, string>): Promise<boolean> {
     // First run basic validation
     const basicValidation = await super.validateCallback(callbackData, headers);
@@ -34,7 +41,7 @@ class SecureCallbackAuthenticator extends DefaultCallbackAuthenticator {
       // Check for required headers (can be extended based on M-PESA requirements)
       if (headers) {
         // Log headers for security monitoring
-        this.logger.debug('Callback headers received', { 
+        this.securityLogger.debug('Callback headers received', { 
           userAgent: headers['user-agent'],
           contentType: headers['content-type'],
           origin: headers['origin']
@@ -46,7 +53,7 @@ class SecureCallbackAuthenticator extends DefaultCallbackAuthenticator {
       
       // Validate CheckoutRequestID format (should be alphanumeric)
       if (!/^[a-zA-Z0-9\-_]+$/.test(stkCallback.CheckoutRequestID)) {
-        this.logger.warn('Invalid CheckoutRequestID format', { 
+        this.securityLogger.warn('Invalid CheckoutRequestID format', { 
           checkoutRequestId: stkCallback.CheckoutRequestID 
         });
         return false;
@@ -54,7 +61,7 @@ class SecureCallbackAuthenticator extends DefaultCallbackAuthenticator {
 
       // Validate MerchantRequestID format
       if (!/^[a-zA-Z0-9\-_]+$/.test(stkCallback.MerchantRequestID)) {
-        this.logger.warn('Invalid MerchantRequestID format', { 
+        this.securityLogger.warn('Invalid MerchantRequestID format', { 
           merchantRequestId: stkCallback.MerchantRequestID 
         });
         return false;
@@ -63,7 +70,7 @@ class SecureCallbackAuthenticator extends DefaultCallbackAuthenticator {
       // Validate ResultCode is a valid M-PESA result code
       const validResultCodes = [0, 1, 1032, 1037, 2001]; // Add more as needed
       if (!validResultCodes.includes(stkCallback.ResultCode)) {
-        this.logger.warn('Unusual ResultCode received', { 
+        this.securityLogger.warn('Unusual ResultCode received', { 
           resultCode: stkCallback.ResultCode,
           resultDesc: stkCallback.ResultDesc
         });
@@ -72,7 +79,7 @@ class SecureCallbackAuthenticator extends DefaultCallbackAuthenticator {
 
       return true;
     } catch (error) {
-      this.logger.error('Enhanced callback authentication error', { error });
+      this.securityLogger.error('Enhanced callback authentication error', { error });
       return false;
     }
   }
@@ -181,10 +188,14 @@ export async function POST(request: NextRequest) {
       {} as any, // Credentials not needed for callback processing
       { timeoutMs: 10000, retryAttempts: 1, rateLimitPerMinute: 100 }
     );
+    
+    // Create order sync service
+    const orderSyncService = new OrderStatusUpdateService(config, logger);
 
     const callbackHandler = new CallbackHandler(
       config,
       transactionService,
+      orderSyncService,
       authenticator,
       logger
     );

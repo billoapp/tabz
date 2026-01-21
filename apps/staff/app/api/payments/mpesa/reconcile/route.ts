@@ -5,9 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { TransactionService } from '@tabeza/shared/lib/mpesa/services/transaction';
-import { OrderStatusUpdateService } from '@tabeza/shared/lib/mpesa/services/order-sync';
-import { TransactionStatus, ServiceConfig } from '@tabeza/shared/lib/mpesa/types';
+import { TransactionService, OrderStatusUpdateService, TransactionStatus, ServiceConfig } from '@tabeza/shared';
 
 // Use service role for backend operations (bypasses RLS)
 const supabaseServiceRole = createClient(

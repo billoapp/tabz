@@ -211,8 +211,8 @@ export class OrderStatusUpdateService extends BaseService {
       }
 
       // Calculate totals
-      const totalOrders = orders?.reduce((sum, order) => sum + parseFloat(order.total), 0) || 0;
-      const totalPayments = payments?.reduce((sum, payment) => sum + parseFloat(payment.amount), 0) || 0;
+      const totalOrders = orders?.reduce((sum: number, order) => sum + parseFloat(order.total), 0) || 0;
+      const totalPayments = payments?.reduce((sum: number, payment) => sum + parseFloat(payment.amount), 0) || 0;
       const balance = totalOrders - totalPayments;
 
       // Group payments by method

@@ -128,7 +128,18 @@ export class RetryManager {
   ) {
     this.logger = logger;
     this.errorHandler = errorHandler;
-    this.retryConfigs = { ...DEFAULT_RETRY_CONFIGS, ...customConfigs };
+    
+    // Filter out undefined values from customConfigs
+    const validCustomConfigs: Record<string, RetryConfig> = {};
+    if (customConfigs) {
+      Object.entries(customConfigs).forEach(([key, value]) => {
+        if (value !== undefined) {
+          validCustomConfigs[key] = value;
+        }
+      });
+    }
+    
+    this.retryConfigs = { ...DEFAULT_RETRY_CONFIGS, ...validCustomConfigs };
     this.autoStartQueue = autoStartQueue;
     
     // Start callback queue processor only if auto-start is enabled

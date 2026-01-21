@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { MpesaRateLimiter, extractIpAddress } from '@tabeza/shared/lib/mpesa/middleware/rate-limiter';
-import { STKPushService } from '@tabeza/shared/lib/mpesa/services/stkpush';
-import { TransactionService } from '@tabeza/shared/lib/mpesa/services/transaction';
-import { MpesaConfig } from '@tabeza/shared/lib/mpesa/config';
-import { MpesaError, MpesaNetworkError, MpesaValidationError } from '@tabeza/shared/lib/mpesa/types';
+import { MpesaRateLimiter, extractIpAddress, STKPushService, TransactionService, MpesaError, MpesaNetworkError, MpesaValidationError } from '@tabeza/shared';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { transactionId: string } }
+  { params }: { params: Promise<{ transactionId: string }> }
 ) {
   try {
-    const { transactionId } = params;
+    const { transactionId } = await params;
 
     if (!transactionId) {
       return NextResponse.json(

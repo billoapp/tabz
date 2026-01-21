@@ -5,10 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { TransactionService } from '@tabeza/shared/lib/mpesa/services/transaction';
-import { STKPushService } from '@tabeza/shared/lib/mpesa/services/stkpush';
-import { EnvironmentConfigManager } from '@tabeza/shared/lib/mpesa/config';
-import { MpesaCredentials, MpesaEnvironment } from '@tabeza/shared/lib/mpesa/types';
+import { TransactionService, STKPushService, EnvironmentConfigManager, MpesaCredentials, MpesaEnvironment } from '@tabeza/shared';
 
 // Use service role for backend operations (bypasses RLS)
 const supabaseServiceRole = createClient(
@@ -66,10 +63,10 @@ function createServerClient(request: NextRequest) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { transactionId: string } }
+  { params }: { params: Promise<{ transactionId: string }> }
 ) {
   try {
-    const { transactionId } = params;
+    const { transactionId } = await params;
     const url = new URL(request.url);
     const barId = url.searchParams.get('barId');
     const queryMpesa = url.searchParams.get('queryMpesa') === 'true';

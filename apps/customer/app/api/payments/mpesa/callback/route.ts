@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CallbackHandler } from '@tabeza/shared/lib/mpesa/services/callback';
-import { TransactionService } from '@tabeza/shared/lib/mpesa/services/transaction';
-import { OrderStatusUpdateService } from '@tabeza/shared/lib/mpesa/services/order-sync';
-import { MpesaConfig } from '@tabeza/shared/lib/mpesa/config';
-import { STKCallbackData, MpesaError, MpesaValidationError } from '@tabeza/shared/lib/mpesa/types';
-import { getAuditLogger } from '@tabeza/shared/lib/mpesa/middleware/audit-logger';
+import { CallbackHandler, TransactionService, OrderStatusUpdateService, STKCallbackData, MpesaError, MpesaValidationError, getAuditLogger, ServiceFactory, MpesaEnvironment } from '@tabeza/shared';
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -34,14 +29,17 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const orderSyncService = new OrderStatusUpdateService(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    // Create service config for callback handler
+    const config = ServiceFactory.createServiceConfig(
+      'sandbox' as MpesaEnvironment,
+      {} as any,
+      { timeoutMs: 10000, retryAttempts: 1, rateLimitPerMinute: 100 }
     );
 
-    const mpesaConfig = new MpesaConfig();
+    const orderSyncService = new OrderStatusUpdateService(config);
+
     const callbackHandler = new CallbackHandler(
-      mpesaConfig.getServiceConfig(),
+      config,
       transactionService,
       orderSyncService
     );
@@ -69,7 +67,7 @@ export async function POST(request: NextRequest) {
           resultCode: callbackData.Body?.stkCallback?.ResultCode,
           processedAt: new Date().toISOString()
         },
-        environment: process.env.MPESA_ENVIRONMENT || 'sandbox',
+        environment: (process.env.MPESA_ENVIRONMENT || 'sandbox') as MpesaEnvironment,
         severity: 'info',
         category: 'payment'
       });
@@ -86,7 +84,7 @@ export async function POST(request: NextRequest) {
 
       // Log failed callback processing
       await auditLogger.logEvent({
-        eventType: 'callback_processing_failed',
+        eventType: 'callback_failed',
         eventData: {
           error: result.error,
           processingTimeMs: processingTime,
@@ -94,7 +92,7 @@ export async function POST(request: NextRequest) {
           resultCode: callbackData.Body?.stkCallback?.ResultCode,
           failedAt: new Date().toISOString()
         },
-        environment: process.env.MPESA_ENVIRONMENT || 'sandbox',
+        environment: (process.env.MPESA_ENVIRONMENT || 'sandbox') as MpesaEnvironment,
         severity: 'error',
         category: 'payment'
       });
@@ -116,13 +114,13 @@ export async function POST(request: NextRequest) {
     // Log callback endpoint error
     try {
       await auditLogger.logEvent({
-        eventType: 'callback_endpoint_error',
+        eventType: 'system_error',
         eventData: {
           error: error instanceof Error ? error.message : 'Unknown error',
           processingTimeMs: processingTime,
           errorAt: new Date().toISOString()
         },
-        environment: process.env.MPESA_ENVIRONMENT || 'sandbox',
+        environment: (process.env.MPESA_ENVIRONMENT || 'sandbox') as MpesaEnvironment,
         severity: 'error',
         category: 'system'
       });
@@ -166,6 +164,6 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     message: 'M-PESA callback endpoint is active',
     timestamp: new Date().toISOString(),
-    environment: process.env.MPESA_ENVIRONMENT || 'sandbox'
+    environment: (process.env.MPESA_ENVIRONMENT || 'sandbox') as MpesaEnvironment
   });
 }
