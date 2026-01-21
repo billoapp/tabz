@@ -6,11 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Import shared M-PESA services - using relative paths since this is in the staff app
-import { CallbackHandler, DefaultCallbackAuthenticator } from '../../../../../../packages/shared/lib/mpesa/services/callback';
-import { TransactionService } from '../../../../../../packages/shared/lib/mpesa/services/transaction';
-import { ServiceFactory } from '../../../../../../packages/shared/lib/mpesa/services/base';
-import { STKCallbackData, MpesaEnvironment } from '../../../../../../packages/shared/lib/mpesa/types';
+// Import shared M-PESA services from the shared package
+import { CallbackHandler, DefaultCallbackAuthenticator, TransactionService, ServiceFactory, STKCallbackData, MpesaEnvironment } from '@tabeza/shared';
 
 // Environment configuration
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;

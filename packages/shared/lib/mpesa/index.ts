@@ -15,6 +15,23 @@ export * from './config';
 // Export base services and dependency injection interfaces
 export * from './services/base';
 
+// Export core services
+export * from './services/auth';
+export * from './services/stkpush';
+export * from './services/transaction';
+export * from './services/callback';
+export * from './services/state-machine';
+export * from './services/order-sync';
+
+// Export middleware
+export * from './middleware/error-handler';
+export * from './middleware/retry-manager';
+export * from './middleware/rate-limiter';
+export * from './middleware/audit-logger';
+
+// Export testing utilities
+export * from './testing/sandbox-utilities';
+
 // Re-export commonly used types for convenience
 export type {
   MpesaEnvironment,
