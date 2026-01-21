@@ -176,16 +176,10 @@ export async function POST(request: NextRequest) {
       console.log('Encryption key available:', !!encryptionKey);
       console.log('Encryption key length:', encryptionKey?.length);
       
-      // Convert to Buffer if needed (Supabase returns bytea as Buffer or Uint8Array)
-      const consumerKeyBuffer = Buffer.isBuffer(credData.consumer_key_enc) 
-        ? credData.consumer_key_enc 
-        : Buffer.from(credData.consumer_key_enc);
-      const consumerSecretBuffer = Buffer.isBuffer(credData.consumer_secret_enc) 
-        ? credData.consumer_secret_enc 
-        : Buffer.from(credData.consumer_secret_enc);
-      const passkeyBuffer = Buffer.isBuffer(credData.passkey_enc) 
-        ? credData.passkey_enc 
-        : Buffer.from(credData.passkey_enc);
+      // Convert to Buffer from base64 string (Supabase returns bytea as base64 string)
+      const consumerKeyBuffer = Buffer.from(credData.consumer_key_enc, 'base64');
+      const consumerSecretBuffer = Buffer.from(credData.consumer_secret_enc, 'base64');
+      const passkeyBuffer = Buffer.from(credData.passkey_enc, 'base64');
       
       consumerKey = decryptCredential(consumerKeyBuffer);
       console.log('✅ Consumer key decrypted');
