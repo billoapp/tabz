@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { MpesaRateLimiter, extractIpAddress, STKPushService, TransactionService, MpesaError, MpesaNetworkError, MpesaValidationError } from '@tabeza/shared';
+import { MpesaRateLimiter, extractIpAddress, STKPushService, TransactionService, MpesaError, MpesaNetworkError, MpesaValidationError, ServiceFactory } from '@tabeza/shared';
 
 export async function POST(
   request: NextRequest,
@@ -114,8 +114,19 @@ export async function POST(
     });
 
     // Initialize M-PESA configuration and STK Push service
-    const mpesaConfig = new MpesaConfig();
-    const stkPushService = new STKPushService(mpesaConfig.getServiceConfig());
+    const serviceConfig = ServiceFactory.createServiceConfig(
+      (process.env.MPESA_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
+      {
+        consumerKey: process.env.MPESA_CONSUMER_KEY!,
+        consumerSecret: process.env.MPESA_CONSUMER_SECRET!,
+        businessShortCode: process.env.MPESA_BUSINESS_SHORTCODE!,
+        passkey: process.env.MPESA_PASSKEY!,
+        callbackUrl: process.env.MPESA_CALLBACK_URL!,
+        environment: (process.env.MPESA_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
+        encryptedAt: new Date()
+      }
+    );
+    const stkPushService = new STKPushService(serviceConfig);
 
     try {
       // Send STK Push retry request

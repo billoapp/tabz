@@ -211,13 +211,13 @@ export class OrderStatusUpdateService extends BaseService {
       }
 
       // Calculate totals
-      const totalOrders = orders?.reduce((sum: number, order) => sum + parseFloat(order.total), 0) || 0;
-      const totalPayments = payments?.reduce((sum: number, payment) => sum + parseFloat(payment.amount), 0) || 0;
+      const totalOrders = orders?.reduce((sum: number, order: any) => sum + parseFloat(order.total), 0) || 0;
+      const totalPayments = payments?.reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
       const balance = totalOrders - totalPayments;
 
       // Group payments by method
-      const paymentMethods = payments?.reduce((acc, payment) => {
-        const existing = acc.find(p => p.method === payment.method);
+      const paymentMethods = payments?.reduce((acc: Array<{ method: string; amount: number; count: number }>, payment: any) => {
+        const existing = acc.find((p: { method: string; amount: number; count: number }) => p.method === payment.method);
         if (existing) {
           existing.amount += parseFloat(payment.amount);
           existing.count += 1;
@@ -404,7 +404,7 @@ export class OrderStatusUpdateService extends BaseService {
         throw new MpesaError(`Failed to get payment history: ${error.message}`, 'DATABASE_ERROR');
       }
 
-      return payments?.map(payment => ({
+      return payments?.map((payment: any) => ({
         id: payment.id,
         amount: parseFloat(payment.amount),
         method: payment.method,

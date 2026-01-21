@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { validateMpesaPhoneNumber, sanitizePhoneNumber } from '@tabeza/shared/lib/phoneValidation';
-import { MpesaRateLimiter, extractIpAddress, STKPushService, TransactionService, MpesaError, MpesaNetworkError, MpesaValidationError } from '@tabeza/shared';
+import { MpesaRateLimiter, extractIpAddress, STKPushService, TransactionService, MpesaError, MpesaNetworkError, MpesaValidationError, ServiceFactory } from '@tabeza/shared';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,6 +42,13 @@ export async function POST(request: NextRequest) {
 
     // Use the international format from validation
     const validatedPhoneNumber = phoneValidation.international;
+    
+    if (!validatedPhoneNumber) {
+      return NextResponse.json(
+        { error: 'Failed to format phone number' },
+        { status: 400 }
+      );
+    }
 
     // Check if tab exists and get customer info
     const { data: tab, error: tabError } = await supabase
@@ -114,8 +121,19 @@ export async function POST(request: NextRequest) {
     });
 
     // Initialize M-PESA configuration and STK Push service
-    const mpesaConfig = new MpesaConfig();
-    const stkPushService = new STKPushService(mpesaConfig.getServiceConfig());
+    const serviceConfig = ServiceFactory.createServiceConfig(
+      (process.env.MPESA_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
+      {
+        consumerKey: process.env.MPESA_CONSUMER_KEY!,
+        consumerSecret: process.env.MPESA_CONSUMER_SECRET!,
+        businessShortCode: process.env.MPESA_BUSINESS_SHORTCODE!,
+        passkey: process.env.MPESA_PASSKEY!,
+        callbackUrl: process.env.MPESA_CALLBACK_URL!,
+        environment: (process.env.MPESA_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
+        encryptedAt: new Date()
+      }
+    );
+    const stkPushService = new STKPushService(serviceConfig);
 
     try {
       // Send STK Push request
