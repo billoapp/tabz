@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Payment Settings API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success { border-color: #28a745; background-color: #d4edda; }
+        .error { border-color: #dc3545; background-color: #f8d7da; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Payment Settings API</h1>
+        
+        <div>
+            <label for="barId">Bar ID:</label><br>
+            <input type="text" id="barId" value="438c80c1-fe11-4ac5-8a48-2fc45104ba31" placeholder="Enter bar ID">
+        </div>
+        
+        <div>
+            <label for="apiUrl">API URL:</label><br>
+            <input type="text" id="apiUrl" value="http://localhost:3000/api/payment-settings" placeholder="Enter API URL">
+        </div>
+        
+        <div>
+            <button onclick="testAPI()">Test Payment Settings API</button>
+            <button onclick="clearResults()">Clear Results</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function testAPI() {
+            const barId = document.getElementById('barId').value;
+            const apiUrl = document.getElementById('apiUrl').value;
+            const resultsDiv = document.getElementById('results');
+            
+            if (!barId) {
+                showResult('❌ Please enter a bar ID', 'error');
+                return;
+            }
+            
+            showResult('🔄 Testing API...', '');
+            
+            try {
+                const url = `${apiUrl}?barId=${encodeURIComponent(barId)}`;
+                showResult(`📡 Calling: ${url}`, '');
+                
+                const response = await fetch(url);
+                const responseText = await response.text();
+                
+                showResult(`📊 Response Status: ${response.status} ${response.statusText}`, '');
+                
+                if (!response.ok) {
+                    showResult(`❌ API Error:\n${responseText}`, 'error');
+                    return;
+                }
+                
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    showResult(`❌ Invalid JSON response:\n${responseText}`, 'error');
+                    return;
+                }
+                
+                showResult(`✅ API Response:\n${JSON.stringify(data, null, 2)}`, 'success');
+                
+                // Analyze the response
+                if (data.success) {
+                    const mpesa = data.paymentMethods?.mpesa;
+                    if (mpesa) {
+                        const status = mpesa.available ? '✅ AVAILABLE' : '❌ NOT AVAILABLE';
+                        const env = mpesa.available ? ` (${mpesa.environment})` : '';
+                        showResult(`🎯 M-Pesa Status: ${status}${env}`, mpesa.available ? 'success' : 'error');
+                        
+                        if (mpesa.available) {
+                            showResult('🎉 Customer app WILL show M-Pesa payment option!', 'success');
+                        } else {
+                            showResult('⚠️ Customer app will NOT show M-Pesa payment option', 'error');
+                        }
+                    }
+                }
+                
+            } catch (error) {
+                showResult(`❌ Test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function showResult(message, type) {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `result ${type}`;
+            resultDiv.textContent = message;
+            resultsDiv.appendChild(resultDiv);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        // Auto-test on page load
+        window.onload = function() {
+            showResult('🚀 Ready to test! Click "Test Payment Settings API" button.', '');
+        };
+    </script>
+</body>
+</html>
