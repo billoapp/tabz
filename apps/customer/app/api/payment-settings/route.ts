@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,11 +13,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get bar payment settings using publishable key
-    // We only check the bars table which should be accessible to customers
+    // Create a service role client for this API endpoint
+    // This is safe because it's a server-side API route
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY!;
+    
+    if (!supabaseServiceKey) {
+      console.error('SUPABASE_SECRET_KEY is not configured');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get bar payment settings using service role key
     const { data: barData, error: barError } = await supabase
       .from('bars')
-      .select('id, name, mpesa_enabled, payment_mpesa_enabled')
+      .select('id, name, mpesa_enabled')
       .eq('id', barId)
       .single();
 
@@ -36,9 +50,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // M-Pesa is available if either field is true
-    // The staff app should sync these fields when M-Pesa is enabled/disabled
-    const mpesaAvailable = barData.mpesa_enabled === true || barData.payment_mpesa_enabled === true;
+    // M-Pesa is available if mpesa_enabled is true
+    // The staff app should sync this field when M-Pesa is enabled/disabled
+    const mpesaAvailable = barData.mpesa_enabled === true;
 
     return NextResponse.json({
       success: true,

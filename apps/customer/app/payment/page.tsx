@@ -153,53 +153,57 @@ export default function PaymentPage() {
           </div>
         )}
 
-        {/* Coming Soon Notice */}
-        <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl shadow-lg p-6 text-white">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-              <Sparkles size={24} className="text-white" />
+        {/* Coming Soon Notice - Only show if no payment methods are available */}
+        {!loadingSettings && !paymentSettings?.paymentMethods?.mpesa?.available && (
+          <>
+            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl shadow-lg p-6 text-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                  <Sparkles size={24} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Digital Payments Coming Soon!</h2>
+                  <p className="text-purple-100">Exciting things are in the works</p>
+                </div>
+              </div>
+              
+              <p className="text-white text-sm leading-relaxed mb-4">
+                We're working hard to bring you seamless digital payment options directly in the app. 
+                Soon you'll be able to pay instantly using M-Pesa, Airtel Money, and Credit Cards.
+              </p>
             </div>
-            <div>
-              <h2 className="text-xl font-bold">Digital Payments Coming Soon!</h2>
-              <p className="text-purple-100">Exciting things are in the works</p>
-            </div>
-          </div>
-          
-          <p className="text-white text-sm leading-relaxed mb-4">
-            We're working hard to bring you seamless digital payment options directly in the app. 
-            Soon you'll be able to pay instantly using M-Pesa, Airtel Money, and Credit Cards.
-          </p>
-        </div>
 
-        {/* Current Payment Instructions */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-              <Clock size={20} className="text-orange-600" />
+            {/* Current Payment Instructions */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                  <Clock size={20} className="text-orange-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">How to Pay Now</h3>
+              </div>
+              
+              <div className="space-y-3">
+                <p className="text-gray-600 leading-relaxed">
+                  For now, please pay directly at the bar using your preferred payment method:
+                </p>
+                
+                <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                  <p className="text-sm font-medium text-orange-800 mb-2">Accepted at the bar:</p>
+                  <ul className="space-y-1 text-sm text-orange-700">
+                    <li>• Cash (KES)</li>
+                    <li>• M-Pesa (direct to staff)</li>
+                    <li>• Credit/Debit Cards</li>
+                    <li>• Airtel Money</li>
+                  </ul>
+                </div>
+                
+                <p className="text-xs text-gray-500 text-center">
+                  Staff will mark your payment as received and update your tab automatically.
+                </p>
+              </div>
             </div>
-            <h3 className="text-lg font-bold text-gray-800">How to Pay Now</h3>
-          </div>
-          
-          <div className="space-y-3">
-            <p className="text-gray-600 leading-relaxed">
-              For now, please pay directly at the bar using your preferred payment method:
-            </p>
-            
-            <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
-              <p className="text-sm font-medium text-orange-800 mb-2">Accepted at the bar:</p>
-              <ul className="space-y-1 text-sm text-orange-700">
-                <li>• Cash (KES)</li>
-                <li>• M-Pesa (direct to staff)</li>
-                <li>• Credit/Debit Cards</li>
-                <li>• Airtel Money</li>
-              </ul>
-            </div>
-            
-            <p className="text-xs text-gray-500 text-center">
-              Staff will mark your payment as received and update your tab automatically.
-            </p>
-          </div>
-        </div>
+          </>
+        )}
 
         {/* Payment Method Section */}
         {loadingSettings ? (
