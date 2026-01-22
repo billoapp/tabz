@@ -16,7 +16,7 @@ export interface SyncResult {
   error?: string;
 }
 
-export interface ValidationResult {
+export interface SyncValidationResult {
   isConsistent: boolean;
   credentialsActive?: boolean;
   barMpesaEnabled?: boolean;
@@ -106,7 +106,7 @@ export class MpesaSyncManager {
    * Validates consistency between mpesa_credentials.is_active and bars.mpesa_enabled
    * Requirements: 1.1, 1.2, 1.3, 1.4
    */
-  async validateSync(barId: string): Promise<ValidationResult> {
+  async validateSync(barId: string): Promise<SyncValidationResult> {
     try {
       console.log(`🔍 Validating M-Pesa sync for bar ${barId}`);
 
