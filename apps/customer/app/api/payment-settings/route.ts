@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Use service role key for server-side operations
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { supabase } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,7 +13,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get bar payment settings
+    // Get bar payment settings using publishable key
+    // We only check the bars table which should be accessible to customers
     const { data: barData, error: barError } = await supabase
       .from('bars')
       .select('id, name, mpesa_enabled, payment_mpesa_enabled')
@@ -41,17 +36,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check M-Pesa credentials to see if it's properly configured
-    const { data: credData, error: credError } = await supabase
-      .from('mpesa_credentials')
-      .select('is_active, environment, business_shortcode')
-      .eq('tenant_id', barId)
-      .maybeSingle();
-
-    // M-Pesa is available if:
-    // 1. Credentials exist and are active
-    // 2. Bar has mpesa_enabled set to true (for backward compatibility)
-    const mpesaAvailable = (credData?.is_active === true) || (barData.mpesa_enabled === true) || (barData.payment_mpesa_enabled === true);
+    // M-Pesa is available if either field is true
+    // The staff app should sync these fields when M-Pesa is enabled/disabled
+    const mpesaAvailable = barData.mpesa_enabled === true || barData.payment_mpesa_enabled === true;
 
     return NextResponse.json({
       success: true,
@@ -60,7 +47,7 @@ export async function GET(request: NextRequest) {
       paymentMethods: {
         mpesa: {
           available: mpesaAvailable,
-          environment: credData?.environment || 'sandbox'
+          environment: 'sandbox' // Default to sandbox for customer app
         },
         card: {
           available: false, // Coming soon
