@@ -1741,6 +1741,16 @@ export default function MenuPage() {
 
   const processPayment = async () => {
     if (activePaymentMethod === 'mpesa') {
+      // Check if tab is loaded
+      if (!tab?.id) {
+        showToast({
+          type: 'error',
+          title: 'Tab Not Ready',
+          message: 'Please wait for tab data to load before making payment'
+        });
+        return;
+      }
+
       // Validate inputs
       if (!phoneNumber.trim()) {
         showToast({
@@ -1792,7 +1802,7 @@ export default function MenuPage() {
           body: JSON.stringify({
             phoneNumber: validation.formatted,
             amount: parseFloat(paymentAmount),
-            tabId: tab?.id,
+            tabId: tab.id, // Now we know tab.id exists
             description: `Payment for tab at ${tab?.bar?.name || 'Bar'}`
           }),
         });
@@ -3164,7 +3174,7 @@ export default function MenuPage() {
                     )}
                     <button
                       onClick={processPayment}
-                      disabled={isProcessing || (activePaymentMethod === 'mpesa' && (!phoneNumber.trim() || !paymentAmount || parseFloat(paymentAmount) <= 0))}
+                      disabled={!tab?.id || isProcessing || (activePaymentMethod === 'mpesa' && (!phoneNumber.trim() || !paymentAmount || parseFloat(paymentAmount) <= 0))}
                       className={`w-full py-3 rounded-lg text-sm font-medium transition-colors ${
                         activePaymentMethod === 'mpesa' 
                           ? 'bg-green-500 hover:bg-green-600 text-white disabled:bg-gray-300 disabled:text-gray-500'
@@ -3173,7 +3183,12 @@ export default function MenuPage() {
                           : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:text-gray-500'
                       } disabled:cursor-not-allowed`}
                     >
-                      {isProcessing ? (
+                      {!tab?.id ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Loading Tab...
+                        </span>
+                      ) : isProcessing ? (
                         <span className="flex items-center justify-center gap-2">
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                           Processing...

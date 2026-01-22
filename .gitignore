@@ -47,7 +47,18 @@ next-env.d.ts
 .idea/
 *.swp
 *.swo
-*~
 
 # OS
 Thumbs.db
+
+# Development Tools (keep structure but ignore content)
+dev-tools/scripts/*
+!dev-tools/scripts/.gitkeep
+dev-tools/tests/*
+!dev-tools/tests/.gitkeep
+dev-tools/docs/*
+!dev-tools/docs/.gitkeep
+dev-tools/sql/*
+!dev-tools/sql/.gitkeep
+dev-tools/debug/*
+!dev-tools/debug/.gitkeep
