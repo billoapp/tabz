@@ -42,23 +42,7 @@ export default function CashPaymentTab({
           />
         </div>
         
-        {/* Quick Amount Buttons */}
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={() => onAmountChange((balance / 2).toString())}
-            disabled={isProcessing}
-            className="flex-1 py-2 bg-orange-100 hover:bg-orange-200 disabled:bg-gray-100 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-          >
-            Half
-          </button>
-          <button
-            onClick={() => onAmountChange(balance.toString())}
-            disabled={isProcessing}
-            className="flex-1 py-2 bg-orange-100 hover:bg-orange-200 disabled:bg-gray-100 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-          >
-            Full
-          </button>
-        </div>
+
       </div>
 
       {/* Payment Instructions */}
@@ -85,10 +69,6 @@ export default function CashPaymentTab({
               <li className="flex items-center gap-2">
                 <CheckCircle size={14} className="text-green-600" />
                 M-Pesa (direct to staff)
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle size={14} className="text-green-600" />
-                Credit/Debit Cards
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle size={14} className="text-green-600" />

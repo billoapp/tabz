@@ -755,14 +755,16 @@ export default function TabsPage() {
     return null;
   };
 
-  const getTabBalance = (tab: any) => {
+  const getTabTotals = (tab: any) => {
     // Only count CONFIRMED orders (not pending or cancelled)
     const confirmedOrders = tab.orders?.filter((o: any) => o.status === 'confirmed') || [];
-    const ordersTotal = confirmedOrders.reduce((sum: number, order: any) => 
+    const billTotal = confirmedOrders.reduce((sum: number, order: any) => 
       sum + parseFloat(order.total), 0) || 0;
-    const paymentsTotal = tab.payments?.filter((p: any) => p.status === 'success')
+    const paidTotal = tab.payments?.filter((p: any) => p.status === 'success')
       .reduce((sum: number, payment: any) => sum + parseFloat(payment.amount), 0) || 0;
-    return ordersTotal - paymentsTotal;
+    const balance = billTotal - paidTotal;
+    
+    return { billTotal, paidTotal, balance };
   };
 
   const timeAgo = (dateStr: string) => {
@@ -1024,7 +1026,7 @@ export default function TabsPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredTabs.map(tab => {
-                const balance = getTabBalance(tab);
+                const { billTotal, paidTotal, balance } = getTabTotals(tab);
                 const hasPendingOrders = tab.orders?.some((o: any) => 
                   o.status === 'pending' && 
                   o.status !== 'cancelled'
@@ -1036,12 +1038,20 @@ export default function TabsPage() {
                   <div 
                     key={tab.id} 
                     onClick={() => router.push(`/tabs/${tab.id}`)}
-                    className={`rounded-lg p-4 shadow-sm hover:shadow-lg cursor-pointer transition transform hover:scale-105 ${
+                    className={`rounded-lg p-4 shadow-sm hover:shadow-lg cursor-pointer transition transform hover:scale-105 relative ${
                       hasPendingOrders 
                         ? 'bg-gradient-to-br from-red-900 to-red-800 border-2 border-red-500 animate-pulse text-white' 
                         : 'bg-white border border-gray-200'
                     }`}
                   >
+                    {/* PAID Overlay Sticker */}
+                    {balance === 0 && billTotal > 0 && (
+                      <div className="absolute -top-2 -right-2 z-10 transform rotate-12">
+                        <div className="bg-green-500 text-white px-3 py-1 rounded-lg shadow-lg border-2 border-green-400">
+                          <span className="text-xs font-bold">PAID</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex-1 min-w-0">
@@ -1071,20 +1081,35 @@ export default function TabsPage() {
                       <p className={`text-xs ${hasPendingOrders ? 'text-gray-300' : 'text-gray-500'}`}>Opened {timeAgo(tab.opened_at)}</p>
                     </div>
 
-                    {/* Balance section */}
+                    {/* Balance section - Updated to show bill total and paid amount */}
                     <div className={`text-center py-4 rounded-lg mb-3 ${
                       hasPendingOrders ? 'bg-gray-800' : 'bg-orange-50'
                     }`}>
-                      <p className={`text-2xl font-bold ${
-                        hasPendingOrders 
-                          ? 'text-white' 
-                          : balance > 0 ? 'text-orange-700' : 'text-green-600'
-                      }`}>
-                        {formatCurrency(balance)}
-                      </p>
-                      <p className={`text-xs ${hasPendingOrders ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Balance
-                      </p>
+                      {balance === 0 && billTotal > 0 ? (
+                        // Fully paid - show bill total and paid amount
+                        <div>
+                          <p className={`text-lg font-bold ${hasPendingOrders ? 'text-white' : 'text-gray-700'}`}>
+                            Bill: {formatCurrency(billTotal)}
+                          </p>
+                          <p className={`text-sm font-medium ${hasPendingOrders ? 'text-green-300' : 'text-green-600'}`}>
+                            Paid: {formatCurrency(paidTotal)}
+                          </p>
+                        </div>
+                      ) : (
+                        // Outstanding balance - show balance as before
+                        <div>
+                          <p className={`text-2xl font-bold ${
+                            hasPendingOrders 
+                              ? 'text-white' 
+                              : balance > 0 ? 'text-orange-700' : 'text-green-600'
+                          }`}>
+                            {formatCurrency(balance)}
+                          </p>
+                          <p className={`text-xs ${hasPendingOrders ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Balance
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className={`flex items-center justify-between text-xs pt-3 border-t ${

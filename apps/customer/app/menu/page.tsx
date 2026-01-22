@@ -16,6 +16,12 @@ import { useRealtimeSubscription } from '../../../../packages/shared/hooks/useRe
 import { ConnectionStatusIndicator } from '../../../../packages/shared/components/ConnectionStatus';
 import { calculateResponseTime, formatResponseTime, type ResponseTimeResult } from '../../../../packages/shared';
 import { useToast } from '@/components/ui/Toast';
+import { 
+  validateMpesaPhoneNumber, 
+  formatPhoneNumberInput, 
+  getPhoneNumberGuidance,
+  getNetworkProvider
+} from '@tabeza/shared/lib/phoneValidation';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 import PDFViewer from '../../../../components/PDFViewer'; 
 import MessagePanel from './MessagePanel';
@@ -108,6 +114,7 @@ export default function MenuPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [scrollY, setScrollY] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now()); // Add this state for real-time updates
   const [processedOrders, setProcessedOrders] = useState<Set<string>>(new Set()); // Track processed orders for notifications
   const [acceptanceModal, setAcceptanceModal] = useState<{
@@ -1733,9 +1740,110 @@ export default function MenuPage() {
   };
 
   const processPayment = async () => {
-    // DISABLED: Show coming soon message instead of processing payment
-    alert('Digital payments coming soon! Please pay directly at the bar using cash, M-Pesa, Airtel Money, or credit/debit cards.');
-    return;
+    if (activePaymentMethod === 'mpesa') {
+      // Validate inputs
+      if (!phoneNumber.trim()) {
+        showToast({
+          type: 'error',
+          title: 'Phone Number Required',
+          message: 'Please enter your M-Pesa phone number'
+        });
+        return;
+      }
+
+      if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
+        showToast({
+          type: 'error',
+          title: 'Amount Required',
+          message: 'Please enter a valid payment amount'
+        });
+        return;
+      }
+
+      if (parseFloat(paymentAmount) > balance) {
+        showToast({
+          type: 'error',
+          title: 'Amount Too High',
+          message: 'Payment amount cannot exceed outstanding balance'
+        });
+        return;
+      }
+
+      // Validate phone number
+      const validation = validateMpesaPhoneNumber(phoneNumber);
+      if (!validation.isValid) {
+        showToast({
+          type: 'error',
+          title: 'Invalid Phone Number',
+          message: validation.error || 'Please enter a valid M-Pesa phone number'
+        });
+        return;
+      }
+
+      // Process M-Pesa payment
+      try {
+        setIsProcessing(true);
+        
+        const response = await fetch('/api/payments/mpesa/initiate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phoneNumber: validation.formatted,
+            amount: parseFloat(paymentAmount),
+            tabId: tab?.id,
+            description: `Payment for tab at ${tab?.bar?.name || 'Bar'}`
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Payment initiation failed');
+        }
+
+        showToast({
+          type: 'success',
+          title: 'Payment Initiated',
+          message: 'Check your phone for M-Pesa prompt and enter your PIN',
+          duration: 8000
+        });
+
+        // Reset form
+        setPhoneNumber('');
+        setPaymentAmount('');
+        
+        // Refresh tab data to show updated balance
+        setTimeout(() => {
+          loadTabData();
+        }, 3000);
+
+      } catch (error: any) {
+        console.error('M-Pesa payment error:', error);
+        showToast({
+          type: 'error',
+          title: 'Payment Failed',
+          message: error.message || 'Unable to process M-Pesa payment. Please try again.'
+        });
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (activePaymentMethod === 'cash') {
+      showToast({
+        type: 'info',
+        title: 'Cash Payment',
+        message: `Please pay ${tempFormatCurrency(balance)} at the bar. Staff will update your tab.`,
+        duration: 8000
+      });
+    } else {
+      showToast({
+        type: 'info',
+        title: 'Payment Method',
+        message: 'Please pay at the bar using your preferred method',
+        duration: 5000
+      });
+    }
   };
 
   const sendTelegramMessage = async () => {
@@ -2938,7 +3046,7 @@ export default function MenuPage() {
                     <button
                       onClick={() => setActivePaymentMethod('mpesa')}
                       className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
-                          ? 'text-orange-500 border-b-2 border-orange-500'
+                          ? 'text-green-600 border-b-2 border-green-500'
                           : 'text-gray-500 hover:text-gray-700'
                         }`}
                     >
@@ -3005,8 +3113,9 @@ export default function MenuPage() {
                             type="tel"
                             value={phoneNumber}
                             onChange={(e) => setPhoneNumber(e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
                             placeholder="0712345678"
+                            disabled={isProcessing}
                           />
                         </div>
                         <div>
@@ -3015,23 +3124,17 @@ export default function MenuPage() {
                             type="number"
                             value={paymentAmount}
                             onChange={(e) => setPaymentAmount(e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
                             placeholder="0"
+                            max={balance}
+                            min="1"
+                            disabled={isProcessing}
                           />
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              onClick={() => setPaymentAmount((balance / 2).toFixed(0))}
-                              className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
-                            >
-                              Half
-                            </button>
-                            <button
-                              onClick={() => setPaymentAmount(balance.toFixed(0))}
-                              className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
-                            >
-                              Full
-                            </button>
-                          </div>
+                        </div>
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                          <p className="text-sm text-green-700">
+                            You will be prompted to enter your M-Pesa PIN on your phone.
+                          </p>
                         </div>
                       </>
                     )}
@@ -3044,21 +3147,10 @@ export default function MenuPage() {
                           onChange={(e) => setPaymentAmount(e.target.value)}
                           className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
                           placeholder="0"
+                          max={balance}
+                          min="1"
+                          disabled={isProcessing}
                         />
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            onClick={() => setPaymentAmount((balance / 2).toFixed(0))}
-                            className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
-                          >
-                            Half
-                          </button>
-                          <button
-                            onClick={() => setPaymentAmount(balance.toFixed(0))}
-                            className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium"
-                          >
-                            Full
-                          </button>
-                        </div>
                       </div>
                     )}
                     {activePaymentMethod === 'cash' && (
@@ -3072,10 +3164,27 @@ export default function MenuPage() {
                     )}
                     <button
                       onClick={processPayment}
-                      disabled={true}
-                      className="w-full bg-gray-300 text-gray-500 py-3 rounded-lg text-sm font-medium cursor-not-allowed"
+                      disabled={isProcessing || (activePaymentMethod === 'mpesa' && (!phoneNumber.trim() || !paymentAmount || parseFloat(paymentAmount) <= 0))}
+                      className={`w-full py-3 rounded-lg text-sm font-medium transition-colors ${
+                        activePaymentMethod === 'mpesa' 
+                          ? 'bg-green-500 hover:bg-green-600 text-white disabled:bg-gray-300 disabled:text-gray-500'
+                          : activePaymentMethod === 'cash'
+                          ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                          : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:text-gray-500'
+                      } disabled:cursor-not-allowed`}
                     >
-                      Digital Payments Coming Soon
+                      {isProcessing ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Processing...
+                        </span>
+                      ) : activePaymentMethod === 'mpesa' ? (
+                        'Send M-Pesa Request'
+                      ) : activePaymentMethod === 'cash' ? (
+                        'Confirm Cash Payment'
+                      ) : (
+                        'Process Payment'
+                      )}
                     </button>
                     <p className="text-xs text-gray-500 text-center mt-2">
                       Please pay at the bar using
@@ -3083,8 +3192,7 @@ export default function MenuPage() {
                         const methods = [];
                         if (paymentSettings.cash_enabled) methods.push('cash');
                         if (paymentSettings.mpesa_enabled) methods.push('M-Pesa');
-                        if (paymentSettings.card_enabled) methods.push('cards');
-                        if (paymentSettings.mpesa_enabled && (paymentSettings.card_enabled || paymentSettings.cash_enabled)) methods.push('Airtel Money');
+                        if (paymentSettings.mpesa_enabled && paymentSettings.cash_enabled) methods.push('Airtel Money');
                         return methods.join(', ');
                       })()}
                     </p>
