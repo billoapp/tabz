@@ -16,6 +16,8 @@ export default function PaymentPage() {
   const [paymentMethod, setPaymentMethod] = useState('mpesa');
   const [currentTab, setCurrentTab] = useState<any>(null);
   const [showMpesaPayment, setShowMpesaPayment] = useState(false);
+  const [paymentSettings, setPaymentSettings] = useState<any>(null);
+  const [loadingSettings, setLoadingSettings] = useState(true);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -31,12 +33,46 @@ export default function PaymentPage() {
 
     const tabData = sessionStorage.getItem('currentTab');
     if (tabData) {
-      setCurrentTab(JSON.parse(tabData));
+      const tab = JSON.parse(tabData);
+      setCurrentTab(tab);
+      
+      // Fetch payment settings for this bar
+      fetchPaymentSettings(tab.bar_id);
     } else {
       // Redirect to home if no tab found
       router.push('/');
     }
   }, [router]);
+
+  const fetchPaymentSettings = async (barId: string) => {
+    try {
+      setLoadingSettings(true);
+      const response = await fetch(`/api/payment-settings?barId=${barId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch payment settings');
+      }
+      
+      const data = await response.json();
+      setPaymentSettings(data);
+      
+      // Set default payment method based on availability
+      if (data.paymentMethods?.mpesa?.available) {
+        setPaymentMethod('mpesa');
+      } else {
+        setPaymentMethod('card'); // Will show as disabled
+      }
+    } catch (error) {
+      console.error('Error fetching payment settings:', error);
+      showToast({
+        type: 'error',
+        title: 'Settings Error',
+        message: 'Unable to load payment options. Please try again.'
+      });
+    } finally {
+      setLoadingSettings(false);
+    }
+  };
 
   const tabTotal = orders.reduce((sum, order) => sum + order.total, 0);
   const paidTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
@@ -48,6 +84,14 @@ export default function PaymentPage() {
 
   const processPayment = () => {
     if (paymentMethod === 'mpesa') {
+      if (!paymentSettings?.paymentMethods?.mpesa?.available) {
+        showToast({
+          type: 'error',
+          title: 'M-Pesa Unavailable',
+          message: 'M-Pesa payments are not enabled for this bar.'
+        });
+        return;
+      }
       setShowMpesaPayment(true);
     } else {
       // Show coming soon message for other payment methods
@@ -99,6 +143,16 @@ export default function PaymentPage() {
           <p className="text-3xl font-bold text-orange-600">{formatCurrency(balance)}</p>
         </div>
 
+        {/* M-Pesa Not Available Notice */}
+        {!loadingSettings && !paymentSettings?.paymentMethods?.mpesa?.available && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+            <h4 className="font-medium text-yellow-800 mb-2">M-Pesa Not Available</h4>
+            <p className="text-sm text-yellow-700">
+              M-Pesa payments are not currently enabled for this bar. Please pay directly at the bar using cash or other available payment methods.
+            </p>
+          </div>
+        )}
+
         {/* Coming Soon Notice */}
         <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl shadow-lg p-6 text-white">
           <div className="flex items-center gap-3 mb-4">
@@ -148,49 +202,66 @@ export default function PaymentPage() {
         </div>
 
         {/* Payment Method Section */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
-          <div className="space-y-2">
-            <button
-              onClick={() => setPaymentMethod('mpesa')}
-              className={`w-full p-4 rounded-xl border-2 flex items-center gap-3 transition-colors ${
-                paymentMethod === 'mpesa' 
-                  ? 'border-green-500 bg-green-50' 
-                  : 'border-gray-200 bg-white hover:border-green-300'
-              }`}
-            >
-              <Phone size={24} className="text-green-600" />
-              <div className="text-left">
-                <p className="font-semibold">M-Pesa</p>
-                <p className="text-sm text-gray-600">Pay with M-Pesa mobile money</p>
-              </div>
-            </button>
-            
-            <button
-              onClick={() => setPaymentMethod('card')}
-              disabled
-              className="w-full p-4 rounded-xl border-2 flex items-center gap-3 cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
-            >
-              <CreditCard size={24} className="text-blue-600" />
-              <div className="text-left">
-                <p className="font-semibold">Credit/Debit Card</p>
-                <p className="text-sm text-gray-600">Pay with Card (Coming Soon)</p>
-              </div>
-            </button>
-            
-            <button
-              onClick={() => setPaymentMethod('airtel')}
-              disabled
-              className="w-full p-4 rounded-xl border-2 flex items-center gap-3 cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
-            >
-              <Phone size={24} className="text-blue-500" />
-              <div className="text-left">
-                <p className="font-semibold">Airtel Money</p>
-                <p className="text-sm text-gray-600">Pay with Airtel Money (Coming Soon)</p>
-              </div>
-            </button>
+        {loadingSettings ? (
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+              <span className="ml-3 text-gray-600">Loading payment options...</span>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
+            <div className="space-y-2">
+              <button
+                onClick={() => setPaymentMethod('mpesa')}
+                disabled={!paymentSettings?.paymentMethods?.mpesa?.available}
+                className={`w-full p-4 rounded-xl border-2 flex items-center gap-3 transition-colors ${
+                  paymentMethod === 'mpesa' 
+                    ? 'border-green-500 bg-green-50' 
+                    : paymentSettings?.paymentMethods?.mpesa?.available
+                    ? 'border-gray-200 bg-white hover:border-green-300'
+                    : 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                }`}
+              >
+                <Phone size={24} className="text-green-600" />
+                <div className="text-left">
+                  <p className="font-semibold">M-Pesa</p>
+                  <p className="text-sm text-gray-600">
+                    {paymentSettings?.paymentMethods?.mpesa?.available 
+                      ? `Pay with M-Pesa mobile money (${paymentSettings.paymentMethods.mpesa.environment})`
+                      : 'M-Pesa not enabled for this bar'
+                    }
+                  </p>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setPaymentMethod('card')}
+                disabled
+                className="w-full p-4 rounded-xl border-2 flex items-center gap-3 cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
+              >
+                <CreditCard size={24} className="text-blue-600" />
+                <div className="text-left">
+                  <p className="font-semibold">Credit/Debit Card</p>
+                  <p className="text-sm text-gray-600">Pay with Card (Coming Soon)</p>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setPaymentMethod('airtel')}
+                disabled
+                className="w-full p-4 rounded-xl border-2 flex items-center gap-3 cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
+              >
+                <Phone size={24} className="text-blue-500" />
+                <div className="text-left">
+                  <p className="font-semibold">Airtel Money</p>
+                  <p className="text-sm text-gray-600">Pay with Airtel Money (Coming Soon)</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Amount Section */}
         <div>
@@ -240,10 +311,21 @@ export default function PaymentPage() {
         {!showMpesaPayment && (
           <button
             onClick={processPayment}
-            disabled={!paymentAmount || parseFloat(paymentAmount) <= 0 || parseFloat(paymentAmount) > balance}
+            disabled={
+              !paymentAmount || 
+              parseFloat(paymentAmount) <= 0 || 
+              parseFloat(paymentAmount) > balance ||
+              loadingSettings ||
+              (paymentMethod === 'mpesa' && !paymentSettings?.paymentMethods?.mpesa?.available)
+            }
             className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
-            {paymentMethod === 'mpesa' ? 'Pay with M-PESA' : 'Process Payment'}
+            {loadingSettings 
+              ? 'Loading...' 
+              : paymentMethod === 'mpesa' 
+                ? (paymentSettings?.paymentMethods?.mpesa?.available ? 'Pay with M-PESA' : 'M-PESA Not Available')
+                : 'Process Payment'
+            }
           </button>
         )}
       </div>
