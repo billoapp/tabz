@@ -227,6 +227,21 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
+    // CRITICAL: Sync bars.mpesa_enabled with mpesa_credentials.is_active
+    console.log('🔄 Syncing bars.mpesa_enabled field...');
+    const { error: barSyncError } = await supabaseServiceRole
+      .from('bars')
+      .update({ mpesa_enabled: mpesa_enabled })
+      .eq('id', barId);
+
+    if (barSyncError) {
+      console.error('❌ Failed to sync bars.mpesa_enabled:', barSyncError);
+      // Don't fail the entire request, but log the issue
+      console.warn('⚠️ M-Pesa credentials saved but bars table sync failed');
+    } else {
+      console.log('✅ bars.mpesa_enabled synced successfully');
+    }
+
     // Log audit event
     await supabaseServiceRole
       .from('mpesa_credential_events')
