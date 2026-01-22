@@ -46,7 +46,6 @@ next-env.d.ts
 .vscode/
 .idea/
 *.swp
-*.swo
 
 # OS
 Thumbs.db
@@ -62,3 +61,7 @@ dev-tools/sql/*
 !dev-tools/sql/.gitkeep
 dev-tools/debug/*
 !dev-tools/debug/.gitkeep
+
+# Additional development directories to ignore
+supabase/
+scripts/
