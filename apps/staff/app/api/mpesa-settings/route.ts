@@ -298,6 +298,10 @@ export async function GET(request: NextRequest) {
       is_active: credData?.is_active
     });
 
+    // Determine setup completion status
+    const hasCredentials = credData ? !!(credData.consumer_key_enc && credData.consumer_secret_enc && credData.passkey_enc) : false;
+    const isSetupCompleted = hasCredentials && credData?.is_active;
+
     // Return safe metadata only
     return NextResponse.json({
       success: true,
@@ -308,11 +312,11 @@ export async function GET(request: NextRequest) {
         mpesa_consumer_key: credData?.consumer_key_enc ? '••••••••••••••••' : '',
         mpesa_consumer_secret: credData?.consumer_secret_enc ? '••••••••••••••••' : '',
         mpesa_passkey: credData?.passkey_enc ? '••••••••••••••••' : '',
-        mpesa_setup_completed: false, // Will be set by test endpoint
-        mpesa_last_test_at: null,
-        mpesa_test_status: 'pending',
+        mpesa_setup_completed: isSetupCompleted, // Based on actual credential status
+        mpesa_last_test_at: null, // Could be enhanced to track from audit logs
+        mpesa_test_status: isSetupCompleted ? 'success' : 'pending',
         // Indicate which credentials are saved
-        has_credentials: credData ? !!(credData.consumer_key_enc && credData.consumer_secret_enc && credData.passkey_enc) : false
+        has_credentials: hasCredentials
       }
     });
 

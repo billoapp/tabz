@@ -6,6 +6,7 @@ export * from './lib/response-time';
 
 // Export M-PESA payment integration infrastructure
 export * from './lib/mpesa';
+export * from './lib/mpesa-sync-manager';
 
 // Export phone validation utilities
 export * from './lib/phoneValidation';
