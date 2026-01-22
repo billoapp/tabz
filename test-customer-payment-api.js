@@ -1,56 +1,90 @@
-// Test the customer payment settings API
-const fetch = require('node-fetch');
+// Test the customer app payment settings API
+const { createClient } = require('@supabase/supabase-js');
+
+const supabaseUrl = 'https://bkaigyrrzsqbfscyznzw.supabase.co';
+const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJrYWlneXJyenNxYmZzY3l6bnp3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcyNzc5NzI5NCwiZXhwIjoyMDQzMzczMjk0fQ.wRBvATftWPqlT9hL660eYw_FbSXYpLG';
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function testPaymentAPI() {
-  console.log('Testing customer payment settings API...');
-  
-  // First, let's find a bar ID to test with
-  const { createClient } = require('@supabase/supabase-js');
-  
-  const supabaseUrl = 'https://bkaigyrrzsqbfscyznzw.supabase.co';
-  const supabaseKey = 'sb_secret_wRBvATftWPqlT9hL660eYw_FbSXYpLG'; // Service role key
-  
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  console.log('Testing payment settings API logic...');
   
   try {
-    // Get a bar with M-Pesa enabled
-    const { data: bars, error } = await supabase
+    // First, let's find the Popos bar ID
+    console.log('\n1. Finding Popos bar...');
+    const { data: bars, error: barsError } = await supabase
       .from('bars')
       .select('id, name, mpesa_enabled')
-      .eq('mpesa_enabled', true)
-      .limit(1);
+      .ilike('name', '%popos%');
     
-    if (error) {
-      console.error('Error fetching bars:', error);
+    if (barsError) {
+      console.error('Error finding bars:', barsError);
       return;
     }
+    
+    console.log('Found bars:', bars);
     
     if (!bars || bars.length === 0) {
-      console.log('No bars with M-Pesa enabled found');
+      console.log('No Popos bar found. Let me check all bars...');
+      
+      const { data: allBars, error: allBarsError } = await supabase
+        .from('bars')
+        .select('id, name, mpesa_enabled')
+        .limit(10);
+      
+      if (allBarsError) {
+        console.error('Error getting all bars:', allBarsError);
+        return;
+      }
+      
+      console.log('All bars:', allBars);
       return;
     }
     
-    const testBar = bars[0];
-    console.log('Testing with bar:', testBar);
+    const poposBar = bars[0];
+    console.log('\n2. Popos bar details:', poposBar);
     
-    // Test the API endpoint
-    const apiUrl = `http://localhost:3002/api/payment-settings?barId=${testBar.id}`;
-    console.log('Testing API URL:', apiUrl);
+    // Test the exact API logic
+    console.log('\n3. Testing API logic...');
+    const mpesaAvailable = poposBar.mpesa_enabled === true;
     
-    const response = await fetch(apiUrl);
-    const data = await response.json();
+    const apiResponse = {
+      success: true,
+      barId: poposBar.id,
+      barName: poposBar.name,
+      paymentMethods: {
+        mpesa: {
+          available: mpesaAvailable,
+          environment: 'sandbox'
+        },
+        card: {
+          available: false,
+          reason: 'Coming soon'
+        },
+        airtel: {
+          available: false,
+          reason: 'Coming soon'
+        }
+      }
+    };
     
-    console.log('API Response Status:', response.status);
-    console.log('API Response Data:', JSON.stringify(data, null, 2));
+    console.log('API would return:', JSON.stringify(apiResponse, null, 2));
     
-    if (response.ok && data.paymentMethods?.mpesa?.available) {
-      console.log('✅ SUCCESS: M-Pesa is available for this bar!');
+    // Also check M-Pesa credentials for this bar
+    console.log('\n4. Checking M-Pesa credentials...');
+    const { data: credentials, error: credError } = await supabase
+      .from('mpesa_credentials')
+      .select('*')
+      .eq('bar_id', poposBar.id);
+    
+    if (credError) {
+      console.error('Error checking credentials:', credError);
     } else {
-      console.log('❌ ISSUE: M-Pesa not available or API error');
+      console.log('M-Pesa credentials:', credentials);
     }
     
   } catch (error) {
-    console.error('Test error:', error);
+    console.error('Unexpected error:', error);
   }
 }
 

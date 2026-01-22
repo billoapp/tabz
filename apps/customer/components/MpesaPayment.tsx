@@ -18,6 +18,7 @@ interface MpesaPaymentProps {
   tabId: string;
   onPaymentSuccess: (receiptNumber: string) => void;
   onPaymentError: (error: string) => void;
+  maxAmount?: number; // Optional maximum amount (outstanding balance)
 }
 
 interface PaymentStatus {
@@ -36,7 +37,8 @@ export default function MpesaPayment({
   amount, 
   tabId, 
   onPaymentSuccess, 
-  onPaymentError 
+  onPaymentError,
+  maxAmount
 }: MpesaPaymentProps) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [previousPhoneNumber, setPreviousPhoneNumber] = useState('');
@@ -46,6 +48,9 @@ export default function MpesaPayment({
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
   const [statusCheckInterval, setStatusCheckInterval] = useState<NodeJS.Timeout | null>(null);
   const { showToast } = useToast();
+
+  // Validate payment amount
+  const isValidAmount = amount > 0 && (!maxAmount || amount <= maxAmount);
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -81,6 +86,20 @@ export default function MpesaPayment({
         type: 'error',
         title: 'Invalid Phone Number',
         message: validation.error || 'Please enter a valid phone number'
+      });
+      return;
+    }
+
+    // Validate payment amount
+    if (!isValidAmount) {
+      const errorMessage = amount <= 0 
+        ? 'Payment amount must be greater than zero'
+        : `Payment amount cannot exceed ${formatCurrency(maxAmount || 0)}`;
+      
+      showToast({
+        type: 'error',
+        title: 'Invalid Amount',
+        message: errorMessage
       });
       return;
     }
@@ -280,7 +299,8 @@ export default function MpesaPayment({
     if (!phoneNumber.trim()) {
       return (
         <div className="text-xs text-gray-500 mt-1">
-          <p>Enter your M-PESA number (10 digits starting with 0)</p>
+          <p>Enter your M-PESA number</p>
+          <p className="text-blue-600 font-medium">Supported formats: 0712345678 or 254712345678</p>
         </div>
       );
     }
@@ -304,10 +324,10 @@ export default function MpesaPayment({
               <span className="text-xs text-red-500">{phoneValidation.error}</span>
             </div>
             {phoneValidation.suggestions && phoneValidation.suggestions.length > 0 && (
-              <div className="mt-1 text-xs text-gray-600">
-                <p className="font-medium">Suggestions:</p>
-                <ul className="list-disc list-inside space-y-0.5">
-                  {phoneValidation.suggestions.slice(0, 2).map((suggestion: string, index: number) => (
+              <div className="mt-2 p-2 bg-red-50 rounded-lg border border-red-200">
+                <p className="text-xs font-medium text-red-700 mb-1">Suggestions:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-xs text-red-600">
+                  {phoneValidation.suggestions.slice(0, 3).map((suggestion: string, index: number) => (
                     <li key={index}>{suggestion}</li>
                   ))}
                 </ul>
@@ -322,7 +342,10 @@ export default function MpesaPayment({
     return (
       <div className="flex items-center gap-2 mt-1">
         <Info size={14} className="text-blue-500" />
-        <span className="text-xs text-blue-600">{guidance[0]}</span>
+        <div className="text-xs text-blue-600">
+          <p>{guidance[0]}</p>
+          {guidance[1] && <p className="text-gray-500">{guidance[1]}</p>}
+        </div>
       </div>
     );
   };
@@ -476,9 +499,33 @@ export default function MpesaPayment({
       </div>
 
       {/* Amount Display */}
-      <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+      <div className={`border rounded-xl p-4 ${
+        isValidAmount 
+          ? 'bg-green-50 border-green-200' 
+          : 'bg-red-50 border-red-200'
+      }`}>
         <p className="text-sm text-gray-600 mb-1">Amount to Pay</p>
-        <p className="text-2xl font-bold text-green-600">{formatCurrency(amount)}</p>
+        <p className={`text-2xl font-bold ${
+          isValidAmount ? 'text-green-600' : 'text-red-600'
+        }`}>
+          {formatCurrency(amount)}
+        </p>
+        {!isValidAmount && (
+          <div className="mt-2 flex items-center gap-2">
+            <AlertCircle size={16} className="text-red-500" />
+            <p className="text-sm text-red-600">
+              {amount <= 0 
+                ? 'Amount must be greater than zero'
+                : `Amount cannot exceed ${formatCurrency(maxAmount || 0)}`
+              }
+            </p>
+          </div>
+        )}
+        {maxAmount && amount < maxAmount && isValidAmount && (
+          <div className="mt-2 text-sm text-gray-600">
+            <p>Remaining balance: {formatCurrency(maxAmount - amount)}</p>
+          </div>
+        )}
       </div>
 
       {/* Payment Status */}
@@ -489,7 +536,7 @@ export default function MpesaPayment({
         {!currentTransaction ? (
           <button
             onClick={initiatePayment}
-            disabled={isProcessing || !phoneValidation?.isValid}
+            disabled={isProcessing || !phoneValidation?.isValid || !isValidAmount}
             className="w-full bg-green-600 text-white py-4 rounded-xl font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
           >
             {isProcessing ? (

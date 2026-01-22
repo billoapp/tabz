@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Tab Functionality Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .pass {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .fail {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .tab-demo {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .tab-headers {
+            display: flex;
+            background-color: #f8f9fa;
+        }
+        .tab-header {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            border-right: 1px solid #ddd;
+            transition: background-color 0.2s;
+        }
+        .tab-header:last-child {
+            border-right: none;
+        }
+        .tab-header.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .tab-header:hover:not(.active) {
+            background-color: #e9ecef;
+        }
+        .tab-content {
+            padding: 20px;
+            min-height: 200px;
+        }
+        .tab-pane {
+            display: none;
+        }
+        .tab-pane.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .amount-display {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .phone-validation {
+            margin-top: 5px;
+            font-size: 12px;
+        }
+        .validation-success {
+            color: #28a745;
+        }
+        .validation-error {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <h1>Payment Tab Functionality Test</h1>
+    
+    <div class="test-container">
+        <h2>Test Results</h2>
+        <div id="test-results"></div>
+        <button onclick="runTests()">Run Tests</button>
+    </div>
+
+    <div class="test-container">
+        <h2>Interactive Tab Demo</h2>
+        <div class="info">
+            <strong>Instructions:</strong> Test the tab functionality below. Switch between tabs and verify that:
+            <ul>
+                <li>Only one tab is active at a time</li>
+                <li>Tab content changes when switching tabs</li>
+                <li>Form state is preserved within each tab</li>
+                <li>M-Pesa tab can be hidden/shown</li>
+            </ul>
+        </div>
+        
+        <div class="tab-demo">
+            <div class="tab-headers">
+                <div class="tab-header active" onclick="switchTab('cash')">
+                    💰 Cash Payment
+                </div>
+                <div class="tab-header" id="mpesa-tab-header" onclick="switchTab('mpesa')">
+                    📱 M-Pesa Payment
+                </div>
+            </div>
+            
+            <div class="tab-content">
+                <div id="cash-tab" class="tab-pane active">
+                    <h3>Cash Payment</h3>
+                    <div class="form-group">
+                        <label>Amount to Pay (KSh)</label>
+                        <input type="number" id="cash-amount" placeholder="Enter amount" min="1" max="10000" value="1000">
+                    </div>
+                    <div class="amount-display">
+                        <strong>Amount to pay at bar: KSh <span id="cash-display">1000</span></strong>
+                    </div>
+                    <div class="info">
+                        <p>Please pay directly at the bar using your preferred payment method:</p>
+                        <ul>
+                            <li>Cash (KES)</li>
+                            <li>M-Pesa (direct to staff)</li>
+                            <li>Credit/Debit Cards</li>
+                            <li>Airtel Money</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div id="mpesa-tab" class="tab-pane">
+                    <h3>M-Pesa Payment</h3>
+                    <div class="form-group">
+                        <label>Amount to Pay (KSh)</label>
+                        <input type="number" id="mpesa-amount" placeholder="Enter amount" min="1" max="10000" value="1000">
+                    </div>
+                    <div class="form-group">
+                        <label>M-Pesa Phone Number</label>
+                        <input type="tel" id="mpesa-phone" placeholder="0712 345 678" maxlength="13">
+                        <div id="phone-validation" class="phone-validation"></div>
+                    </div>
+                    <div class="amount-display">
+                        <strong>Amount to pay via M-Pesa: KSh <span id="mpesa-display">1000</span></strong>
+                    </div>
+                    <button id="send-mpesa" disabled>Send M-Pesa Request</button>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <label>
+                <input type="checkbox" id="mpesa-available" checked onchange="toggleMpesaAvailability()">
+                M-Pesa Available (simulates payment settings)
+            </label>
+        </div>
+    </div>
+
+    <script>
+        // Test functions
+        function runTests() {
+            const results = document.getElementById('test-results');
+            results.innerHTML = '';
+            
+            const tests = [
+                testTabStructure,
+                testTabSwitching,
+                testMpesaVisibility,
+                testFormStateIsolation,
+                testPhoneValidation,
+                testAmountValidation
+            ];
+            
+            tests.forEach(test => {
+                try {
+                    const result = test();
+                    displayTestResult(result.name, result.passed, result.message);
+                } catch (error) {
+                    displayTestResult(test.name, false, `Error: ${error.message}`);
+                }
+            });
+        }
+        
+        function displayTestResult(name, passed, message) {
+            const results = document.getElementById('test-results');
+            const div = document.createElement('div');
+            div.className = `test-result ${passed ? 'pass' : 'fail'}`;
+            div.innerHTML = `<strong>${name}:</strong> ${message}`;
+            results.appendChild(div);
+        }
+        
+        // Test 1: Tab Structure and Separation
+        function testTabStructure() {
+            const cashTab = document.getElementById('cash-tab');
+            const mpesaTab = document.getElementById('mpesa-tab');
+            const cashHeader = document.querySelector('.tab-header:first-child');
+            const mpesaHeader = document.getElementById('mpesa-tab-header');
+            
+            const passed = cashTab && mpesaTab && cashHeader && mpesaHeader &&
+                          cashTab.innerHTML !== mpesaTab.innerHTML;
+            
+            return {
+                name: 'Tab Structure and Separation',
+                passed,
+                message: passed ? 'Two distinct tabs with separate content areas exist' : 'Tab structure is not properly separated'
+            };
+        }
+        
+        // Test 2: Tab Switching Behavior
+        function testTabSwitching() {
+            // Switch to M-Pesa tab
+            switchTab('mpesa');
+            const mpesaActive = document.getElementById('mpesa-tab').classList.contains('active');
+            const cashInactive = !document.getElementById('cash-tab').classList.contains('active');
+            
+            // Switch back to Cash tab
+            switchTab('cash');
+            const cashActive = document.getElementById('cash-tab').classList.contains('active');
+            const mpesaInactive = !document.getElementById('mpesa-tab').classList.contains('active');
+            
+            const passed = mpesaActive && cashInactive && cashActive && mpesaInactive;
+            
+            return {
+                name: 'Tab Switching Behavior',
+                passed,
+                message: passed ? 'Tab switching works correctly - only one tab active at a time' : 'Tab switching is not working properly'
+            };
+        }
+        
+        // Test 3: M-Pesa Tab Visibility Control
+        function testMpesaVisibility() {
+            const mpesaHeader = document.getElementById('mpesa-tab-header');
+            const checkbox = document.getElementById('mpesa-available');
+            
+            // Test hiding M-Pesa
+            checkbox.checked = false;
+            toggleMpesaAvailability();
+            const hiddenCorrectly = mpesaHeader.style.display === 'none';
+            
+            // Test showing M-Pesa
+            checkbox.checked = true;
+            toggleMpesaAvailability();
+            const shownCorrectly = mpesaHeader.style.display !== 'none';
+            
+            const passed = hiddenCorrectly && shownCorrectly;
+            
+            return {
+                name: 'M-Pesa Tab Visibility Control',
+                passed,
+                message: passed ? 'M-Pesa tab visibility is controlled correctly by settings' : 'M-Pesa tab visibility control is not working'
+            };
+        }
+        
+        // Test 4: Form State Isolation
+        function testFormStateIsolation() {
+            const cashAmount = document.getElementById('cash-amount');
+            const mpesaAmount = document.getElementById('mpesa-amount');
+            const mpesaPhone = document.getElementById('mpesa-phone');
+            
+            // Set different values
+            cashAmount.value = '500';
+            mpesaAmount.value = '750';
+            mpesaPhone.value = '0712345678';
+            
+            // Switch tabs and verify values are preserved
+            switchTab('mpesa');
+            switchTab('cash');
+            
+            const passed = cashAmount.value === '500' && 
+                          mpesaAmount.value === '750' && 
+                          mpesaPhone.value === '0712345678';
+            
+            return {
+                name: 'Form State Isolation',
+                passed,
+                message: passed ? 'Form state is preserved within each tab during switching' : 'Form state is not properly isolated between tabs'
+            };
+        }
+        
+        // Test 5: Phone Number Validation
+        function testPhoneValidation() {
+            const phoneInput = document.getElementById('mpesa-phone');
+            const sendButton = document.getElementById('send-mpesa');
+            
+            // Test invalid phone number
+            phoneInput.value = '123';
+            validatePhone();
+            const invalidDisabled = sendButton.disabled;
+            
+            // Test valid phone number
+            phoneInput.value = '0712345678';
+            validatePhone();
+            const validEnabled = !sendButton.disabled;
+            
+            const passed = invalidDisabled && validEnabled;
+            
+            return {
+                name: 'Phone Number Validation',
+                passed,
+                message: passed ? 'Phone number validation works correctly' : 'Phone number validation is not working properly'
+            };
+        }
+        
+        // Test 6: Amount Validation
+        function testAmountValidation() {
+            const cashAmount = document.getElementById('cash-amount');
+            const mpesaAmount = document.getElementById('mpesa-amount');
+            
+            // Test valid amounts
+            cashAmount.value = '100';
+            mpesaAmount.value = '200';
+            updateAmountDisplays();
+            
+            const cashDisplay = document.getElementById('cash-display').textContent;
+            const mpesaDisplay = document.getElementById('mpesa-display').textContent;
+            
+            const passed = cashDisplay === '100' && mpesaDisplay === '200';
+            
+            return {
+                name: 'Amount Validation',
+                passed,
+                message: passed ? 'Amount validation and display works correctly' : 'Amount validation is not working properly'
+            };
+        }
+        
+        // Tab functionality
+        function switchTab(tabName) {
+            // Remove active class from all tabs and headers
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+            document.querySelectorAll('.tab-header').forEach(header => header.classList.remove('active'));
+            
+            // Add active class to selected tab and header
+            document.getElementById(tabName + '-tab').classList.add('active');
+            document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+        }
+        
+        function toggleMpesaAvailability() {
+            const checkbox = document.getElementById('mpesa-available');
+            const mpesaHeader = document.getElementById('mpesa-tab-header');
+            
+            if (checkbox.checked) {
+                mpesaHeader.style.display = 'block';
+            } else {
+                mpesaHeader.style.display = 'none';
+                // Switch to cash tab if M-Pesa tab was active
+                if (document.getElementById('mpesa-tab').classList.contains('active')) {
+                    switchTab('cash');
+                }
+            }
+        }
+        
+        // Phone validation simulation
+        function validatePhone() {
+            const phoneInput = document.getElementById('mpesa-phone');
+            const validation = document.getElementById('phone-validation');
+            const sendButton = document.getElementById('send-mpesa');
+            const phone = phoneInput.value.replace(/\s/g, '');
+            
+            if (phone.length === 0) {
+                validation.innerHTML = '';
+                sendButton.disabled = true;
+                return;
+            }
+            
+            // Simple validation - check if it's a 10-digit number starting with 0
+            const isValid = /^0\d{9}$/.test(phone) || /^254\d{9}$/.test(phone);
+            
+            if (isValid) {
+                validation.innerHTML = '<span class="validation-success">✓ Valid phone number</span>';
+                sendButton.disabled = false;
+            } else {
+                validation.innerHTML = '<span class="validation-error">✗ Invalid phone number format</span>';
+                sendButton.disabled = true;
+            }
+        }
+        
+        function updateAmountDisplays() {
+            const cashAmount = document.getElementById('cash-amount').value;
+            const mpesaAmount = document.getElementById('mpesa-amount').value;
+            
+            document.getElementById('cash-display').textContent = cashAmount || '0';
+            document.getElementById('mpesa-display').textContent = mpesaAmount || '0';
+        }
+        
+        // Event listeners
+        document.getElementById('cash-amount').addEventListener('input', updateAmountDisplays);
+        document.getElementById('mpesa-amount').addEventListener('input', updateAmountDisplays);
+        document.getElementById('mpesa-phone').addEventListener('input', validatePhone);
+        
+        // Initialize
+        updateAmountDisplays();
+        validatePhone();
+    </script>
+</body>
+</html>
