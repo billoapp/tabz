@@ -1,0 +1,606 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Phone, Loader2, CheckCircle, AlertCircle, RefreshCw, Info } from 'lucide-react';
+import { formatCurrency } from '@/lib/formatUtils';
+import { useToast } from './ui/Toast';
+import { 
+  validateMpesaPhoneNumber, 
+  formatPhoneNumberInput, 
+  getPhoneNumberGuidance,
+  getNetworkProvider,
+  sanitizePhoneNumber,
+  convertToInternationalFormat
+} from '@tabeza/shared/lib/phoneValidation';
+
+interface MpesaPaymentProps {
+  amount: number;
+  tabId: string;
+  onPaymentSuccess: (receiptNumber: string) => void;
+  onPaymentError: (error: string) => void;
+}
+
+interface PaymentStatus {
+  transactionId: string;
+  status: 'pending' | 'sent' | 'completed' | 'failed' | 'cancelled' | 'timeout';
+  amount: number;
+  phoneNumber: string;
+  mpesaReceiptNumber?: string;
+  transactionDate?: Date;
+  failureReason?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export default function MpesaPayment({ 
+  amount, 
+  tabId, 
+  onPaymentSuccess, 
+  onPaymentError 
+}: MpesaPaymentProps) {
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [previousPhoneNumber, setPreviousPhoneNumber] = useState('');
+  const [phoneValidation, setPhoneValidation] = useState<any>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentTransaction, setCurrentTransaction] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
+  const [statusCheckInterval, setStatusCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  const { showToast } = useToast();
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+      }
+    };
+  }, [statusCheckInterval]);
+
+  // Validate phone number whenever it changes
+  useEffect(() => {
+    if (phoneNumber.trim()) {
+      const validation = validateMpesaPhoneNumber(phoneNumber);
+      setPhoneValidation(validation);
+    } else {
+      setPhoneValidation(null);
+    }
+  }, [phoneNumber]);
+
+  const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    const formatted = formatPhoneNumberInput(newValue, previousPhoneNumber);
+    
+    setPreviousPhoneNumber(phoneNumber);
+    setPhoneNumber(formatted);
+  };
+
+  const initiatePayment = async () => {
+    const validation = validateMpesaPhoneNumber(phoneNumber);
+    if (!validation.isValid) {
+      showToast({
+        type: 'error',
+        title: 'Invalid Phone Number',
+        message: validation.error || 'Please enter a valid phone number'
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      const internationalPhone = convertToInternationalFormat(phoneNumber);
+      
+      const response = await fetch('/api/payments/mpesa/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tabId,
+          phoneNumber: internationalPhone,
+          amount
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Payment initiation failed');
+      }
+
+      if (result.success) {
+        setCurrentTransaction(result.transactionId);
+        showToast({
+          type: 'info',
+          title: 'Payment Initiated',
+          message: 'Check your phone for the M-PESA prompt',
+          duration: 8000
+        });
+        
+        // Start polling for payment status
+        startStatusPolling(result.transactionId);
+      } else {
+        throw new Error(result.error || 'Payment initiation failed');
+      }
+    } catch (error) {
+      console.error('Payment initiation error:', error);
+      showToast({
+        type: 'error',
+        title: 'Payment Failed',
+        message: error instanceof Error ? error.message : 'Failed to initiate payment'
+      });
+      onPaymentError(error instanceof Error ? error.message : 'Payment initiation failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const startStatusPolling = (transactionId: string) => {
+    // Clear any existing interval
+    if (statusCheckInterval) {
+      clearInterval(statusCheckInterval);
+    }
+
+    // Poll every 3 seconds for up to 5 minutes
+    let attempts = 0;
+    const maxAttempts = 100; // 5 minutes at 3-second intervals
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 3;
+
+    const interval = setInterval(async () => {
+      attempts++;
+      
+      try {
+        const response = await fetch(`/api/payments/mpesa/status/${transactionId}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const status: PaymentStatus = await response.json();
+        
+        // Reset error counter on successful response
+        consecutiveErrors = 0;
+        setPaymentStatus(status);
+        
+        if (status.status === 'completed') {
+          clearInterval(interval);
+          setStatusCheckInterval(null);
+          showToast({
+            type: 'success',
+            title: 'Payment Successful!',
+            message: `Receipt: ${status.mpesaReceiptNumber}`,
+            duration: 10000
+          });
+          onPaymentSuccess(status.mpesaReceiptNumber || '');
+        } else if (status.status === 'failed' || status.status === 'cancelled') {
+          clearInterval(interval);
+          setStatusCheckInterval(null);
+          showToast({
+            type: 'error',
+            title: 'Payment Failed',
+            message: status.failureReason || 'Payment was not completed'
+          });
+          onPaymentError(status.failureReason || 'Payment failed');
+        } else if (status.status === 'timeout' || attempts >= maxAttempts) {
+          clearInterval(interval);
+          setStatusCheckInterval(null);
+          showToast({
+            type: 'warning',
+            title: 'Payment Timeout',
+            message: 'Payment status check timed out. Please check your M-PESA messages or try again.'
+          });
+        }
+      } catch (error) {
+        console.error('Status check error:', error);
+        consecutiveErrors++;
+        
+        // If too many consecutive errors, stop polling
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          clearInterval(interval);
+          setStatusCheckInterval(null);
+          showToast({
+            type: 'error',
+            title: 'Connection Error',
+            message: 'Unable to check payment status. Please check your connection and try again.'
+          });
+          return;
+        }
+        
+        // If max attempts reached, stop polling
+        if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          setStatusCheckInterval(null);
+          showToast({
+            type: 'warning',
+            title: 'Status Check Timeout',
+            message: 'Unable to verify payment status. Please check your M-PESA messages.'
+          });
+        }
+      }
+    }, 3000);
+
+    setStatusCheckInterval(interval);
+  };
+
+  const retryPayment = () => {
+    setCurrentTransaction(null);
+    setPaymentStatus(null);
+    if (statusCheckInterval) {
+      clearInterval(statusCheckInterval);
+      setStatusCheckInterval(null);
+    }
+    initiatePayment();
+  };
+
+  const checkStatusManually = async () => {
+    if (!currentTransaction) return;
+    
+    try {
+      const response = await fetch(`/api/payments/mpesa/status/${currentTransaction}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to check payment status');
+      }
+      
+      const status: PaymentStatus = await response.json();
+      setPaymentStatus(status);
+      
+      if (status.status === 'completed') {
+        showToast({
+          type: 'success',
+          title: 'Payment Found!',
+          message: `Your payment was successful. Receipt: ${status.mpesaReceiptNumber}`,
+          duration: 10000
+        });
+        onPaymentSuccess(status.mpesaReceiptNumber || '');
+      } else if (status.status === 'failed' || status.status === 'cancelled') {
+        showToast({
+          type: 'error',
+          title: 'Payment Failed',
+          message: status.failureReason || 'Payment was not completed'
+        });
+      } else {
+        showToast({
+          type: 'info',
+          title: 'Status Updated',
+          message: `Payment status: ${status.status}`
+        });
+      }
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Check Failed',
+        message: 'Unable to check payment status. Please try again.'
+      });
+    }
+  };
+
+  const getValidationDisplay = () => {
+    if (!phoneNumber.trim()) {
+      return (
+        <div className="text-xs text-gray-500 mt-1">
+          <p>Enter your M-PESA number (10 digits starting with 0)</p>
+        </div>
+      );
+    }
+
+    if (phoneValidation) {
+      if (phoneValidation.isValid) {
+        const provider = getNetworkProvider(phoneNumber);
+        return (
+          <div className="flex items-center gap-2 mt-1">
+            <CheckCircle size={14} className="text-green-600" />
+            <span className="text-xs text-green-600">
+              {provider ? `${provider} number` : 'Valid phone number'} • Format: {phoneValidation.formatted}
+            </span>
+          </div>
+        );
+      } else {
+        return (
+          <div className="mt-1">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={14} className="text-red-500" />
+              <span className="text-xs text-red-500">{phoneValidation.error}</span>
+            </div>
+            {phoneValidation.suggestions && phoneValidation.suggestions.length > 0 && (
+              <div className="mt-1 text-xs text-gray-600">
+                <p className="font-medium">Suggestions:</p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  {phoneValidation.suggestions.slice(0, 2).map((suggestion: string, index: number) => (
+                    <li key={index}>{suggestion}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        );
+      }
+    }
+
+    const guidance = getPhoneNumberGuidance(phoneNumber);
+    return (
+      <div className="flex items-center gap-2 mt-1">
+        <Info size={14} className="text-blue-500" />
+        <span className="text-xs text-blue-600">{guidance[0]}</span>
+      </div>
+    );
+  };
+
+  const getStatusDisplay = () => {
+    if (!paymentStatus) return null;
+
+    const statusConfig = {
+      pending: { 
+        icon: Loader2, 
+        color: 'text-blue-600', 
+        bg: 'bg-blue-50', 
+        border: 'border-blue-200',
+        message: 'Initializing payment...',
+        description: 'Setting up your M-PESA payment request'
+      },
+      sent: { 
+        icon: Phone, 
+        color: 'text-orange-600', 
+        bg: 'bg-orange-50', 
+        border: 'border-orange-200',
+        message: 'Check your phone for M-PESA prompt',
+        description: 'A payment request has been sent to your phone'
+      },
+      completed: { 
+        icon: CheckCircle, 
+        color: 'text-green-600', 
+        bg: 'bg-green-50', 
+        border: 'border-green-200',
+        message: 'Payment completed successfully!',
+        description: 'Your payment has been processed and confirmed'
+      },
+      failed: { 
+        icon: AlertCircle, 
+        color: 'text-red-600', 
+        bg: 'bg-red-50', 
+        border: 'border-red-200',
+        message: 'Payment failed',
+        description: 'The payment could not be completed'
+      },
+      cancelled: { 
+        icon: AlertCircle, 
+        color: 'text-yellow-600', 
+        bg: 'bg-yellow-50', 
+        border: 'border-yellow-200',
+        message: 'Payment was cancelled',
+        description: 'You cancelled the payment on your phone'
+      },
+      timeout: { 
+        icon: AlertCircle, 
+        color: 'text-gray-600', 
+        bg: 'bg-gray-50', 
+        border: 'border-gray-200',
+        message: 'Payment timed out',
+        description: 'No response received within the time limit'
+      }
+    };
+
+    const config = statusConfig[paymentStatus.status];
+    const Icon = config.icon;
+    const isAnimated = paymentStatus.status === 'pending' || paymentStatus.status === 'sent';
+
+    return (
+      <div className={`p-4 rounded-xl border ${config.bg} ${config.border}`}>
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 mt-1">
+            <Icon 
+              size={20} 
+              className={`${config.color} ${isAnimated ? 'animate-spin' : ''}`} 
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className={`font-medium ${config.color}`}>{config.message}</h4>
+            <p className="text-sm text-gray-600 mt-1">{config.description}</p>
+            
+            {/* Additional status information */}
+            <div className="mt-2 space-y-1">
+              {paymentStatus.mpesaReceiptNumber && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500">Receipt:</span>
+                  <span className="text-xs font-mono bg-white px-2 py-1 rounded border">
+                    {paymentStatus.mpesaReceiptNumber}
+                  </span>
+                </div>
+              )}
+              
+              {paymentStatus.transactionDate && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500">Time:</span>
+                  <span className="text-xs text-gray-600">
+                    {new Date(paymentStatus.transactionDate).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              
+              {paymentStatus.failureReason && (
+                <div className="mt-2 p-2 bg-white rounded border">
+                  <span className="text-xs font-medium text-red-600">Error Details:</span>
+                  <p className="text-xs text-red-700 mt-1">{paymentStatus.failureReason}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Progress indicator for pending/sent status */}
+            {isAnimated && (
+              <div className="mt-3">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                  <span>Waiting for response...</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Phone Number Input */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          M-PESA Phone Number
+        </label>
+        <div className="relative">
+          <Phone size={20} className="absolute left-3 top-4 text-gray-400" />
+          <input
+            type="tel"
+            value={phoneNumber}
+            onChange={handlePhoneNumberChange}
+            disabled={isProcessing || currentTransaction !== null}
+            className={`w-full pl-12 pr-4 py-4 border-2 rounded-xl focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors ${
+              phoneValidation?.isValid === false 
+                ? 'border-red-300 focus:border-red-500' 
+                : phoneValidation?.isValid === true
+                ? 'border-green-300 focus:border-green-500'
+                : 'border-gray-200 focus:border-blue-500'
+            }`}
+            placeholder="0712 345 678"
+            maxLength={13} // Formatted 10-digit length: "0712 345 678"
+            autoComplete="tel"
+            inputMode="tel"
+          />
+        </div>
+        {getValidationDisplay()}
+      </div>
+
+      {/* Amount Display */}
+      <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+        <p className="text-sm text-gray-600 mb-1">Amount to Pay</p>
+        <p className="text-2xl font-bold text-green-600">{formatCurrency(amount)}</p>
+      </div>
+
+      {/* Payment Status */}
+      {getStatusDisplay()}
+
+      {/* Action Buttons */}
+      <div className="space-y-2">
+        {!currentTransaction ? (
+          <button
+            onClick={initiatePayment}
+            disabled={isProcessing || !phoneValidation?.isValid}
+            className="w-full bg-green-600 text-white py-4 rounded-xl font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 size={20} className="animate-spin" />
+                Initiating Payment...
+              </>
+            ) : (
+              <>
+                <Phone size={20} />
+                Pay with M-PESA
+              </>
+            )}
+          </button>
+        ) : (
+          <div className="space-y-2">
+            {/* Manual status check button */}
+            {paymentStatus && (paymentStatus.status === 'sent' || paymentStatus.status === 'pending') && (
+              <button
+                onClick={checkStatusManually}
+                className="w-full bg-blue-500 text-white py-3 rounded-xl font-medium hover:bg-blue-600 flex items-center justify-center gap-2 transition-colors"
+              >
+                <RefreshCw size={18} />
+                Check Status Now
+              </button>
+            )}
+            
+            {/* Retry button for failed/cancelled/timeout */}
+            {paymentStatus && (paymentStatus.status === 'failed' || paymentStatus.status === 'cancelled' || paymentStatus.status === 'timeout') && (
+              <button
+                onClick={retryPayment}
+                className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 flex items-center justify-center gap-2 transition-colors"
+              >
+                <RefreshCw size={20} />
+                Try Again
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Instructions */}
+      {currentTransaction && paymentStatus?.status === 'sent' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <h4 className="font-medium text-blue-800 mb-2">Next Steps:</h4>
+          <ol className="text-sm text-blue-700 space-y-1">
+            <li>1. Check your phone for the M-PESA prompt</li>
+            <li>2. Enter your M-PESA PIN to complete payment</li>
+            <li>3. Wait for confirmation (this page will update automatically)</li>
+          </ol>
+          <div className="mt-3 pt-3 border-t border-blue-200">
+            <p className="text-xs text-blue-600">
+              <strong>Tip:</strong> If you don't see the prompt, try the "Check Status Now" button above.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Troubleshooting for timeout/failed payments */}
+      {paymentStatus && (paymentStatus.status === 'timeout' || paymentStatus.status === 'failed') && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <h4 className="font-medium text-yellow-800 mb-2">Payment Issues?</h4>
+          <div className="text-sm text-yellow-700 space-y-2">
+            <p><strong>Common solutions:</strong></p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Check if you have sufficient M-PESA balance</li>
+              <li>Ensure your phone has network coverage</li>
+              <li>Try using a different phone number</li>
+              <li>Contact your mobile network provider</li>
+            </ul>
+            <div className="mt-3 pt-3 border-t border-yellow-200">
+              <p className="text-xs">
+                If the problem persists, please pay directly at the bar or contact staff for assistance.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success confirmation */}
+      {paymentStatus?.status === 'completed' && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <h4 className="font-medium text-green-800 mb-2">Payment Successful!</h4>
+          <div className="text-sm text-green-700 space-y-2">
+            <p>Your payment has been processed successfully.</p>
+            <div className="bg-white rounded-lg p-3 border border-green-200">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="font-medium">Amount:</span>
+                  <p>{formatCurrency(paymentStatus.amount)}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Receipt:</span>
+                  <p className="font-mono">{paymentStatus.mpesaReceiptNumber}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Phone:</span>
+                  <p>{paymentStatus.phoneNumber.replace(/(\d{3})(\d{3})(\d{3})(\d{3})/, '$1 $2 $3 $4')}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Date:</span>
+                  <p>{paymentStatus.transactionDate ? new Date(paymentStatus.transactionDate).toLocaleDateString() : 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-center text-green-600 mt-3">
+              You will be redirected to your tab shortly...
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

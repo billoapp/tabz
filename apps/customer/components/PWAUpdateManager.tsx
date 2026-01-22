@@ -30,6 +30,15 @@ export default function PWAUpdateManager() {
     window.addEventListener('offline', handleOffline);
 
     if ('serviceWorker' in navigator) {
+      // Unregister any existing service workers first to avoid conflicts
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(registration => {
+          if (registration.scope.includes('Unknown')) {
+            registration.unregister();
+          }
+        });
+      });
+
       navigator.serviceWorker.register('/sw.js')
         .then(registration => {
           console.log('✅ PWA Update Manager: Service worker registered');
@@ -66,6 +75,7 @@ export default function PWAUpdateManager() {
         })
         .catch(error => {
           console.error('❌ PWA Update Manager: Service worker registration failed:', error);
+          // Don't show error to user, just log it
         });
 
       // Periodic update check (every 10 minutes)
@@ -74,6 +84,8 @@ export default function PWAUpdateManager() {
           navigator.serviceWorker.ready.then(registration => {
             console.log('🔄 PWA Update Manager: Checking for updates...');
             registration.update();
+          }).catch(error => {
+            console.error('❌ PWA Update Manager: Update check failed:', error);
           });
         }
       }, 10 * 60 * 1000);
@@ -84,6 +96,8 @@ export default function PWAUpdateManager() {
           console.log('🔄 PWA Update Manager: App became visible, checking for updates...');
           navigator.serviceWorker.ready.then(registration => {
             registration.update();
+          }).catch(error => {
+            console.error('❌ PWA Update Manager: Visibility update check failed:', error);
           });
         }
       };

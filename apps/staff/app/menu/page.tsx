@@ -194,7 +194,7 @@ export default function MenuManagementPage() {
     category: '',
     description: '',
     image_url: '',
-    price: '',
+    price: '', // For bar_products pricing only
   });
 
   // Editing states
@@ -699,6 +699,9 @@ export default function MenuManagementPage() {
       return;
     }
     try {
+      // Generate SKU
+      const sku = `CUSTOM-${Date.now().toString(36).toUpperCase()}`;
+      
       const { data: customData, error: customError } = await (supabase as any)
         .from('custom_products')
         .insert({
@@ -707,7 +710,7 @@ export default function MenuManagementPage() {
           category: newCustomItem.category,
           description: newCustomItem.description || null,
           image_url: newCustomItem.image_url || null,
-          sku: `CUSTOM-${Date.now().toString(36).toUpperCase()}`,
+          sku: sku,
           active: true,
         })
         .select()
@@ -726,7 +729,7 @@ export default function MenuManagementPage() {
             description: newCustomItem.description || null,
             category: newCustomItem.category,
             image_url: newCustomItem.image_url || null,
-            sku: customData.sku,
+            sku: sku,
             sale_price: parseFloat(newCustomItem.price),
             active: true,
           });

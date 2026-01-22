@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Phone, CreditCard, Sparkles, Clock } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatUtils';
+import MpesaPayment from '@/components/MpesaPayment';
+import { useToast } from '@/components/ui/Toast';
 
 export default function PaymentPage() {
   const router = useRouter();
@@ -12,6 +14,9 @@ export default function PaymentPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('mpesa');
+  const [currentTab, setCurrentTab] = useState<any>(null);
+  const [showMpesaPayment, setShowMpesaPayment] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const ordersData = sessionStorage.getItem('orders');
@@ -23,7 +28,15 @@ export default function PaymentPage() {
     if (paymentsData) {
       setPayments(JSON.parse(paymentsData));
     }
-  }, []);
+
+    const tabData = sessionStorage.getItem('currentTab');
+    if (tabData) {
+      setCurrentTab(JSON.parse(tabData));
+    } else {
+      // Redirect to home if no tab found
+      router.push('/');
+    }
+  }, [router]);
 
   const tabTotal = orders.reduce((sum, order) => sum + order.total, 0);
   const paidTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
@@ -34,9 +47,39 @@ export default function PaymentPage() {
   }, [balance]);
 
   const processPayment = () => {
-    // DISABLED: Show coming soon message instead of processing payment
-    alert('Digital payments coming soon! Please pay directly at the bar using cash, M-Pesa, Airtel Money, or credit/debit cards.');
-    return;
+    if (paymentMethod === 'mpesa') {
+      setShowMpesaPayment(true);
+    } else {
+      // Show coming soon message for other payment methods
+      showToast({
+        type: 'info',
+        title: 'Coming Soon',
+        message: 'This payment method will be available soon!'
+      });
+    }
+  };
+
+  const handleMpesaPaymentSuccess = (receiptNumber: string) => {
+    showToast({
+      type: 'success',
+      title: 'Payment Successful!',
+      message: `Your payment has been processed. Receipt: ${receiptNumber}`,
+      duration: 10000
+    });
+    
+    // Refresh the page data or redirect to tab
+    setTimeout(() => {
+      router.push('/tab');
+    }, 2000);
+  };
+
+  const handleMpesaPaymentError = (error: string) => {
+    showToast({
+      type: 'error',
+      title: 'Payment Failed',
+      message: error
+    });
+    setShowMpesaPayment(false);
   };
 
   return (
@@ -104,28 +147,29 @@ export default function PaymentPage() {
           </div>
         </div>
 
-        {/* DISABLED Payment Method Section */}
-        <div className="opacity-50">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method (Coming Soon)</label>
+        {/* Payment Method Section */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
           <div className="space-y-2">
             <button
-              disabled
-              className={`w-full p-4 rounded-xl border-2 flex items-center gap-3 cursor-not-allowed ${
+              onClick={() => setPaymentMethod('mpesa')}
+              className={`w-full p-4 rounded-xl border-2 flex items-center gap-3 transition-colors ${
                 paymentMethod === 'mpesa' 
                   ? 'border-green-500 bg-green-50' 
-                  : 'border-gray-200 bg-white'
+                  : 'border-gray-200 bg-white hover:border-green-300'
               }`}
             >
               <Phone size={24} className="text-green-600" />
               <div className="text-left">
                 <p className="font-semibold">M-Pesa</p>
-                <p className="text-sm text-gray-600">Pay with M-Pesa (Coming Soon)</p>
+                <p className="text-sm text-gray-600">Pay with M-Pesa mobile money</p>
               </div>
             </button>
             
             <button
+              onClick={() => setPaymentMethod('card')}
               disabled
-              className="w-full p-4 rounded-xl border-2 flex items-center gap-3 cursor-not-allowed border-gray-200 bg-white"
+              className="w-full p-4 rounded-xl border-2 flex items-center gap-3 cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
             >
               <CreditCard size={24} className="text-blue-600" />
               <div className="text-left">
@@ -135,8 +179,9 @@ export default function PaymentPage() {
             </button>
             
             <button
+              onClick={() => setPaymentMethod('airtel')}
               disabled
-              className="w-full p-4 rounded-xl border-2 flex items-center gap-3 cursor-not-allowed border-gray-200 bg-white"
+              className="w-full p-4 rounded-xl border-2 flex items-center gap-3 cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
             >
               <Phone size={24} className="text-blue-500" />
               <div className="text-left">
@@ -147,61 +192,60 @@ export default function PaymentPage() {
           </div>
         </div>
 
-        {/* DISABLED Amount Section */}
-        <div className="opacity-50">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay (Coming Soon)</label>
+        {/* Amount Section */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
           <div className="relative">
             <span className="absolute left-4 top-4 text-gray-500 font-semibold">KSh</span>
             <input
               type="number"
               value={paymentAmount}
               onChange={(e) => setPaymentAmount(e.target.value)}
-              disabled
-              className="w-full pl-16 pr-4 py-4 border-2 border-gray-200 rounded-xl font-bold text-lg focus:border-orange-500 focus:outline-none bg-gray-100 cursor-not-allowed"
+              className="w-full pl-16 pr-4 py-4 border-2 border-gray-200 rounded-xl font-bold text-lg focus:border-orange-500 focus:outline-none"
               placeholder="0"
+              min="1"
+              max={balance}
             />
           </div>
           <div className="flex gap-2 mt-2">
             <button
-              disabled
               onClick={() => setPaymentAmount((balance / 2).toString())}
-              className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium cursor-not-allowed"
+              className="flex-1 py-2 bg-orange-100 hover:bg-orange-200 rounded-lg text-sm font-medium transition-colors"
             >
               Half
             </button>
             <button
-              disabled
               onClick={() => setPaymentAmount(balance.toString())}
-              className="flex-1 py-2 bg-gray-100 rounded-lg text-sm font-medium cursor-not-allowed"
+              className="flex-1 py-2 bg-orange-100 hover:bg-orange-200 rounded-lg text-sm font-medium transition-colors"
             >
               Full
             </button>
           </div>
         </div>
 
-        {/* DISABLED Phone Number Section */}
-        {paymentMethod === 'mpesa' && (
-          <div className="opacity-50">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">M-Pesa Number (Coming Soon)</label>
-            <input
-              type="tel"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              disabled
-              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none bg-gray-100 cursor-not-allowed"
-              placeholder="0712345678"
+        {/* M-PESA Payment Interface */}
+        {showMpesaPayment && paymentMethod === 'mpesa' && currentTab && (
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Complete M-PESA Payment</h3>
+            <MpesaPayment
+              amount={parseFloat(paymentAmount) || balance}
+              tabId={currentTab.id}
+              onPaymentSuccess={handleMpesaPaymentSuccess}
+              onPaymentError={handleMpesaPaymentError}
             />
           </div>
         )}
 
-        {/* DISABLED Pay Button */}
-        <button
-          onClick={processPayment}
-          disabled
-          className="w-full bg-gray-300 text-gray-500 py-4 rounded-xl font-semibold cursor-not-allowed"
-        >
-          Digital Payments Coming Soon
-        </button>
+        {/* Pay Button */}
+        {!showMpesaPayment && (
+          <button
+            onClick={processPayment}
+            disabled={!paymentAmount || parseFloat(paymentAmount) <= 0 || parseFloat(paymentAmount) > balance}
+            className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          >
+            {paymentMethod === 'mpesa' ? 'Pay with M-PESA' : 'Process Payment'}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -8,7 +8,8 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
 import { checkTabOverdueStatus } from '@/lib/businessHours';
-import { useRealtimeSubscription, ConnectionStatusIndicator } from '@tabeza/shared';
+import { useRealtimeSubscription } from '@tabeza/shared/hooks/useRealtimeSubscription';
+import { ConnectionStatusIndicator } from '@tabeza/shared/components/ConnectionStatus';
 
 // Temporary format functions
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
