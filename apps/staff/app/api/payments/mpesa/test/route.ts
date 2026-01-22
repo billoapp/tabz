@@ -176,10 +176,41 @@ export async function POST(request: NextRequest) {
       console.log('Encryption key available:', !!encryptionKey);
       console.log('Encryption key length:', encryptionKey?.length);
       
-      // Convert to Buffer from base64 string (Supabase returns bytea as base64 string)
-      const consumerKeyBuffer = Buffer.from(credData.consumer_key_enc, 'base64');
-      const consumerSecretBuffer = Buffer.from(credData.consumer_secret_enc, 'base64');
-      const passkeyBuffer = Buffer.from(credData.passkey_enc, 'base64');
+      // Parse Supabase bytea format correctly
+      function parseSupabaseBytea(byteaString: string): Buffer {
+        try {
+          // Remove the \x prefix if present
+          const hexString = byteaString.startsWith('\\x') ? byteaString.slice(2) : byteaString;
+          
+          // Convert hex to buffer
+          const buffer = Buffer.from(hexString, 'hex');
+          
+          // Check if it's a JSON representation of a Buffer
+          const jsonString = buffer.toString('utf8');
+          if (jsonString.startsWith('{"type":"Buffer","data":[')) {
+            const bufferObj = JSON.parse(jsonString);
+            return Buffer.from(bufferObj.data);
+          }
+          
+          // Otherwise return the buffer as-is
+          return buffer;
+        } catch (error) {
+          console.error('Error parsing bytea:', error);
+          throw new Error(`Failed to parse encrypted data format: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+      
+      // Convert bytea strings to Buffers
+      const consumerKeyBuffer = parseSupabaseBytea(credData.consumer_key_enc);
+      const consumerSecretBuffer = parseSupabaseBytea(credData.consumer_secret_enc);
+      const passkeyBuffer = parseSupabaseBytea(credData.passkey_enc);
+      
+      console.log('✅ Parsed bytea format successfully');
+      console.log('Buffer lengths:', {
+        consumerKey: consumerKeyBuffer.length,
+        consumerSecret: consumerSecretBuffer.length,
+        passkey: passkeyBuffer.length
+      });
       
       consumerKey = decryptCredential(consumerKeyBuffer);
       console.log('✅ Consumer key decrypted');
