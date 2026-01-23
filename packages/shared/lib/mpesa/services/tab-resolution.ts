@@ -35,6 +35,10 @@ export interface TabResolutionService {
   resolveTabToTenant(tabId: string): Promise<TenantInfo>;
   validateTabExists(tabId: string): Promise<TabInfo>;
   validateTabStatus(tabId: string): Promise<boolean>;
+  // New methods for customer-context resolution
+  resolveCustomerTabToTenant(barId: string, customerIdentifier: string): Promise<TenantInfo>;
+  findCustomerTab(barId: string, customerIdentifier: string): Promise<TabInfo>;
+  resolveTabByNumber(barId: string, tabNumber: number): Promise<TabInfo>;
 }
 
 export class DatabaseTabResolutionService implements TabResolutionService {
@@ -170,6 +174,172 @@ export class DatabaseTabResolutionService implements TabResolutionService {
       {
         tabId,
         operation: 'validateTabExists'
+      }
+    );
+  }
+
+  /**
+   * Resolve customer's tab to tenant information using bar context and customer identifier
+   * @param barId - The bar ID where the customer has a tab
+   * @param customerIdentifier - The customer's device-based identifier (owner_identifier)
+   * @returns TenantInfo containing tenant details
+   * @throws MpesaError if tab not found, orphaned, or inactive
+   */
+  async resolveCustomerTabToTenant(barId: string, customerIdentifier: string): Promise<TenantInfo> {
+    return withTenantErrorHandling(
+      async () => {
+        // Find the customer's open tab at the specified bar
+        const { data: tabData, error: tabError } = await this.supabase
+          .from('tabs')
+          .select(`
+            id,
+            bar_id,
+            tab_number,
+            status,
+            owner_identifier,
+            opened_at,
+            closed_at,
+            bars!inner (
+              id,
+              name,
+              active
+            )
+          `)
+          .eq('bar_id', barId)
+          .eq('owner_identifier', customerIdentifier)
+          .eq('status', 'open')
+          .single();
+
+        if (tabError || !tabData) {
+          throw new MpesaError(
+            `No open tab found for customer at bar ${barId}`,
+            'CUSTOMER_TAB_NOT_FOUND',
+            404
+          );
+        }
+
+        // Validate tab has associated bar (not orphaned)
+        if (!tabData.bars || !Array.isArray(tabData.bars) || tabData.bars.length === 0 || !tabData.bar_id) {
+          throw new MpesaError(
+            `Orphaned tab detected: ${tabData.id} has no associated bar`,
+            'ORPHANED_TAB',
+            400
+          );
+        }
+
+        const barData = tabData.bars[0];
+
+        // Validate bar is active
+        if (!barData.active) {
+          throw new MpesaError(
+            `Inactive bar: ${barData.name} (${tabData.bar_id}) is not active`,
+            'INACTIVE_BAR',
+            400
+          );
+        }
+
+        return {
+          tenantId: tabData.bar_id,
+          barId: tabData.bar_id,
+          barName: barData.name,
+          isActive: barData.active
+        };
+      },
+      this.errorHandler,
+      {
+        barId,
+        customerIdentifier,
+        operation: 'resolveCustomerTabToTenant'
+      }
+    );
+  }
+
+  /**
+   * Find customer's tab information using bar context and customer identifier
+   * @param barId - The bar ID where the customer has a tab
+   * @param customerIdentifier - The customer's device-based identifier (owner_identifier)
+   * @returns TabInfo containing tab details
+   * @throws MpesaError if tab not found
+   */
+  async findCustomerTab(barId: string, customerIdentifier: string): Promise<TabInfo> {
+    return withTenantErrorHandling(
+      async () => {
+        const { data: tabData, error } = await this.supabase
+          .from('tabs')
+          .select('id, bar_id, tab_number, status, owner_identifier, opened_at, closed_at')
+          .eq('bar_id', barId)
+          .eq('owner_identifier', customerIdentifier)
+          .eq('status', 'open')
+          .single();
+
+        if (error || !tabData) {
+          throw new MpesaError(
+            `No open tab found for customer at bar ${barId}`,
+            'CUSTOMER_TAB_NOT_FOUND',
+            404
+          );
+        }
+
+        return {
+          id: tabData.id,
+          barId: tabData.bar_id,
+          tabNumber: tabData.tab_number,
+          status: tabData.status,
+          ownerIdentifier: tabData.owner_identifier,
+          openedAt: new Date(tabData.opened_at),
+          closedAt: tabData.closed_at ? new Date(tabData.closed_at) : undefined
+        };
+      },
+      this.errorHandler,
+      {
+        barId,
+        customerIdentifier,
+        operation: 'findCustomerTab'
+      }
+    );
+  }
+
+  /**
+   * Resolve tab by tab number within a specific bar
+   * @param barId - The bar ID to search within
+   * @param tabNumber - The tab number to find
+   * @returns TabInfo containing tab details
+   * @throws MpesaError if tab not found
+   */
+  async resolveTabByNumber(barId: string, tabNumber: number): Promise<TabInfo> {
+    return withTenantErrorHandling(
+      async () => {
+        const { data: tabData, error } = await this.supabase
+          .from('tabs')
+          .select('id, bar_id, tab_number, status, owner_identifier, opened_at, closed_at')
+          .eq('bar_id', barId)
+          .eq('tab_number', tabNumber)
+          .eq('status', 'open')
+          .single();
+
+        if (error || !tabData) {
+          throw new MpesaError(
+            `Tab number ${tabNumber} not found at bar ${barId}`,
+            'TAB_NUMBER_NOT_FOUND',
+            404
+          );
+        }
+
+        return {
+          id: tabData.id,
+          barId: tabData.bar_id,
+          tabNumber: tabData.tab_number,
+          status: tabData.status,
+          ownerIdentifier: tabData.owner_identifier,
+          openedAt: new Date(tabData.opened_at),
+          closedAt: tabData.closed_at ? new Date(tabData.closed_at) : undefined
+        };
+      },
+      this.errorHandler,
+      {
+        barId,
+        tabNumber,
+        operation: 'resolveTabByNumber'
       }
     );
   }

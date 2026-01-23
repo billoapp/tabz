@@ -437,12 +437,53 @@ export class ServiceFactory {
   }
 
   /**
-   * Create multiple service configurations for batch operations
-   * @param tenantConfigs - Array of tenant configurations
-   * @param overrides - Optional configuration overrides applied to all configs
-   * @returns Array of ServiceConfig objects
-   * @throws MpesaError if any configuration fails
+   * Create service configuration with automatic tenant resolution from customer context
+   * This method handles the complete flow from customer context to service configuration
+   * @param barId - Bar ID where the customer has a tab
+   * @param customerIdentifier - Customer's device-based identifier
+   * @param tabResolutionService - Service to resolve customer tab to tenant
+   * @param credentialRetrievalService - Service to retrieve tenant credentials
+   * @param tenantConfigFactory - Factory to create tenant configuration
+   * @param overrides - Optional configuration overrides
+   * @returns ServiceConfig with tenant-specific settings
+   * @throws MpesaError if any step in the resolution fails
    */
+  static async createServiceConfigFromCustomerContext(
+    barId: string,
+    customerIdentifier: string,
+    tabResolutionService: TabResolutionService,
+    credentialRetrievalService: CredentialRetrievalService,
+    tenantConfigFactory: TenantMpesaConfigFactory,
+    overrides?: Partial<ServiceConfig>
+  ): Promise<ServiceConfig> {
+    try {
+      // Step 1: Resolve customer context to tenant
+      const tenantInfo = await tabResolutionService.resolveCustomerTabToTenant(barId, customerIdentifier);
+
+      // Step 2: Retrieve tenant credentials
+      // Default to sandbox environment if not specified in overrides
+      const environment = (overrides?.environment as MpesaEnvironment) || 'sandbox';
+      const credentials = await credentialRetrievalService.getTenantCredentials(tenantInfo.tenantId, environment);
+
+      // Step 3: Create tenant configuration
+      const tenantConfig = tenantConfigFactory.createTenantConfig(tenantInfo, credentials, overrides);
+
+      // Step 4: Create service configuration
+      return ServiceFactory.createTenantServiceConfig(tenantConfig, overrides);
+
+    } catch (error) {
+      if (error instanceof MpesaError) {
+        throw error;
+      }
+
+      throw new MpesaError(
+        `Failed to create service configuration from customer context (bar: ${barId}, customer: ${customerIdentifier}): ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'CUSTOMER_SERVICE_CONFIG_CREATION_ERROR',
+        500,
+        error
+      );
+    }
+  }
   static createBatchServiceConfigs(
     tenantConfigs: TenantMpesaConfig[],
     overrides?: Partial<ServiceConfig>

@@ -18,15 +18,15 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const { tabId, phoneNumber, amount } = await request.json();
+    const { barId, phoneNumber, amount, customerIdentifier } = await request.json();
 
     // Extract IP address for rate limiting
     const ipAddress = extractIpAddress(request);
 
-    // Validate required fields
-    if (!tabId || !phoneNumber || !amount) {
+    // Validate required fields - now using barId and customerIdentifier instead of tabId
+    if (!barId || !customerIdentifier || !phoneNumber || !amount) {
       return NextResponse.json(
-        { error: 'Missing required fields: tabId, phoneNumber, amount' },
+        { error: 'Missing required fields: barId, customerIdentifier, phoneNumber, amount' },
         { status: 400 }
       );
     }
@@ -63,7 +63,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if tab exists and get customer info
+    // Create tenant-aware services for tab resolution
+    const tabResolutionService = createTabResolutionService(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Find customer's tab using bar context and customer identifier
+    let customerTab: any;
+    try {
+      customerTab = await tabResolutionService.findCustomerTab(barId, customerIdentifier);
+    } catch (error) {
+      console.error('Customer tab resolution error:', error);
+      
+      if (error instanceof MpesaError) {
+        switch (error.code) {
+          case 'CUSTOMER_TAB_NOT_FOUND':
+            return NextResponse.json(
+              { error: 'No open tab found. Please create a tab first.' },
+              { status: 404 }
+            );
+          default:
+            return NextResponse.json(
+              { error: 'Unable to find your tab. Please try again.' },
+              { status: 400 }
+            );
+        }
+      }
+      
+      return NextResponse.json(
+        { error: 'Unable to process payment. Please try again.' },
+        { status: 500 }
+      );
+    }
+
+    const tabId = customerTab.id;
+
+    // Check if tab exists and get customer info (using resolved tabId)
     const { data: tab, error: tabError } = await supabase
       .from('tabs')
       .select('id, customer_id, status')
@@ -140,12 +176,7 @@ export async function POST(request: NextRequest) {
     let stkPushService: STKPushService;
     
     try {
-      // Create tenant-aware services
-      const tabResolutionService = createTabResolutionService(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
+      // Create tenant-aware services (reuse the already created tabResolutionService)
       const credentialRetrievalService = createCredentialRetrievalService(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -159,9 +190,10 @@ export async function POST(request: NextRequest) {
         supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!
       });
 
-      // Create service configuration from tab ID with tenant credential resolution
-      const serviceConfig = await ServiceFactory.createServiceConfigFromTab(
-        tabId,
+      // Create service configuration using customer context (barId + customerIdentifier)
+      const serviceConfig = await ServiceFactory.createServiceConfigFromCustomerContext(
+        barId,
+        customerIdentifier,
         tabResolutionService,
         credentialRetrievalService,
         tenantConfigFactory,
@@ -193,7 +225,7 @@ export async function POST(request: NextRequest) {
       // Return user-friendly error based on the specific credential error
       if (credentialError instanceof MpesaError) {
         switch (credentialError.code) {
-          case 'TAB_NOT_FOUND':
+          case 'CUSTOMER_TAB_NOT_FOUND':
           case 'ORPHANED_TAB':
           case 'INVALID_TAB_STATUS':
             return NextResponse.json(
