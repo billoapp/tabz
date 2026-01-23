@@ -50,11 +50,11 @@ describe('TabResolutionService Property Tests', () => {
     owner_identifier: fc.option(customerIdArbitrary, { nil: null }),
     opened_at: timestampArbitrary.map(d => d.toISOString()),
     closed_at: fc.option(timestampArbitrary.map(d => d.toISOString()), { nil: null }),
-    bars: fc.record({
+    bars: fc.array(fc.record({
       id: barIdArbitrary,
       name: barNameArbitrary,
       active: fc.constant(true)
-    })
+    }), { minLength: 1, maxLength: 1 })
   });
 
   const invalidTabDataArbitrary = fc.record({
@@ -65,11 +65,11 @@ describe('TabResolutionService Property Tests', () => {
     owner_identifier: fc.option(customerIdArbitrary, { nil: null }),
     opened_at: timestampArbitrary.map(d => d.toISOString()),
     closed_at: fc.option(timestampArbitrary.map(d => d.toISOString()), { nil: null }),
-    bars: fc.record({
+    bars: fc.array(fc.record({
       id: barIdArbitrary,
       name: barNameArbitrary,
       active: fc.constant(true)
-    })
+    }), { minLength: 1, maxLength: 1 })
   });
 
   const orphanedTabDataArbitrary = fc.record({
@@ -91,11 +91,11 @@ describe('TabResolutionService Property Tests', () => {
     owner_identifier: fc.option(customerIdArbitrary, { nil: null }),
     opened_at: timestampArbitrary.map(d => d.toISOString()),
     closed_at: fc.option(timestampArbitrary.map(d => d.toISOString()), { nil: null }),
-    bars: fc.record({
+    bars: fc.array(fc.record({
       id: barIdArbitrary,
       name: barNameArbitrary,
       active: fc.constant(false)
-    })
+    }), { minLength: 1, maxLength: 1 })
   });
 
   /**
@@ -125,7 +125,7 @@ describe('TabResolutionService Property Tests', () => {
         expect(result).toBeDefined();
         expect(result.tenantId).toBe(tabData.bar_id);
         expect(result.barId).toBe(tabData.bar_id);
-        expect(result.barName).toBe(tabData.bars.name);
+        expect(result.barName).toBe(tabData.bars[0].name);
         expect(result.isActive).toBe(true);
         
         // Verify the service called the database correctly
@@ -214,7 +214,7 @@ describe('TabResolutionService Property Tests', () => {
         await expect(service.resolveTabToTenant(tabData.id))
           .rejects
           .toThrow(new MpesaError(
-            `Inactive bar: ${tabData.bars.name} (${tabData.bar_id}) is not active`,
+            `Inactive bar: ${tabData.bars[0].name} (${tabData.bar_id}) is not active`,
             'INACTIVE_BAR',
             400
           ));

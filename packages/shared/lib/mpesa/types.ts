@@ -173,6 +173,8 @@ export interface ServiceConfig {
   timeoutMs: number;
   retryAttempts: number;
   rateLimitPerMinute: number;
+  supabaseUrl?: string;
+  supabaseServiceKey?: string;
 }
 
 // Validation result

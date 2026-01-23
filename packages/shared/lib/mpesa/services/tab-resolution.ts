@@ -90,7 +90,7 @@ export class DatabaseTabResolutionService implements TabResolutionService {
         }
 
         // Validate tab has associated bar (not orphaned)
-        if (!tabData.bars || !tabData.bar_id) {
+        if (!tabData.bars || !Array.isArray(tabData.bars) || tabData.bars.length === 0 || !tabData.bar_id) {
           throw new MpesaError(
             `Orphaned tab detected: ${tabId} has no associated bar`,
             'ORPHANED_TAB',
@@ -98,10 +98,12 @@ export class DatabaseTabResolutionService implements TabResolutionService {
           );
         }
 
+        const barData = tabData.bars[0]; // Get the first (and only) bar from the array
+
         // Validate bar is active
-        if (!tabData.bars.active) {
+        if (!barData.active) {
           throw new MpesaError(
-            `Inactive bar: ${tabData.bars.name} (${tabData.bar_id}) is not active`,
+            `Inactive bar: ${barData.name} (${tabData.bar_id}) is not active`,
             'INACTIVE_BAR',
             400
           );
@@ -119,8 +121,8 @@ export class DatabaseTabResolutionService implements TabResolutionService {
         return {
           tenantId: tabData.bar_id,
           barId: tabData.bar_id,
-          barName: tabData.bars.name,
-          isActive: tabData.bars.active
+          barName: barData.name,
+          isActive: barData.active
         };
       },
       this.errorHandler,
