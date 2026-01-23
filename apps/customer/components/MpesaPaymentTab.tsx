@@ -15,7 +15,6 @@ interface MpesaPaymentTabProps {
   amount: string;
   onAmountChange: (amount: string) => void;
   balance: number;
-  tabId: string;
   onPaymentSuccess: (receiptNumber: string) => void;
   onPaymentError: (error: string) => void;
   // Enhanced state management props
@@ -29,7 +28,6 @@ export default function MpesaPaymentTab({
   amount, 
   onAmountChange, 
   balance, 
-  tabId,
   onPaymentSuccess,
   onPaymentError,
   // Enhanced state management props with defaults
@@ -147,7 +145,6 @@ export default function MpesaPaymentTab({
         </div>
         <MpesaPayment
           amount={parseFloat(amount) || balance}
-          tabId={tabId}
           maxAmount={balance}
           onPaymentSuccess={onPaymentSuccess}
           onPaymentError={(error) => {

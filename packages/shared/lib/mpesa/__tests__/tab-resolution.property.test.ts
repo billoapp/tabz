@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 /**
  * Property-based tests for TabResolutionService
  * Tests universal properties that should hold across all valid inputs

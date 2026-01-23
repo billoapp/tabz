@@ -15,7 +15,6 @@ import {
 
 interface MpesaPaymentProps {
   amount: number;
-  tabId: string;
   onPaymentSuccess: (receiptNumber: string) => void;
   onPaymentError: (error: string) => void;
   maxAmount?: number; // Optional maximum amount (outstanding balance)
@@ -35,7 +34,6 @@ interface PaymentStatus {
 
 export default function MpesaPayment({ 
   amount, 
-  tabId, 
   onPaymentSuccess, 
   onPaymentError,
   maxAmount
@@ -109,13 +107,34 @@ export default function MpesaPayment({
     try {
       const internationalPhone = convertToInternationalFormat(phoneNumber);
       
+      // Get customer context from session storage
+      const tabData = sessionStorage.getItem('currentTab');
+      if (!tabData) {
+        throw new Error('No active tab found. Please refresh and try again.');
+      }
+      
+      const currentTab = JSON.parse(tabData);
+      const barId = currentTab.bar_id;
+      
+      // Get device ID for customer identifier
+      const deviceId = localStorage.getItem('tabeza_device_id_v2') || localStorage.getItem('Tabeza_device_id');
+      if (!deviceId) {
+        throw new Error('Device not registered. Please refresh and try again.');
+      }
+      
+      // Generate customer identifier
+      const customerIdentifier = `${deviceId}_${barId}`;
+      
+      console.log('Payment context:', { barId, customerIdentifier, deviceId, tabData: currentTab });
+      
       const response = await fetch('/api/payments/mpesa/initiate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          tabId,
+          barId,
+          customerIdentifier,
           phoneNumber: internationalPhone,
           amount
         }),

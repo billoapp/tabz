@@ -246,7 +246,6 @@ export default function PaymentPage() {
                 amount={mpesaPaymentState.amount}
                 onAmountChange={handleMpesaAmountChange}
                 balance={balance}
-                tabId={currentTab?.id || ''}
                 onPaymentSuccess={handleMpesaPaymentSuccess}
                 onPaymentError={handleMpesaPaymentError}
                 phoneNumber={mpesaPaymentState.phoneNumber}
