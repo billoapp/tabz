@@ -150,7 +150,7 @@ export class SystemKMSDecryptionService implements KMSDecryptionService {
   async decrypt(encryptedValue: string | Buffer): Promise<string> {
     return withTenantErrorHandling(
       async () => {
-        let encryptedBuffer: Buffer;
+        let encryptedBuffer: Buffer | null = null;
         let decryptedBuffer: SecureBuffer | null = null;
         
         try {
@@ -311,7 +311,7 @@ export class SystemKMSDecryptionService implements KMSDecryptionService {
       const suspiciousPatterns = [
         /^\x00+$/, // All null bytes
         /^[\x00-\x1F]+$/, // All control characters
-        /^.{1}\1{10,}$/, // Same character repeated many times
+        /^(.)\1{10,}$/, // Same character repeated many times
       ];
 
       for (const pattern of suspiciousPatterns) {

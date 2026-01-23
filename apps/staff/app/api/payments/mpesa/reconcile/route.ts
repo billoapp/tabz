@@ -143,12 +143,14 @@ export async function POST(request: NextRequest) {
     // Create a minimal service config for order sync service
     const serviceConfig: ServiceConfig = {
       environment: 'sandbox' as const,
-      credentials: {} as any, // Not needed for order sync
+      consumerKey: 'dummy',
+      consumerSecret: 'dummy', 
+      businessShortCode: 'dummy',
+      passkey: 'dummy',
+      callbackUrl: 'https://dummy.com',
       timeoutMs: 10000,
       retryAttempts: 1,
-      rateLimitPerMinute: 100,
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!
+      rateLimitPerMinute: 100
     };
 
     const orderSyncService = new OrderStatusUpdateService(serviceConfig);

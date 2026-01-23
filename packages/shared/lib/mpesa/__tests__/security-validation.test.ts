@@ -24,6 +24,10 @@ import {
 } from '../types';
 import { TenantInfo } from '../services/tab-resolution';
 import { Logger } from '../services/base';
+import { 
+  TenantCredentialErrorHandler
+} from '../services/error-handling';
+import { StructuredMpesaLogger } from '../services/structured-logging';
 
 // Mock logger that captures all log calls for security analysis
 class SecurityAuditLogger implements Logger {
@@ -263,21 +267,32 @@ class MockKMSDecryptionService {
 }
 
 // Factory functions for mocks
-function createTenantCredentialErrorHandler(logger: Logger, environment: MpesaEnvironment): MockTenantCredentialErrorHandler {
+function createMockTenantCredentialErrorHandler(logger: Logger, environment: MpesaEnvironment): MockTenantCredentialErrorHandler {
   return new MockTenantCredentialErrorHandler(logger, environment);
 }
 
-function createStructuredMpesaLogger(logger: Logger, environment: MpesaEnvironment): MockStructuredMpesaLogger {
+function createMockStructuredMpesaLogger(logger: Logger, environment: MpesaEnvironment): MockStructuredMpesaLogger {
   return new MockStructuredMpesaLogger(logger, environment);
 }
 
-function createKMSDecryptionService(): MockKMSDecryptionService {
+function createMockKMSDecryptionService(): MockKMSDecryptionService {
   return new MockKMSDecryptionService();
 }
 
-function createTenantMpesaConfigFactory(options: any): TenantMpesaConfigFactory {
+function createMockTenantMpesaConfigFactory(options: any): TenantMpesaConfigFactory {
   return new TenantMpesaConfigFactory(options);
 }
+
+describe('Security Validation Tests', () => {
+  let securityLogger: SecurityAuditLogger;
+  let errorHandler: MockTenantCredentialErrorHandler;
+  let structuredLogger: MockStructuredMpesaLogger;
+
+  beforeEach(() => {
+    securityLogger = new SecurityAuditLogger();
+    errorHandler = new MockTenantCredentialErrorHandler(securityLogger, 'sandbox');
+    structuredLogger = new MockStructuredMpesaLogger(securityLogger, 'sandbox');
+  });
 
   describe('Environment Variable Security', () => {
     it('should not use environment variables for tenant-specific credentials', async () => {
@@ -297,10 +312,11 @@ function createTenantMpesaConfigFactory(options: any): TenantMpesaConfigFactory 
       });
 
       // Create service configuration using tenant credentials
-      const serviceConfig = await configFactory.createServiceConfigFromTab(
+      const serviceConfig = await ServiceFactory.createServiceConfigFromTab(
         'test-tab',
         tabResolutionService,
         credentialRetrievalService,
+        configFactory,
         { environment: 'sandbox' }
       );
 
@@ -349,10 +365,11 @@ function createTenantMpesaConfigFactory(options: any): TenantMpesaConfigFactory 
           supabaseServiceKey: 'test-key'
         });
 
-        const serviceConfig = await configFactory.createServiceConfigFromTab(
+        const serviceConfig = await ServiceFactory.createServiceConfigFromTab(
           'test-tab',
           tabResolutionService,
           credentialRetrievalService,
+          configFactory,
           { environment: 'sandbox' }
         );
 
@@ -452,10 +469,11 @@ function createTenantMpesaConfigFactory(options: any): TenantMpesaConfigFactory 
       });
 
       // Create service configuration
-      const serviceConfig = await configFactory.createServiceConfigFromTab(
+      const serviceConfig = await ServiceFactory.createServiceConfigFromTab(
         'test-tab',
         tabResolutionService,
         credentialRetrievalService,
+        configFactory,
         { environment: 'sandbox' }
       );
 
@@ -801,10 +819,11 @@ function createTenantMpesaConfigFactory(options: any): TenantMpesaConfigFactory 
       const results = [];
       for (let i = 0; i < 100; i++) {
         const tabId = `tab-${i}`;
-        const serviceConfig = await configFactory.createServiceConfigFromTab(
+        const serviceConfig = await ServiceFactory.createServiceConfigFromTab(
           tabId,
           tabResolutionService,
           credentialRetrievalService,
+          configFactory,
           { environment: 'sandbox' }
         );
         
