@@ -15,6 +15,12 @@ export * from './config';
 // Export base services and dependency injection interfaces
 export * from './services/base';
 
+// Export tenant-specific services
+export * from './services/tab-resolution';
+export * from './services/credential-retrieval';
+export * from './services/kms-decryption';
+export * from './services/tenant-config-factory';
+
 // Export core services
 export * from './services/auth';
 export * from './services/stkpush';

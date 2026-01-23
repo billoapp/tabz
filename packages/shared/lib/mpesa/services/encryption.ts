@@ -3,7 +3,7 @@
  * Shared encryption utilities for M-Pesa credentials
  */
 
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 /**
  * Get the master encryption key with proper error handling

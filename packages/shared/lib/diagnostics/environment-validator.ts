@@ -72,6 +72,53 @@ export const REQUIRED_ENVIRONMENT_VARIABLES: EnvironmentVariable[] = [
     sensitive: true
   },
   
+  // M-Pesa Configuration
+  {
+    name: 'MPESA_CONSUMER_KEY',
+    required: true,
+    description: 'M-Pesa API consumer key for authentication',
+    minLength: 10,
+    sensitive: true
+  },
+  {
+    name: 'MPESA_CONSUMER_SECRET',
+    required: true,
+    description: 'M-Pesa API consumer secret for authentication',
+    minLength: 10,
+    sensitive: true
+  },
+  {
+    name: 'MPESA_BUSINESS_SHORTCODE',
+    required: true,
+    description: 'M-Pesa business shortcode (paybill number)',
+    format: /^\d{5,7}$/,
+    minLength: 5,
+    maxLength: 7,
+    sensitive: false
+  },
+  {
+    name: 'MPESA_PASSKEY',
+    required: true,
+    description: 'M-Pesa passkey for STK push authentication',
+    minLength: 20,
+    sensitive: true
+  },
+  {
+    name: 'MPESA_ENVIRONMENT',
+    required: true,
+    description: 'M-Pesa environment (sandbox or production)',
+    format: /^(sandbox|production)$/,
+    sensitive: false
+  },
+  {
+    name: 'MPESA_CALLBACK_URL',
+    required: true,
+    description: 'M-Pesa callback URL for payment notifications',
+    format: /^https:\/\/.+\/api\/payments\/mpesa\/callback$/,
+    minLength: 20,
+    sensitive: false
+  },
+  
   // M-Pesa Encryption
   {
     name: 'MPESA_KMS_KEY',
@@ -81,6 +128,16 @@ export const REQUIRED_ENVIRONMENT_VARIABLES: EnvironmentVariable[] = [
     minLength: 32,
     maxLength: 32,
     sensitive: true
+  },
+  
+  // App Configuration
+  {
+    name: 'NEXT_PUBLIC_APP_URL',
+    required: true,
+    description: 'Public app URL for callback generation',
+    format: /^https:\/\/.+$/,
+    minLength: 10,
+    sensitive: false
   },
   
   // Node Environment
@@ -98,6 +155,15 @@ export const REQUIRED_ENVIRONMENT_VARIABLES: EnvironmentVariable[] = [
     required: false,
     description: 'Vercel environment (development, preview, production)',
     format: /^(development|preview|production)$/,
+    sensitive: false
+  },
+  
+  // Optional M-Pesa debugging
+  {
+    name: 'MPESA_DEBUG_MODE',
+    required: false,
+    description: 'Enable M-Pesa debug logging (true/false)',
+    format: /^(true|false)$/,
     sensitive: false
   }
 ];

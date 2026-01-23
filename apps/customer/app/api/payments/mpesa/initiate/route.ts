@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { validateMpesaPhoneNumber, sanitizePhoneNumber } from '@tabeza/shared/lib/phoneValidation';
-import { MpesaRateLimiter, extractIpAddress, STKPushService, TransactionService, MpesaError, MpesaNetworkError, MpesaValidationError, ServiceFactory } from '@tabeza/shared';
+import { 
+  MpesaRateLimiter, 
+  extractIpAddress, 
+  STKPushService, 
+  TransactionService, 
+  MpesaError, 
+  MpesaNetworkError, 
+  MpesaValidationError, 
+  ServiceFactory,
+  createTabResolutionService,
+  createCredentialRetrievalService,
+  createTenantMpesaConfigFactory,
+  MpesaEnvironment
+} from '@tabeza/shared';
 
 export async function POST(request: NextRequest) {
   try {
@@ -112,37 +125,134 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // Determine environment (default to sandbox for safety)
+    const environment: MpesaEnvironment = (process.env.MPESA_ENVIRONMENT || 'sandbox') as MpesaEnvironment;
+
     const transaction = await transactionService.createTransaction({
       tabId: tabId,
       customerId: tab.customer_id,
       phoneNumber: validatedPhoneNumber,
       amount: amount,
-      environment: (process.env.MPESA_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production'
+      environment: environment
     });
 
-    // Initialize M-PESA configuration and STK Push service
-    const serviceConfig = ServiceFactory.createServiceConfig(
-      (process.env.MPESA_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
-      {
-        consumerKey: process.env.MPESA_CONSUMER_KEY!,
-        consumerSecret: process.env.MPESA_CONSUMER_SECRET!,
-        businessShortCode: process.env.MPESA_BUSINESS_SHORTCODE!,
-        passkey: process.env.MPESA_PASSKEY!,
-        callbackUrl: process.env.MPESA_CALLBACK_URL!,
-        environment: (process.env.MPESA_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
-        encryptedAt: new Date()
+    // Initialize M-PESA configuration and STK Push service using tenant credentials
+    let stkPushService: STKPushService;
+    
+    try {
+      // Create tenant-aware services
+      const tabResolutionService = createTabResolutionService(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const credentialRetrievalService = createCredentialRetrievalService(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const tenantConfigFactory = createTenantMpesaConfigFactory({
+        defaultTimeoutMs: 30000,
+        defaultRetryAttempts: 3,
+        defaultRateLimitPerMinute: 60,
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!
+      });
+
+      // Create service configuration from tab ID with tenant credential resolution
+      const serviceConfig = await ServiceFactory.createServiceConfigFromTab(
+        tabId,
+        tabResolutionService,
+        credentialRetrievalService,
+        tenantConfigFactory,
+        { environment }
+      );
+
+      // Create STK Push service with tenant-specific configuration
+      const logger = ServiceFactory.createLogger();
+      const httpClient = ServiceFactory.createHttpClient(serviceConfig.timeoutMs);
+      stkPushService = new STKPushService(serviceConfig, logger, httpClient);
+
+    } catch (credentialError) {
+      console.error('Tenant credential resolution error:', credentialError);
+
+      // Update transaction status to failed
+      await transactionService.updateTransactionStatus(transaction.id, 'failed', {
+        failureReason: 'Payment service configuration error'
+      });
+
+      // Record failed attempt
+      await rateLimiter.recordFailedAttempt(
+        tab.customer_id,
+        validatedPhoneNumber,
+        amount,
+        'Payment service configuration error',
+        ipAddress
+      );
+
+      // Return user-friendly error based on the specific credential error
+      if (credentialError instanceof MpesaError) {
+        switch (credentialError.code) {
+          case 'TAB_NOT_FOUND':
+          case 'ORPHANED_TAB':
+          case 'INVALID_TAB_STATUS':
+            return NextResponse.json(
+              { 
+                error: 'Tab is not available for payments',
+                transactionId: transaction.id
+              },
+              { status: 400 }
+            );
+          
+          case 'CREDENTIALS_NOT_FOUND':
+          case 'CREDENTIALS_INACTIVE':
+            return NextResponse.json(
+              { 
+                error: 'Payment service not configured for this location',
+                transactionId: transaction.id
+              },
+              { status: 503 }
+            );
+          
+          case 'DECRYPTION_ERROR':
+          case 'CREDENTIALS_INVALID':
+            return NextResponse.json(
+              { 
+                error: 'Payment service temporarily unavailable',
+                transactionId: transaction.id
+              },
+              { status: 503 }
+            );
+          
+          default:
+            return NextResponse.json(
+              { 
+                error: 'Payment service temporarily unavailable',
+                transactionId: transaction.id
+              },
+              { status: 503 }
+            );
+        }
       }
-    );
-    const stkPushService = new STKPushService(serviceConfig);
+
+      // Generic error for unknown credential issues
+      return NextResponse.json(
+        { 
+          error: 'Payment service temporarily unavailable',
+          transactionId: transaction.id
+        },
+        { status: 503 }
+      );
+    }
 
     try {
-      // Send STK Push request
+      // Send STK Push request using tenant-specific credentials and callback URL
       const stkResponse = await stkPushService.sendSTKPush({
         phoneNumber: validatedPhoneNumber,
         amount: amount,
         accountReference: `TAB${tabId.slice(-8)}`, // Use last 8 chars of tab ID
-        transactionDesc: `Tab Payment`,
-        callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/mpesa/callback`
+        transactionDesc: `Tab Payment`
+        // Note: callbackUrl is automatically used from tenant credentials in the service
       });
 
       // Update transaction with STK Push response

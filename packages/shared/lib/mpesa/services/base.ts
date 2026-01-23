@@ -12,6 +12,11 @@ import {
 } from '../types';
 import { EnvironmentConfigManager } from '../config';
 
+// Import tenant-specific types and services for integration
+import type { TenantMpesaConfig, TenantMpesaConfigFactory } from './tenant-config-factory';
+import type { TabResolutionService } from './tab-resolution';
+import type { CredentialRetrievalService } from './credential-retrieval';
+
 /**
  * Logger interface for dependency injection
  */
@@ -305,6 +310,10 @@ export class ServiceFactory {
     rateLimitPerMinute: 60
   };
 
+  /**
+   * Create service configuration from environment variables (legacy method)
+   * @deprecated Use createTenantServiceConfig for tenant-specific credentials
+   */
   static createServiceConfig(
     environment: MpesaEnvironment,
     credentials: MpesaCredentials,
@@ -316,6 +325,218 @@ export class ServiceFactory {
       ...this.defaultConfig,
       ...overrides
     } as ServiceConfig;
+  }
+
+  /**
+   * Create service configuration from tenant-specific credentials
+   * This is the preferred method for multi-tenant applications
+   * @param tenantConfig - Tenant-specific M-Pesa configuration
+   * @param overrides - Optional configuration overrides
+   * @returns ServiceConfig with tenant-specific settings
+   * @throws MpesaError if configuration is invalid
+   */
+  static createTenantServiceConfig(
+    tenantConfig: TenantMpesaConfig,
+    overrides?: Partial<ServiceConfig>
+  ): ServiceConfig {
+    try {
+      // Validate tenant configuration
+      ServiceFactory.validateTenantConfig(tenantConfig);
+
+      // Create service configuration from tenant config
+      const serviceConfig: ServiceConfig = {
+        environment: tenantConfig.environment,
+        credentials: tenantConfig.credentials,
+        timeoutMs: overrides?.timeoutMs || tenantConfig.timeoutMs,
+        retryAttempts: overrides?.retryAttempts || tenantConfig.retryAttempts,
+        rateLimitPerMinute: overrides?.rateLimitPerMinute || tenantConfig.rateLimitPerMinute,
+        supabaseUrl: overrides?.supabaseUrl || tenantConfig.supabaseUrl,
+        supabaseServiceKey: overrides?.supabaseServiceKey || tenantConfig.supabaseServiceKey
+      };
+
+      return serviceConfig;
+
+    } catch (error) {
+      if (error instanceof MpesaError) {
+        throw error;
+      }
+
+      throw new MpesaError(
+        `Failed to create service configuration for tenant ${tenantConfig.tenantId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'SERVICE_CONFIG_CREATION_ERROR',
+        500,
+        error
+      );
+    }
+  }
+
+  /**
+   * Create service configuration with automatic tenant resolution
+   * This method handles the complete flow from tab ID to service configuration
+   * @param tabId - Tab ID to resolve to tenant
+   * @param tabResolutionService - Service to resolve tab to tenant
+   * @param credentialRetrievalService - Service to retrieve tenant credentials
+   * @param tenantConfigFactory - Factory to create tenant configuration
+   * @param overrides - Optional configuration overrides
+   * @returns ServiceConfig with tenant-specific settings
+   * @throws MpesaError if any step in the resolution fails
+   */
+  static async createServiceConfigFromTab(
+    tabId: string,
+    tabResolutionService: TabResolutionService,
+    credentialRetrievalService: CredentialRetrievalService,
+    tenantConfigFactory: TenantMpesaConfigFactory,
+    overrides?: Partial<ServiceConfig>
+  ): Promise<ServiceConfig> {
+    try {
+      // Step 1: Resolve tab to tenant
+      const tenantInfo = await tabResolutionService.resolveTabToTenant(tabId);
+
+      // Step 2: Retrieve tenant credentials
+      // Default to sandbox environment if not specified in overrides
+      const environment = (overrides?.environment as MpesaEnvironment) || 'sandbox';
+      const credentials = await credentialRetrievalService.getTenantCredentials(tenantInfo.tenantId, environment);
+
+      // Step 3: Create tenant configuration
+      const tenantConfig = tenantConfigFactory.createTenantConfig(tenantInfo, credentials, overrides);
+
+      // Step 4: Create service configuration
+      return ServiceFactory.createTenantServiceConfig(tenantConfig, overrides);
+
+    } catch (error) {
+      if (error instanceof MpesaError) {
+        throw error;
+      }
+
+      throw new MpesaError(
+        `Failed to create service configuration from tab ${tabId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'TAB_SERVICE_CONFIG_CREATION_ERROR',
+        500,
+        error
+      );
+    }
+  }
+
+  /**
+   * Create multiple service configurations for batch operations
+   * @param tenantConfigs - Array of tenant configurations
+   * @param overrides - Optional configuration overrides applied to all configs
+   * @returns Array of ServiceConfig objects
+   * @throws MpesaError if any configuration fails
+   */
+  static createBatchServiceConfigs(
+    tenantConfigs: TenantMpesaConfig[],
+    overrides?: Partial<ServiceConfig>
+  ): ServiceConfig[] {
+    const configs: ServiceConfig[] = [];
+    const errors: Array<{ tenantId: string; error: Error }> = [];
+
+    for (const tenantConfig of tenantConfigs) {
+      try {
+        const serviceConfig = ServiceFactory.createTenantServiceConfig(tenantConfig, overrides);
+        configs.push(serviceConfig);
+      } catch (error) {
+        errors.push({
+          tenantId: tenantConfig.tenantId,
+          error: error instanceof Error ? error : new Error('Unknown error')
+        });
+      }
+    }
+
+    if (errors.length > 0) {
+      const errorMessage = `Failed to create service configurations for ${errors.length} tenants: ${
+        errors.map(e => `${e.tenantId}: ${e.error.message}`).join(', ')
+      }`;
+      
+      throw new MpesaError(
+        errorMessage,
+        'BATCH_SERVICE_CONFIG_ERROR',
+        500,
+        errors
+      );
+    }
+
+    return configs;
+  }
+
+  /**
+   * Validate tenant configuration
+   * @param tenantConfig - Tenant configuration to validate
+   * @throws MpesaError if configuration is invalid
+   */
+  private static validateTenantConfig(tenantConfig: TenantMpesaConfig): void {
+    if (!tenantConfig) {
+      throw new MpesaError(
+        'Tenant configuration is required',
+        'INVALID_TENANT_CONFIG',
+        400
+      );
+    }
+
+    if (!tenantConfig.tenantId || tenantConfig.tenantId.trim().length === 0) {
+      throw new MpesaError(
+        'Tenant ID is required in configuration',
+        'INVALID_TENANT_ID',
+        400
+      );
+    }
+
+    if (!tenantConfig.barId || tenantConfig.barId.trim().length === 0) {
+      throw new MpesaError(
+        'Bar ID is required in configuration',
+        'INVALID_BAR_ID',
+        400
+      );
+    }
+
+    if (!tenantConfig.barName || tenantConfig.barName.trim().length === 0) {
+      throw new MpesaError(
+        'Bar name is required in configuration',
+        'INVALID_BAR_NAME',
+        400
+      );
+    }
+
+    if (!tenantConfig.environment || !['sandbox', 'production'].includes(tenantConfig.environment)) {
+      throw new MpesaError(
+        'Valid environment (sandbox/production) is required in configuration',
+        'INVALID_ENVIRONMENT',
+        400
+      );
+    }
+
+    if (!tenantConfig.credentials) {
+      throw new MpesaError(
+        'Credentials are required in tenant configuration',
+        'MISSING_CREDENTIALS',
+        400
+      );
+    }
+
+    // Validate basic service config properties
+    if (tenantConfig.timeoutMs <= 0) {
+      throw new MpesaError(
+        'Timeout must be greater than 0',
+        'INVALID_TIMEOUT',
+        400
+      );
+    }
+
+    if (tenantConfig.retryAttempts < 0) {
+      throw new MpesaError(
+        'Retry attempts cannot be negative',
+        'INVALID_RETRY_ATTEMPTS',
+        400
+      );
+    }
+
+    if (tenantConfig.rateLimitPerMinute <= 0) {
+      throw new MpesaError(
+        'Rate limit must be greater than 0',
+        'INVALID_RATE_LIMIT',
+        400
+      );
+    }
   }
 
   static createLogger(enableDebug: boolean = false): Logger {
