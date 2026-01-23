@@ -190,7 +190,12 @@ export async function POST(request: NextRequest) {
     );
     
     // Create order sync service
-    const orderSyncService = new OrderStatusUpdateService(config, logger);
+    const orderSyncService = new OrderStatusUpdateService(
+      config, 
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      logger
+    );
 
     const callbackHandler = new CallbackHandler(
       config,

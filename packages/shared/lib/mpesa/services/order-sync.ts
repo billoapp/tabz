@@ -37,13 +37,22 @@ export interface TabPaymentData {
  */
 export class OrderStatusUpdateService extends BaseService {
   private supabase: any;
+  private supabaseUrl: string;
+  private supabaseServiceKey: string;
 
   constructor(
     config: ServiceConfig,
+    supabaseUrl?: string,
+    supabaseServiceKey?: string,
     logger?: Logger,
     httpClient?: HttpClient
   ) {
     super(config, logger, httpClient);
+    
+    // Use provided Supabase config or fall back to environment variables
+    this.supabaseUrl = supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    this.supabaseServiceKey = supabaseServiceKey || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    
     this.validateConfig();
     this.initializeSupabase();
   }
@@ -52,13 +61,13 @@ export class OrderStatusUpdateService extends BaseService {
    * Initialize Supabase client for database operations
    */
   private initializeSupabase(): void {
-    if (!this.config.supabaseUrl || !this.config.supabaseServiceKey) {
+    if (!this.supabaseUrl || !this.supabaseServiceKey) {
       throw new MpesaError('Supabase configuration missing for order sync service', 'CONFIG_ERROR');
     }
 
     this.supabase = createClient(
-      this.config.supabaseUrl,
-      this.config.supabaseServiceKey
+      this.supabaseUrl,
+      this.supabaseServiceKey
     );
   }
 
@@ -430,11 +439,11 @@ export class OrderStatusUpdateService extends BaseService {
   protected validateConfig(): void {
     super.validateConfig();
 
-    if (!this.config.supabaseUrl) {
+    if (!this.supabaseUrl) {
       throw new MpesaError('Supabase URL is required for order sync service', 'CONFIG_ERROR');
     }
 
-    if (!this.config.supabaseServiceKey) {
+    if (!this.supabaseServiceKey) {
       throw new MpesaError('Supabase service key is required for order sync service', 'CONFIG_ERROR');
     }
   }

@@ -54,23 +54,21 @@ describe('Property 7: Order Status Synchronization', () => {
     
     mockConfig = {
       environment: 'sandbox' as MpesaEnvironment,
-      credentials: {
-        consumerKey: 'test-key',
-        consumerSecret: 'test-secret',
-        businessShortCode: '174379',
-        passkey: 'test-passkey',
-        environment: 'sandbox' as MpesaEnvironment,
-        callbackUrl: 'http://test.com/callback',
-        encryptedAt: new Date(),
-      },
+      consumerKey: 'test-key',
+      consumerSecret: 'test-secret',
+      businessShortCode: '174379',
+      passkey: 'test-passkey',
+      callbackUrl: 'http://test.com/callback',
       timeoutMs: 30000,
       retryAttempts: 3,
-      rateLimitPerMinute: 60,
-      supabaseUrl: 'https://test.supabase.co',
-      supabaseServiceKey: 'test-service-key'
+      rateLimitPerMinute: 60
     };
 
-    orderSyncService = new OrderStatusUpdateService(mockConfig);
+    orderSyncService = new OrderStatusUpdateService(
+      mockConfig,
+      'https://test.supabase.co',
+      'test-service-key'
+    );
   });
 
   /**

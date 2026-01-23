@@ -153,7 +153,11 @@ export async function POST(request: NextRequest) {
       rateLimitPerMinute: 100
     };
 
-    const orderSyncService = new OrderStatusUpdateService(serviceConfig);
+    const orderSyncService = new OrderStatusUpdateService(
+      serviceConfig,
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // Get existing transaction
     const transaction = await transactionService.getTransaction(transactionId);

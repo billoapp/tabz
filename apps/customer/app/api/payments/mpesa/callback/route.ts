@@ -36,7 +36,11 @@ export async function POST(request: NextRequest) {
       { timeoutMs: 10000, retryAttempts: 1, rateLimitPerMinute: 100 }
     );
 
-    const orderSyncService = new OrderStatusUpdateService(config);
+    const orderSyncService = new OrderStatusUpdateService(
+      config,
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const callbackHandler = new CallbackHandler(
       config,
