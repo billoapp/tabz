@@ -210,7 +210,7 @@ export async function GET(
         // For now, we'll indicate that tenant credentials are properly resolved
         mpesaQueryResult = {
           queried: true,
-          message: 'M-PESA API query with tenant-specific credentials ready',
+          message: 'M-Pesa API query with tenant-specific credentials ready',
           checkoutRequestId: updatedTransaction.checkoutRequestId,
           tenantCredentialsResolved: true,
           environment: serviceConfig.environment,

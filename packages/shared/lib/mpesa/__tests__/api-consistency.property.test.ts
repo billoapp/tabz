@@ -14,13 +14,15 @@ import {
   TabResolutionService,
   CredentialRetrievalService, 
   TenantMpesaConfigFactory,
-  ServiceFactory,
+  ServiceFactory
+} from '../services';
+import {
   MpesaCredentials,
   MpesaEnvironment,
-  TenantInfo,
-  TenantMpesaConfig,
   ServiceConfig
-} from '../services';
+} from '../types';
+import { TenantInfo } from '../services/tab-resolution';
+import { TenantMpesaConfig } from '../services/tenant-config-factory';
 import { Logger } from '../services/base';
 
 // Mock implementations for testing
@@ -33,6 +35,25 @@ class MockTabResolutionService implements TabResolutionService {
       throw new Error('Tab not found');
     }
     return tenant;
+  }
+
+  async validateTabExists(tabId: string): Promise<any> {
+    const tenant = this.mockTenants.get(tabId);
+    if (!tenant) {
+      throw new Error('Tab not found');
+    }
+    return {
+      id: tabId,
+      barId: tenant.barId,
+      tabNumber: 1,
+      status: 'open',
+      openedAt: new Date()
+    };
+  }
+
+  async validateTabStatus(tabId: string): Promise<boolean> {
+    const tenant = this.mockTenants.get(tabId);
+    return !!tenant && tenant.isActive;
   }
 }
 
@@ -54,13 +75,57 @@ class MockCredentialRetrievalService implements CredentialRetrievalService {
   }
 }
 
-class MockTenantMpesaConfigFactory implements TenantMpesaConfigFactory {
+class MockTenantMpesaConfigFactory {
   constructor(private defaultConfig: {
     defaultTimeoutMs: number;
     defaultRetryAttempts: number;
     defaultRateLimitPerMinute: number;
   }) {}
 
+  createTenantConfig(
+    tenantInfo: TenantInfo, 
+    credentials: MpesaCredentials, 
+    overrides?: Partial<ServiceConfig>
+  ): TenantMpesaConfig {
+    const baseConfig: ServiceConfig = {
+      environment: overrides?.environment || 'sandbox',
+      consumerKey: credentials.consumerKey,
+      consumerSecret: credentials.consumerSecret,
+      businessShortCode: credentials.businessShortCode,
+      passkey: credentials.passkey,
+      callbackUrl: credentials.callbackUrl,
+      timeoutMs: overrides?.timeoutMs || this.defaultConfig.defaultTimeoutMs,
+      retryAttempts: overrides?.retryAttempts || this.defaultConfig.defaultRetryAttempts,
+      rateLimitPerMinute: overrides?.rateLimitPerMinute || this.defaultConfig.defaultRateLimitPerMinute
+    };
+
+    return {
+      ...baseConfig,
+      tenantId: tenantInfo.tenantId,
+      barName: tenantInfo.barName,
+      barId: tenantInfo.barId,
+      credentials
+    };
+  }
+
+  createBatchTenantConfigs(
+    tenantCredentialPairs: Array<{ tenantInfo: TenantInfo; credentials: MpesaCredentials }>,
+    overrides?: Partial<ServiceConfig>
+  ): TenantMpesaConfig[] {
+    return tenantCredentialPairs.map(({ tenantInfo, credentials }) => 
+      this.createTenantConfig(tenantInfo, credentials, overrides)
+    );
+  }
+
+  updateOptions(newOptions: any): void {
+    // Mock implementation
+  }
+
+  getOptions(): any {
+    return this.defaultConfig;
+  }
+
+  // Helper methods for the tests
   async createServiceConfig(tenantInfo: TenantInfo, credentials: MpesaCredentials, options?: {
     environment?: MpesaEnvironment;
     timeoutMs?: number;
@@ -77,21 +142,6 @@ class MockTenantMpesaConfigFactory implements TenantMpesaConfigFactory {
       timeoutMs: options?.timeoutMs || this.defaultConfig.defaultTimeoutMs,
       retryAttempts: options?.retryAttempts || this.defaultConfig.defaultRetryAttempts,
       rateLimitPerMinute: options?.rateLimitPerMinute || this.defaultConfig.defaultRateLimitPerMinute
-    };
-  }
-
-  async createTenantConfig(tenantInfo: TenantInfo, credentials: MpesaCredentials, options?: {
-    environment?: MpesaEnvironment;
-    timeoutMs?: number;
-    retryAttempts?: number;
-    rateLimitPerMinute?: number;
-  }): Promise<TenantMpesaConfig> {
-    const serviceConfig = await this.createServiceConfig(tenantInfo, credentials, options);
-    return {
-      ...serviceConfig,
-      tenantId: tenantInfo.tenantId,
-      barName: tenantInfo.barName,
-      credentials
     };
   }
 
@@ -138,7 +188,9 @@ const credentialsArbitrary = fc.record({
   businessShortCode: fc.string({ minLength: 5, maxLength: 10 }),
   passkey: fc.string({ minLength: 20, maxLength: 100 }),
   callbackUrl: fc.webUrl(),
-  environment: fc.constantFrom('sandbox' as const, 'production' as const)
+  environment: fc.constantFrom('sandbox' as const, 'production' as const),
+  encryptedAt: fc.constant(new Date()),
+  lastValidated: fc.constant(new Date())
 });
 
 const environmentArbitrary = fc.constantFrom('sandbox' as const, 'production' as const);
@@ -186,6 +238,7 @@ describe('Property Test: API Interface Consistency', () => {
             const tenantConfig: TenantMpesaConfig = {
               tenantId: tenantInfo.tenantId,
               barName: tenantInfo.barName,
+              barId: tenantInfo.barId,
               environment,
               consumerKey: adjustedCredentials.consumerKey,
               consumerSecret: adjustedCredentials.consumerSecret,

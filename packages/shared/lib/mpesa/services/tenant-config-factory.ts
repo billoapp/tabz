@@ -16,6 +16,7 @@ export interface TenantMpesaConfig extends ServiceConfig {
   tenantId: string;
   barName: string;
   barId: string;
+  credentials: MpesaCredentials; // Keep credentials object for backward compatibility
 }
 
 /**
@@ -85,15 +86,14 @@ export class TenantMpesaConfigFactory {
       // Create base service configuration
       const baseConfig: ServiceConfig = {
         environment,
-        credentials: {
-          ...credentials,
-          environment // Ensure environment consistency
-        },
+        consumerKey: credentials.consumerKey,
+        consumerSecret: credentials.consumerSecret,
+        businessShortCode: credentials.businessShortCode,
+        passkey: credentials.passkey,
+        callbackUrl: credentials.callbackUrl,
         timeoutMs: overrides?.timeoutMs || this.options.defaultTimeoutMs,
         retryAttempts: overrides?.retryAttempts || this.options.defaultRetryAttempts,
-        rateLimitPerMinute: overrides?.rateLimitPerMinute || this.options.defaultRateLimitPerMinute,
-        supabaseUrl: overrides?.supabaseUrl || this.options.supabaseUrl,
-        supabaseServiceKey: overrides?.supabaseServiceKey || this.options.supabaseServiceKey
+        rateLimitPerMinute: overrides?.rateLimitPerMinute || this.options.defaultRateLimitPerMinute
       };
 
       // Create tenant-specific configuration
@@ -101,7 +101,11 @@ export class TenantMpesaConfigFactory {
         ...baseConfig,
         tenantId: tenantInfo.tenantId,
         barName: tenantInfo.barName,
-        barId: tenantInfo.barId
+        barId: tenantInfo.barId,
+        credentials: {
+          ...credentials,
+          environment // Ensure environment consistency
+        }
       };
 
       // Validate final configuration
@@ -415,10 +419,10 @@ export class TenantMpesaConfigFactory {
       });
     }
 
-    // Validate Supabase configuration if provided
-    if (config.supabaseUrl && config.supabaseUrl.trim().length > 0) {
+    // Validate Supabase configuration if provided in options
+    if (this.options.supabaseUrl && this.options.supabaseUrl.trim().length > 0) {
       try {
-        new URL(config.supabaseUrl);
+        new URL(this.options.supabaseUrl);
       } catch {
         throw new MpesaError(
           'Invalid Supabase URL format',
@@ -428,9 +432,9 @@ export class TenantMpesaConfigFactory {
       }
     }
 
-    if (config.supabaseServiceKey && config.supabaseServiceKey.trim().length > 0) {
+    if (this.options.supabaseServiceKey && this.options.supabaseServiceKey.trim().length > 0) {
       // Basic validation - service keys should be reasonably long
-      if (config.supabaseServiceKey.length < 50) {
+      if (this.options.supabaseServiceKey.length < 50) {
         this.logger.warn(`Supabase service key seems too short for tenant ${config.tenantId}`);
       }
     }

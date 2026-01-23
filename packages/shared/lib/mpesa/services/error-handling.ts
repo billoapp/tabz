@@ -386,7 +386,7 @@ export interface TenantErrorInfo extends ErrorInfo {
   tenantId?: string;
   barId?: string;
   tabId?: string;
-  environment?: MpesaEnvironment;
+  environment: MpesaEnvironment; // Required to match base interface
 }
 
 /**

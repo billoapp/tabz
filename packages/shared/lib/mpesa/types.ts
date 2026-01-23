@@ -165,12 +165,14 @@ export interface EnvironmentConfig {
 // Service configuration
 export interface ServiceConfig {
   environment: MpesaEnvironment;
-  credentials: MpesaCredentials;
+  consumerKey: string;
+  consumerSecret: string;
+  businessShortCode: string;
+  passkey: string;
+  callbackUrl: string;
   timeoutMs: number;
   retryAttempts: number;
   rateLimitPerMinute: number;
-  supabaseUrl?: string;
-  supabaseServiceKey?: string;
 }
 
 // Validation result

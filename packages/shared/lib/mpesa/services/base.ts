@@ -146,8 +146,20 @@ export abstract class BaseService {
     this.httpClient = httpClient || new FetchHttpClient(config.timeoutMs);
     this.configManager = EnvironmentConfigManager.getInstance();
     
+    // Create credentials object from individual fields for environment configuration
+    const credentials: MpesaCredentials = {
+      consumerKey: config.consumerKey,
+      consumerSecret: config.consumerSecret,
+      businessShortCode: config.businessShortCode,
+      passkey: config.passkey,
+      callbackUrl: config.callbackUrl,
+      environment: config.environment,
+      encryptedAt: new Date(),
+      lastValidated: new Date()
+    };
+    
     // Set up environment configuration
-    this.configManager.setEnvironmentConfig(config.environment, config.credentials);
+    this.configManager.setEnvironmentConfig(config.environment, credentials);
   }
 
   /**
@@ -198,8 +210,9 @@ export abstract class BaseService {
    * Validate service configuration
    */
   protected validateConfig(): void {
-    if (!this.config.credentials) {
-      throw new MpesaError('Credentials are required', 'CONFIG_ERROR');
+    if (!this.config.consumerKey || !this.config.consumerSecret || 
+        !this.config.businessShortCode || !this.config.passkey) {
+      throw new MpesaError('All credential fields are required', 'CONFIG_ERROR');
     }
 
     if (!['sandbox', 'production'].includes(this.config.environment)) {
@@ -321,7 +334,11 @@ export class ServiceFactory {
   ): ServiceConfig {
     return {
       environment,
-      credentials,
+      consumerKey: credentials.consumerKey,
+      consumerSecret: credentials.consumerSecret,
+      businessShortCode: credentials.businessShortCode,
+      passkey: credentials.passkey,
+      callbackUrl: credentials.callbackUrl,
       ...this.defaultConfig,
       ...overrides
     } as ServiceConfig;
@@ -346,12 +363,14 @@ export class ServiceFactory {
       // Create service configuration from tenant config
       const serviceConfig: ServiceConfig = {
         environment: tenantConfig.environment,
-        credentials: tenantConfig.credentials,
+        consumerKey: tenantConfig.consumerKey,
+        consumerSecret: tenantConfig.consumerSecret,
+        businessShortCode: tenantConfig.businessShortCode,
+        passkey: tenantConfig.passkey,
+        callbackUrl: tenantConfig.callbackUrl,
         timeoutMs: overrides?.timeoutMs || tenantConfig.timeoutMs,
         retryAttempts: overrides?.retryAttempts || tenantConfig.retryAttempts,
-        rateLimitPerMinute: overrides?.rateLimitPerMinute || tenantConfig.rateLimitPerMinute,
-        supabaseUrl: overrides?.supabaseUrl || tenantConfig.supabaseUrl,
-        supabaseServiceKey: overrides?.supabaseServiceKey || tenantConfig.supabaseServiceKey
+        rateLimitPerMinute: overrides?.rateLimitPerMinute || tenantConfig.rateLimitPerMinute
       };
 
       return serviceConfig;

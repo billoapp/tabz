@@ -16,16 +16,18 @@ import {
   TenantMpesaConfigFactory,
   ServiceFactory,
   STKPushService,
-  TransactionService,
-  CallbackHandler,
+  TransactionService
+} from '../services';
+import {
   MpesaCredentials,
   MpesaEnvironment,
-  TenantInfo,
   ServiceConfig,
   STKCallbackData,
   Transaction,
   MpesaError
-} from '../services';
+} from '../types';
+import { TenantInfo } from '../services/tab-resolution';
+import { TenantMpesaConfig } from '../services/tenant-config-factory';
 import { Logger } from '../services/base';
 
 // Mock implementations for integration testing
@@ -38,6 +40,25 @@ class MockTabResolutionService implements TabResolutionService {
       throw new MpesaError('Tab not found', 'TAB_NOT_FOUND', 404);
     }
     return tenant;
+  }
+
+  async validateTabExists(tabId: string): Promise<any> {
+    const tenant = this.mockTenants.get(tabId);
+    if (!tenant) {
+      throw new MpesaError('Tab not found', 'TAB_NOT_FOUND', 404);
+    }
+    return {
+      id: tabId,
+      barId: tenant.barId,
+      tabNumber: 1,
+      status: 'open',
+      openedAt: new Date()
+    };
+  }
+
+  async validateTabStatus(tabId: string): Promise<boolean> {
+    const tenant = this.mockTenants.get(tabId);
+    return !!tenant && tenant.isActive;
   }
 }
 
@@ -59,13 +80,57 @@ class MockCredentialRetrievalService implements CredentialRetrievalService {
   }
 }
 
-class MockTenantMpesaConfigFactory implements TenantMpesaConfigFactory {
+class MockTenantMpesaConfigFactory {
   constructor(private defaultConfig: {
     defaultTimeoutMs: number;
     defaultRetryAttempts: number;
     defaultRateLimitPerMinute: number;
   }) {}
 
+  createTenantConfig(
+    tenantInfo: TenantInfo, 
+    credentials: MpesaCredentials, 
+    overrides?: Partial<ServiceConfig>
+  ): TenantMpesaConfig {
+    const baseConfig: ServiceConfig = {
+      environment: overrides?.environment || 'sandbox',
+      consumerKey: credentials.consumerKey,
+      consumerSecret: credentials.consumerSecret,
+      businessShortCode: credentials.businessShortCode,
+      passkey: credentials.passkey,
+      callbackUrl: credentials.callbackUrl,
+      timeoutMs: overrides?.timeoutMs || this.defaultConfig.defaultTimeoutMs,
+      retryAttempts: overrides?.retryAttempts || this.defaultConfig.defaultRetryAttempts,
+      rateLimitPerMinute: overrides?.rateLimitPerMinute || this.defaultConfig.defaultRateLimitPerMinute
+    };
+
+    return {
+      ...baseConfig,
+      tenantId: tenantInfo.tenantId,
+      barName: tenantInfo.barName,
+      barId: tenantInfo.barId,
+      credentials
+    };
+  }
+
+  createBatchTenantConfigs(
+    tenantCredentialPairs: Array<{ tenantInfo: TenantInfo; credentials: MpesaCredentials }>,
+    overrides?: Partial<ServiceConfig>
+  ): TenantMpesaConfig[] {
+    return tenantCredentialPairs.map(({ tenantInfo, credentials }) => 
+      this.createTenantConfig(tenantInfo, credentials, overrides)
+    );
+  }
+
+  updateOptions(newOptions: any): void {
+    // Mock implementation
+  }
+
+  getOptions(): any {
+    return this.defaultConfig;
+  }
+
+  // Helper methods for the tests
   async createServiceConfig(tenantInfo: TenantInfo, credentials: MpesaCredentials, options?: {
     environment?: MpesaEnvironment;
     timeoutMs?: number;
@@ -82,21 +147,6 @@ class MockTenantMpesaConfigFactory implements TenantMpesaConfigFactory {
       timeoutMs: options?.timeoutMs || this.defaultConfig.defaultTimeoutMs,
       retryAttempts: options?.retryAttempts || this.defaultConfig.defaultRetryAttempts,
       rateLimitPerMinute: options?.rateLimitPerMinute || this.defaultConfig.defaultRateLimitPerMinute
-    };
-  }
-
-  async createTenantConfig(tenantInfo: TenantInfo, credentials: MpesaCredentials, options?: {
-    environment?: MpesaEnvironment;
-    timeoutMs?: number;
-    retryAttempts?: number;
-    rateLimitPerMinute?: number;
-  }) {
-    const serviceConfig = await this.createServiceConfig(tenantInfo, credentials, options);
-    return {
-      ...serviceConfig,
-      tenantId: tenantInfo.tenantId,
-      barName: tenantInfo.barName,
-      credentials
     };
   }
 
@@ -263,7 +313,9 @@ describe('Payment Flow Integration Tests', () => {
     businessShortCode: '174379',
     passkey: 'test-passkey',
     callbackUrl: 'https://example.com/callback',
-    environment: 'sandbox'
+    environment: 'sandbox',
+    encryptedAt: new Date(),
+    lastValidated: new Date()
   };
 
   const tabId = 'tab-789';
@@ -498,7 +550,9 @@ describe('Payment Flow Integration Tests', () => {
         businessShortCode: '600000',
         passkey: 'tenant2-passkey',
         callbackUrl: 'https://tenant2.com/callback',
-        environment: 'sandbox'
+        environment: 'sandbox',
+        encryptedAt: new Date(),
+        lastValidated: new Date()
       };
 
       const tabId2 = 'tab-999';
@@ -681,7 +735,9 @@ describe('Payment Flow Integration Tests', () => {
           businessShortCode: `${174379 + index}`,
           passkey: `passkey-${index + 1}`,
           callbackUrl: `https://tenant${index + 1}.com/callback`,
-          environment: 'sandbox'
+          environment: 'sandbox',
+          encryptedAt: new Date(),
+          lastValidated: new Date()
         };
 
         mockTenants.set(tenant.tabId, tenantInfo);
