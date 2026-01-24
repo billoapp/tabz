@@ -154,11 +154,11 @@ export async function POST(request: NextRequest) {
 
     const tabId = customerTab.id;
 
-    // Check if tab exists and get customer info (using resolved tabId)
+    // Check if tab exists and get tab info (using resolved tabId)
     const supabase = createServiceRoleClient();
     const { data: tab, error: tabError } = await supabase
       .from('tabs')
-      .select('id, customer_id, status')
+      .select('id, status, owner_identifier')
       .eq('id', tabId)
       .single();
 
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
 
     // Check rate limits and suspicious activity
     const rateLimitResult = await rateLimiter.checkCustomerRateLimit(
-      tab.customer_id,
+      tab.owner_identifier,
       validatedPhoneNumber,
       amount,
       ipAddress
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
     if (!rateLimitResult.allowed) {
       // Log the rate limit violation
       await rateLimiter.recordFailedAttempt(
-        tab.customer_id,
+        tab.owner_identifier,
         validatedPhoneNumber,
         amount,
         rateLimitResult.reason || 'Rate limit exceeded',
@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
 
     const transaction = await transactionService.createTransaction({
       tabId: tabId,
-      customerId: tab.customer_id,
+      customerId: tab.owner_identifier,
       phoneNumber: validatedPhoneNumber,
       amount: amount,
       environment: environment
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
 
       // Record failed attempt
       await rateLimiter.recordFailedAttempt(
-        tab.customer_id,
+        tab.owner_identifier,
         validatedPhoneNumber,
         amount,
         'Payment service configuration error',
@@ -351,7 +351,7 @@ export async function POST(request: NextRequest) {
 
       // Record successful payment initiation
       await rateLimiter.recordSuccessfulPayment(
-        tab.customer_id,
+        tab.owner_identifier,
         validatedPhoneNumber,
         amount,
         ipAddress
@@ -385,7 +385,7 @@ export async function POST(request: NextRequest) {
 
       // Record failed attempt
       await rateLimiter.recordFailedAttempt(
-        tab.customer_id,
+        tab.owner_identifier,
         validatedPhoneNumber,
         amount,
         failureReason,

@@ -188,7 +188,7 @@ export class DatabaseTabResolutionService implements TabResolutionService {
   async resolveCustomerTabToTenant(barId: string, customerIdentifier: string): Promise<TenantInfo> {
     return withTenantErrorHandling(
       async () => {
-        // Find the customer's open tab at the specified bar
+        // Find the customer's active tab at the specified bar
         const { data: tabData, error: tabError } = await this.supabase
           .from('tabs')
           .select(`
@@ -207,12 +207,12 @@ export class DatabaseTabResolutionService implements TabResolutionService {
           `)
           .eq('bar_id', barId)
           .eq('owner_identifier', customerIdentifier)
-          .eq('status', 'open')
+          .in('status', ['open', 'overdue'])
           .single();
 
         if (tabError || !tabData) {
           throw new MpesaError(
-            `No open tab found for customer at bar ${barId}`,
+            `No active tab found for customer at bar ${barId}`,
             'CUSTOMER_TAB_NOT_FOUND',
             404
           );
@@ -314,7 +314,7 @@ export class DatabaseTabResolutionService implements TabResolutionService {
           .select('id, bar_id, tab_number, status, owner_identifier, opened_at, closed_at')
           .eq('bar_id', barId)
           .eq('tab_number', tabNumber)
-          .eq('status', 'open')
+          .in('status', ['open', 'overdue'])
           .single();
 
         if (error || !tabData) {
@@ -370,9 +370,9 @@ export class DatabaseTabResolutionService implements TabResolutionService {
    * @returns boolean indicating if status allows payments
    */
   private isValidTabStatus(status: string): boolean {
-    // Only allow payments on open tabs
+    // Allow payments on open and overdue tabs
     // 'closing' status might be acceptable depending on business rules
-    const validStatuses = ['open', 'closing'];
+    const validStatuses = ['open', 'overdue', 'closing'];
     return validStatuses.includes(status);
   }
 }
