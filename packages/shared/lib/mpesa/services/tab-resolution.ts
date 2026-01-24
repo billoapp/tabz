@@ -24,12 +24,12 @@ export interface TenantInfo {
 
 export interface TabInfo {
   id: string;
-  barId: string;
-  tabNumber: number;
+  bar_id: string;
+  tab_number: number;
   status: string;
-  ownerIdentifier?: string;
-  openedAt: Date;
-  closedAt?: Date;
+  owner_identifier?: string;
+  opened_at: Date;
+  closed_at?: Date;
 }
 
 export interface TabResolutionService {
@@ -163,12 +163,12 @@ export class DatabaseTabResolutionService implements TabResolutionService {
 
         return {
           id: tabData.id,
-          barId: tabData.bar_id,
-          tabNumber: tabData.tab_number,
+          bar_id: tabData.bar_id,
+          tab_number: tabData.tab_number,
           status: tabData.status,
-          ownerIdentifier: tabData.owner_identifier,
-          openedAt: new Date(tabData.opened_at),
-          closedAt: tabData.closed_at ? new Date(tabData.closed_at) : undefined
+          owner_identifier: tabData.owner_identifier,
+          opened_at: new Date(tabData.opened_at),
+          closed_at: tabData.closed_at ? new Date(tabData.closed_at) : undefined
         };
       },
       this.errorHandler,
@@ -283,12 +283,12 @@ export class DatabaseTabResolutionService implements TabResolutionService {
 
         return {
           id: tabData.id,
-          barId: tabData.bar_id,
-          tabNumber: tabData.tab_number,
+          bar_id: tabData.bar_id,
+          tab_number: tabData.tab_number,
           status: tabData.status,
-          ownerIdentifier: tabData.owner_identifier,
-          openedAt: new Date(tabData.opened_at),
-          closedAt: tabData.closed_at ? new Date(tabData.closed_at) : undefined
+          owner_identifier: tabData.owner_identifier,
+          opened_at: new Date(tabData.opened_at),
+          closed_at: tabData.closed_at ? new Date(tabData.closed_at) : undefined
         };
       },
       this.errorHandler,
@@ -328,12 +328,12 @@ export class DatabaseTabResolutionService implements TabResolutionService {
 
         return {
           id: tabData.id,
-          barId: tabData.bar_id,
-          tabNumber: tabData.tab_number,
+          bar_id: tabData.bar_id,
+          tab_number: tabData.tab_number,
           status: tabData.status,
-          ownerIdentifier: tabData.owner_identifier,
-          openedAt: new Date(tabData.opened_at),
-          closedAt: tabData.closed_at ? new Date(tabData.closed_at) : undefined
+          owner_identifier: tabData.owner_identifier,
+          opened_at: new Date(tabData.opened_at),
+          closed_at: tabData.closed_at ? new Date(tabData.closed_at) : undefined
         };
       },
       this.errorHandler,
@@ -372,8 +372,7 @@ export class DatabaseTabResolutionService implements TabResolutionService {
    */
   private isValidTabStatus(status: string): boolean {
     // Allow payments on open and overdue tabs
-    // 'closing' status might be acceptable depending on business rules
-    const validStatuses = ['open', 'overdue', 'closing'];
+    const validStatuses = ['open', 'overdue'];
     return validStatuses.includes(status);
   }
 }

@@ -20,12 +20,12 @@ export interface TabAutoCloseResult {
   error?: string;
 }
 
-export interface TabInfo {
+export interface TabAutoCloseInfo {
   id: string;
-  status: 'open' | 'overdue' | 'closed' | 'closing';
-  barId: string;
-  ownerIdentifier: string;
-  tabNumber: number;
+  status: 'open' | 'overdue' | 'closed';
+  bar_id: string;
+  owner_identifier: string;
+  tab_number: number;
   balance: number;
   isOverdue: boolean;
 }
@@ -96,15 +96,15 @@ export class TabAutoCloseService {
         if (closeResult.success) {
           this.logger.info('Overdue tab auto-closed successfully', {
             tabId,
-            tabNumber: tabInfo.tabNumber,
-            barId: tabInfo.barId
+            tabNumber: tabInfo.tab_number,
+            barId: tabInfo.bar_id
           });
 
           return {
             success: true,
             tabClosed: true,
             shouldCreateNewTab: true,
-            message: `Tab ${tabInfo.tabNumber} has been automatically closed as it was paid in full outside business hours. Would you like to start a new tab?`
+            message: `Tab ${tabInfo.tab_number} has been automatically closed as it was paid in full outside business hours. Would you like to start a new tab?`
           };
         } else {
           return {
@@ -119,14 +119,14 @@ export class TabAutoCloseService {
         // Open tab paid in full - keep it open until business hours end
         this.logger.info('Open tab paid in full - keeping open until business hours end', {
           tabId,
-          tabNumber: tabInfo.tabNumber
+          tabNumber: tabInfo.tab_number
         });
 
         return {
           success: true,
           tabClosed: false,
           shouldCreateNewTab: false,
-          message: `Tab ${tabInfo.tabNumber} is paid in full and will remain open until business hours end.`
+          message: `Tab ${tabInfo.tab_number} is paid in full and will remain open until business hours end.`
         };
       }
 
@@ -150,7 +150,7 @@ export class TabAutoCloseService {
   /**
    * Get comprehensive tab information including balance and overdue status
    */
-  private async getTabInfo(tabId: string): Promise<TabInfo | null> {
+  private async getTabInfo(tabId: string): Promise<TabAutoCloseInfo | null> {
     try {
       // Get tab basic info
       const { data: tabData, error: tabError } = await this.supabase
@@ -187,9 +187,9 @@ export class TabAutoCloseService {
       return {
         id: tabData.id,
         status: tabData.status,
-        barId: tabData.bar_id,
-        ownerIdentifier: tabData.owner_identifier,
-        tabNumber: tabData.tab_number,
+        bar_id: tabData.bar_id,
+        owner_identifier: tabData.owner_identifier,
+        tab_number: tabData.tab_number,
         balance: parseFloat(balance.toString()),
         isOverdue
       };
@@ -206,11 +206,11 @@ export class TabAutoCloseService {
   /**
    * Auto-close a tab using the database function
    */
-  private async autoCloseTab(tabInfo: TabInfo): Promise<{ success: boolean; error?: string }> {
+  private async autoCloseTab(tabInfo: TabAutoCloseInfo): Promise<{ success: boolean; error?: string }> {
     try {
       this.logger.info('Auto-closing overdue tab', {
         tabId: tabInfo.id,
-        tabNumber: tabInfo.tabNumber,
+        tabNumber: tabInfo.tab_number,
         balance: tabInfo.balance
       });
 
@@ -252,7 +252,7 @@ export class TabAutoCloseService {
   /**
    * Log tab auto-closure for audit purposes
    */
-  private async logTabAutoClosure(tabInfo: TabInfo): Promise<void> {
+  private async logTabAutoClosure(tabInfo: TabAutoCloseInfo): Promise<void> {
     try {
       await this.supabase
         .from('audit_logs')
@@ -264,16 +264,16 @@ export class TabAutoCloseService {
           new_values: { status: 'closed' },
           metadata: {
             reason: 'overdue_tab_paid_in_full',
-            tab_number: tabInfo.tabNumber,
-            bar_id: tabInfo.barId,
-            owner_identifier: tabInfo.ownerIdentifier,
+            tab_number: tabInfo.tab_number,
+            bar_id: tabInfo.bar_id,
+            owner_identifier: tabInfo.owner_identifier,
             final_balance: tabInfo.balance
           }
         });
 
       this.logger.info('Tab auto-closure logged to audit trail', {
         tabId: tabInfo.id,
-        tabNumber: tabInfo.tabNumber
+        tabNumber: tabInfo.tab_number
       });
 
     } catch (error) {
@@ -289,7 +289,7 @@ export class TabAutoCloseService {
    * Check if a customer should be offered to create a new tab
    * This is called after an overdue tab is auto-closed
    */
-  async shouldOfferNewTab(barId: string, ownerIdentifier: string): Promise<{
+  async shouldOfferNewTab(bar_id: string, owner_identifier: string): Promise<{
     shouldOffer: boolean;
     reason: string;
   }> {
@@ -298,14 +298,14 @@ export class TabAutoCloseService {
       const { data: existingTabs, error } = await this.supabase
         .from('tabs')
         .select('id, status')
-        .eq('bar_id', barId)
-        .eq('owner_identifier', ownerIdentifier)
-        .in('status', ['open', 'closing']);
+        .eq('bar_id', bar_id)
+        .eq('owner_identifier', owner_identifier)
+        .in('status', ['open']);
 
       if (error) {
         this.logger.error('Error checking for existing tabs', {
-          barId,
-          ownerIdentifier,
+          bar_id,
+          owner_identifier,
           error: error.message
         });
         return {
@@ -325,7 +325,7 @@ export class TabAutoCloseService {
       const { data: barData, error: barError } = await this.supabase
         .from('bars')
         .select('business_hours, timezone')
-        .eq('id', barId)
+        .eq('id', bar_id)
         .single();
 
       if (barError || !barData) {
@@ -344,8 +344,8 @@ export class TabAutoCloseService {
 
     } catch (error) {
       this.logger.error('Error determining if new tab should be offered', {
-        barId,
-        ownerIdentifier,
+        bar_id,
+        owner_identifier,
         error: error instanceof Error ? error.message : error
       });
 
