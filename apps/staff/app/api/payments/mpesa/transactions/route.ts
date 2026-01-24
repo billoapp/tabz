@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
     // Initialize transaction service
     const transactionService = new TransactionService(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Calculate date filter
@@ -216,7 +216,7 @@ export async function GET(request: NextRequest) {
         .select(`
           id,
           tab_id,
-          customer_id,
+          owner_identifier,
           phone_number,
           amount,
           currency,
@@ -273,7 +273,7 @@ export async function GET(request: NextRequest) {
       const transformedTransactions = fallbackTransactions?.map(t => ({
         id: t.id,
         tabId: t.tab_id,
-        customerId: t.customer_id,
+        customerId: t.owner_identifier,
         phoneNumber: t.phone_number,
         amount: Number(t.amount),
         currency: t.currency,

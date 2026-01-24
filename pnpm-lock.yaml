@@ -261,6 +261,12 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.39.7
         version: 2.89.0
+      react:
+        specifier: ^19.0.0
+        version: 19.2.3
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.3(react@19.2.3)
     devDependencies:
       '@types/jest':
         specifier: ^29.5.8

@@ -33,7 +33,6 @@ const nextConfig = {
   // Experimental features for better monorepo support
   experimental: {
     externalDir: true,
-    transpilePackages: ['@tabeza/shared'],
   },
   
   // Webpack configuration for monorepo

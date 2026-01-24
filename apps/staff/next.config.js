@@ -21,8 +21,24 @@ const withPWA = require('next-pwa')({
 });
 
 const nextConfig = {
-  // Configure for monorepo
-  transpilePackages: ['@/components', '@/lib'],
+  // Configure for monorepo - transpile shared packages
+  transpilePackages: ['@tabeza/shared'],
+  
+  // Experimental features for better monorepo support
+  experimental: {
+    externalDir: true,
+  },
+  
+  // Webpack configuration for monorepo
+  webpack: (config, { isServer }) => {
+    // Handle shared package imports
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@tabeza/shared': path.resolve(__dirname, '../../packages/shared'),
+    };
+    
+    return config;
+  },
   
   // Handle static assets from root public directory
   output: 'standalone',

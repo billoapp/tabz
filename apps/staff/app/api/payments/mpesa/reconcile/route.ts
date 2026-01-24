@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
     // Initialize services
     const transactionService = new TransactionService(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Create a minimal service config for order sync service
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
     const orderSyncService = new OrderStatusUpdateService(
       serviceConfig,
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Get existing transaction

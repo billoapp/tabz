@@ -139,7 +139,7 @@ export async function GET(
     // Initialize transaction service
     const transactionService = new TransactionService(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Get transaction details
@@ -173,12 +173,12 @@ export async function GET(
         // Use tenant credential resolution system
         const tabResolutionService = createTabResolutionService(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
+          process.env.SUPABASE_SECRET_KEY!
         );
 
         const credentialRetrievalService = createCredentialRetrievalService(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
+          process.env.SUPABASE_SECRET_KEY!
         );
 
         const tenantConfigFactory = createTenantMpesaConfigFactory({
@@ -186,7 +186,7 @@ export async function GET(
           defaultRetryAttempts: 3,
           defaultRateLimitPerMinute: 60,
           supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!
+          supabaseServiceKey: process.env.SUPABASE_SECRET_KEY!
         });
 
         // Create service configuration from tab ID with tenant credential resolution
