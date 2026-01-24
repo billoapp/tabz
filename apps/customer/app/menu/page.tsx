@@ -1048,6 +1048,16 @@ export default function MenuPage() {
         router.replace('/');
         return;
       }
+
+      // Check if tab is closed - redirect if so
+      if (fullTab.status === 'closed') {
+        console.log('🛑 Tab is closed, redirecting to home');
+        sessionStorage.removeItem('currentTab');
+        sessionStorage.removeItem('cart');
+        router.replace('/');
+        return;
+      }
+
       console.log('✅ Menu page: Full tab loaded:', fullTab);
       setTab(fullTab as Tab);
       setBarName((fullTab as any).bar?.name || 'Bar');
@@ -2404,7 +2414,7 @@ export default function MenuPage() {
                       return (
                         <div
                           key={barProduct.id}
-                          className="flex-shrink-0 flex-grow-0 transform transition-all duration-300 hover:scale-105"
+                          className="flex-shrink-0 flex-grow-0 transform transition-all duration-300 hover:scale-105 mt-4"
                           style={{ 
                             width: '240px',
                             minWidth: '240px',

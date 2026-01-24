@@ -135,6 +135,15 @@ export default function TabPage() {
 
       if (tabError) throw tabError;
 
+      // Check if tab is closed - redirect if so
+      if (fullTab.status === 'closed') {
+        console.log('🛑 Tab is closed, redirecting to home');
+        sessionStorage.removeItem('currentTab');
+        sessionStorage.removeItem('cart');
+        router.push('/');
+        return;
+      }
+
       setTab(fullTab);
       setBarName(fullTab.bar?.name || 'Bar');
 

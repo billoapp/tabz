@@ -47,12 +47,47 @@ export default function PaymentPage() {
     const tabData = sessionStorage.getItem('currentTab');
     if (tabData) {
       const tab = JSON.parse(tabData);
-      setCurrentTab(tab);
       
-      // Fetch payment settings for this bar
-      fetchPaymentSettings(tab.bar_id);
+      // Verify tab status with Supabase
+      verifyTabStatus(tab.id);
     } else {
       // Redirect to home if no tab found
+      router.push('/');
+    }
+  }, [router]);
+
+  const verifyTabStatus = async (tabId: string) => {
+    try {
+      const { data: fullTab, error } = await supabase
+        .from('tabs')
+        .select('*, bar:bars(id, name)')
+        .eq('id', tabId)
+        .single();
+
+      if (error || !fullTab) {
+        console.error('Tab not found or error:', error);
+        sessionStorage.removeItem('currentTab');
+        router.push('/');
+        return;
+      }
+
+      // Check if tab is closed - redirect if so
+      if (fullTab.status === 'closed') {
+        console.log('🛑 Tab is closed, redirecting to home');
+        sessionStorage.removeItem('currentTab');
+        sessionStorage.removeItem('cart');
+        router.push('/');
+        return;
+      }
+
+      setCurrentTab(fullTab);
+      
+      // Fetch payment settings for this bar
+      if (fullTab.bar?.id) {
+        fetchPaymentSettings(fullTab.bar.id);
+      }
+    } catch (error) {
+      console.error('Error verifying tab status:', error);
       router.push('/');
     }
   }, [router]);
