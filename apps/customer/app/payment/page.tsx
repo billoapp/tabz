@@ -90,6 +90,7 @@ export default function PaymentPage() {
       console.error('Error verifying tab status:', error);
       router.push('/');
     }
+  };
   }, [router]);
 
   const fetchPaymentSettings = async (barId: string) => {
