@@ -324,10 +324,8 @@ export class CallbackHandler extends BaseService {
             paymentMethods: balanceInfo.paymentMethods
           });
 
-          // Check if overdue tab should be auto-closed when paid in full
-          if (paymentSuccessful && balanceInfo.balance <= 0) {
-            await this.processTabAutoClose(transaction.tabId, transaction.amount);
-          }
+          // Auto-close is now handled by database trigger on tab_payments table
+          // No need for application-level auto-close logic here
 
         } catch (balanceError) {
           // Don't fail the whole process if balance info fails

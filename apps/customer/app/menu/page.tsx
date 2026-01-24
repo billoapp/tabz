@@ -176,7 +176,6 @@ export default function MenuPage() {
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
 
   // Removed collapsible functionality - all sections now always visible
-  const [cartCollapsed, setCartCollapsed] = useState(true);
 
   // NEW: Average response time state
   const [averageResponseTime, setAverageResponseTime] = useState<number | null>(null);
@@ -891,18 +890,20 @@ export default function MenuPage() {
 
   // Removed toggle functions - sections are now always visible
   
-  // Keep cart toggle function since cart remains collapsible
+  // Keep cart toggle function for floating button only
   const toggleCart = () => {
-    setCartCollapsed(!cartCollapsed);
+    // Cart is now always visible, this function is only used by floating button for scrolling
+    if (paymentRef.current) {
+      paymentRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   // Removed remaining toggle functions - sections are now always visible
 
   const toggleStaticMenu = () => {
     if (!showStaticMenu) {
-      // Opening static menu - close cart only
+      // Opening static menu - close other sections
       setShowStaticMenu(true);
-      setCartCollapsed(true);
     } else {
       // Closing static menu - just collapse it
       setShowStaticMenu(false);
@@ -2336,7 +2337,7 @@ export default function MenuPage() {
       </div>
 
       {/* FOOD Menu Section - Always Visible */}
-      <div className="bg-gray-50 px-4">
+      <div className="bg-gray-50 px-4 mt-4">
         <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
           <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50">
             <div>
@@ -2465,7 +2466,7 @@ export default function MenuPage() {
       </div>
 
       {/* DRINKS Menu Section - Always Visible */}
-      <div className="bg-gray-50 px-4">
+      <div className="bg-gray-50 px-4 mt-4">
         <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
           <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50">
             <div>
@@ -2586,19 +2587,12 @@ export default function MenuPage() {
 
       {/* Cart Section - Only show when cart has items */}
       {cart.length > 0 && (
-        <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 border-t border-orange-200">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="p-4 mb-4 bg-gradient-to-br from-orange-50 to-orange-100 border-t border-orange-200">
+          <div className="mb-3">
             <h2 className="text-xs font-semibold text-orange-600 uppercase tracking-wide">YOUR CART</h2>
-            <button
-              onClick={toggleCart}
-              className="text-orange-600 hover:text-orange-700 transition-colors"
-            >
-              {cartCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-            </button>
           </div>
 
-          {!cartCollapsed && (
-            <div className="bg-white rounded-xl shadow-sm border border-orange-200 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border border-orange-200 overflow-hidden">
               {/* Cart Header */}
               <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4">
                 <div className="flex items-center justify-between">
@@ -2708,7 +2702,6 @@ export default function MenuPage() {
                 </div>
               </div>
             </div>
-          )}
         </div>
       )}
 
