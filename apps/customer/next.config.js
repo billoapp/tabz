@@ -27,8 +27,8 @@ const withPWA = require('next-pwa')({
 });
 
 const nextConfig = {
-  // Configure for monorepo
-  transpilePackages: ['@/components', '@/lib'],
+  // Configure for monorepo - transpile shared packages
+  transpilePackages: ['@tabeza/shared'],
   
   // Ensure proper image optimization
   images: {
