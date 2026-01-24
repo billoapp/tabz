@@ -18,12 +18,11 @@ jest.mock('@/lib/formatUtils', () => ({
 
 // Mock the MpesaPayment component
 jest.mock('../MpesaPayment', () => {
-  return function MockMpesaPayment({ amount, tabId, onPaymentSuccess, onPaymentError }: any) {
+  return function MockMpesaPayment({ amount, onPaymentSuccess, onPaymentError }: any) {
     return (
       <div data-testid="mpesa-payment-component">
         <p>M-Pesa Payment Component</p>
         <p>Amount: {amount}</p>
-        <p>Tab ID: {tabId}</p>
         <button onClick={() => onPaymentSuccess('TEST123')}>Mock Success</button>
         <button onClick={() => onPaymentError('Mock Error')}>Mock Error</button>
       </div>
@@ -53,7 +52,6 @@ describe('MpesaPaymentTab Component', () => {
     amount: '1000',
     onAmountChange: jest.fn(),
     balance: 2000,
-    tabId: 'test-tab-123',
     onPaymentSuccess: jest.fn(),
     onPaymentError: jest.fn(),
   };
@@ -301,7 +299,7 @@ describe('MpesaPaymentTab Component', () => {
     test('should pass correct props to MpesaPayment component', async () => {
       const user = userEvent.setup();
       
-      render(<MpesaPaymentTab {...defaultProps} amount="750" tabId="test-123" />);
+      render(<MpesaPaymentTab {...defaultProps} amount="750" />);
       
       const phoneInput = screen.getByPlaceholderText('0712 345 678');
       await user.type(phoneInput, '0712345678');
@@ -310,7 +308,6 @@ describe('MpesaPaymentTab Component', () => {
       await user.click(sendButton);
       
       expect(screen.getByText('Amount: 750')).toBeInTheDocument();
-      expect(screen.getByText('Tab ID: test-123')).toBeInTheDocument();
     });
 
     test('should handle payment success', async () => {
@@ -392,8 +389,7 @@ describe('MpesaPaymentTab Component', () => {
       fc.assert(fc.property(
         fc.record({
           amount: fc.string({ minLength: 1, maxLength: 10 }).filter(s => /^\d+$/.test(s)),
-          balance: fc.integer({ min: 100, max: 10000 }),
-          tabId: fc.string({ minLength: 5, maxLength: 20 })
+          balance: fc.integer({ min: 100, max: 10000 })
         }),
         (config) => {
           const { container } = render(
@@ -401,7 +397,6 @@ describe('MpesaPaymentTab Component', () => {
               amount={config.amount}
               onAmountChange={jest.fn()}
               balance={config.balance}
-              tabId={config.tabId}
               onPaymentSuccess={jest.fn()}
               onPaymentError={jest.fn()}
             />
@@ -447,7 +442,6 @@ describe('MpesaPaymentTab Component', () => {
               amount={config.amount}
               onAmountChange={jest.fn()}
               balance={config.balance}
-              tabId="test-tab"
               onPaymentSuccess={jest.fn()}
               onPaymentError={jest.fn()}
             />

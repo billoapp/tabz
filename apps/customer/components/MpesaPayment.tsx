@@ -12,6 +12,7 @@ import {
   sanitizePhoneNumber,
   convertToInternationalFormat
 } from '@tabeza/shared/lib/phoneValidation';
+import { validatePaymentContext, logPaymentDebugInfo } from '@/lib/payment-debug';
 
 interface MpesaPaymentProps {
   amount: number;
@@ -78,6 +79,20 @@ export default function MpesaPayment({
   };
 
   const initiatePayment = async () => {
+    // First, validate payment context and log debug info
+    const contextValidation = validatePaymentContext();
+    if (!contextValidation.isValid) {
+      console.error('Payment context validation failed:', contextValidation.error);
+      logPaymentDebugInfo();
+      
+      showToast({
+        type: 'error',
+        title: 'Payment Setup Error',
+        message: contextValidation.error || 'Unable to initialize payment. Please refresh and try again.'
+      });
+      return;
+    }
+
     const validation = validateMpesaPhoneNumber(phoneNumber);
     if (!validation.isValid) {
       showToast({
@@ -107,43 +122,108 @@ export default function MpesaPayment({
     try {
       const internationalPhone = convertToInternationalFormat(phoneNumber);
       
-      // Get customer context from session storage
+      // Get customer context from session storage with enhanced validation
       const tabData = sessionStorage.getItem('currentTab');
       if (!tabData) {
+        logPaymentDebugInfo();
         throw new Error('No active tab found. Please refresh and try again.');
       }
       
-      const currentTab = JSON.parse(tabData);
-      const barId = currentTab.bar_id;
+      let currentTab;
+      try {
+        currentTab = JSON.parse(tabData);
+      } catch (parseError) {
+        console.error('Failed to parse tab data:', parseError);
+        logPaymentDebugInfo();
+        throw new Error('Invalid tab data. Please refresh and try again.');
+      }
       
-      // Get device ID for customer identifier
+      // Validate tab data structure
+      if (!currentTab || typeof currentTab !== 'object') {
+        logPaymentDebugInfo();
+        throw new Error('Invalid tab data format. Please refresh and try again.');
+      }
+      
+      const barId = currentTab.bar_id;
+      if (!barId || typeof barId !== 'string') {
+        console.error('Invalid bar_id in tab data:', { currentTab, barId });
+        logPaymentDebugInfo();
+        throw new Error('Bar information not available. Please refresh and try again.');
+      }
+      
+      // Get device ID for customer identifier with enhanced validation
       const deviceId = localStorage.getItem('tabeza_device_id_v2') || localStorage.getItem('Tabeza_device_id');
-      if (!deviceId) {
+      if (!deviceId || typeof deviceId !== 'string') {
+        console.error('Device ID not found or invalid:', { deviceId });
+        logPaymentDebugInfo();
         throw new Error('Device not registered. Please refresh and try again.');
       }
       
-      // Generate customer identifier
+      // Generate customer identifier with validation
       const customerIdentifier = `${deviceId}_${barId}`;
+      if (!customerIdentifier || customerIdentifier.length < 3 || !customerIdentifier.includes('_')) {
+        console.error('Invalid customer identifier generated:', { deviceId, barId, customerIdentifier });
+        logPaymentDebugInfo();
+        throw new Error('Unable to generate customer identifier. Please refresh and try again.');
+      }
       
-      console.log('Payment context:', { barId, customerIdentifier, deviceId, tabData: currentTab });
+      // Validate all required fields before sending
+      const paymentData = {
+        barId,
+        customerIdentifier,
+        phoneNumber: internationalPhone,
+        amount
+      };
+      
+      // Final validation of all required fields
+      if (!paymentData.barId || !paymentData.customerIdentifier || !paymentData.phoneNumber || !paymentData.amount) {
+        console.error('Missing required payment fields:', paymentData);
+        logPaymentDebugInfo();
+        throw new Error('Payment data incomplete. Please check all fields and try again.');
+      }
+      
+      console.log('Payment context:', { 
+        barId, 
+        customerIdentifier, 
+        deviceId, 
+        phoneNumber: internationalPhone,
+        amount,
+        tabData: currentTab 
+      });
       
       const response = await fetch('/api/payments/mpesa/initiate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          barId,
-          customerIdentifier,
-          phoneNumber: internationalPhone,
-          amount
-        }),
+        body: JSON.stringify(paymentData),
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse API response:', jsonError);
+        console.error('Response status:', response.status);
+        console.error('Response headers:', Object.fromEntries(response.headers.entries()));
+        throw new Error('Invalid response from payment service. Please try again.');
+      }
 
       if (!response.ok) {
-        throw new Error(result.error || 'Payment initiation failed');
+        console.error('Payment API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: result.error,
+          details: result.details,
+          paymentData
+        });
+        
+        // Log debug info for API errors
+        if (response.status === 400 && result.error?.includes('Missing required fields')) {
+          logPaymentDebugInfo();
+        }
+        
+        throw new Error(result.error || `Payment failed with status ${response.status}`);
       }
 
       if (result.success) {
@@ -158,6 +238,7 @@ export default function MpesaPayment({
         // Start polling for payment status
         startStatusPolling(result.transactionId);
       } else {
+        console.error('Payment initiation failed:', result);
         throw new Error(result.error || 'Payment initiation failed');
       }
     } catch (error) {

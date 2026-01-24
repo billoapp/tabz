@@ -22,6 +22,7 @@ import {
   getPhoneNumberGuidance,
   getNetworkProvider
 } from '@tabeza/shared/lib/phoneValidation';
+import { validatePaymentContext, logPaymentDebugInfo } from '@/lib/payment-debug';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 import PDFViewer from '../../../../components/PDFViewer'; 
 import MessagePanel from './MessagePanel';
@@ -1794,23 +1795,105 @@ export default function MenuPage() {
       try {
         setIsProcessing(true);
         
+        // Validate payment context first
+        const contextValidation = validatePaymentContext();
+        if (!contextValidation.isValid) {
+          console.error('Menu payment context validation failed:', contextValidation.error);
+          logPaymentDebugInfo();
+          throw new Error(contextValidation.error || 'Unable to initialize payment. Please refresh and try again.');
+        }
+        
+        // Get customer context for payment with enhanced validation
+        const barId = tab?.bar_id;
+        if (!barId || typeof barId !== 'string') {
+          console.error('Invalid bar_id in tab data:', { tab, barId });
+          logPaymentDebugInfo();
+          throw new Error('Bar information not available. Please refresh and try again.');
+        }
+        
+        // Get device ID for customer identifier with enhanced validation
+        const deviceId = localStorage.getItem('tabeza_device_id_v2') || localStorage.getItem('Tabeza_device_id');
+        if (!deviceId || typeof deviceId !== 'string') {
+          console.error('Device ID not found or invalid:', { deviceId });
+          logPaymentDebugInfo();
+          throw new Error('Device not registered. Please refresh and try again.');
+        }
+        
+        // Generate customer identifier with validation
+        const customerIdentifier = `${deviceId}_${barId}`;
+        if (!customerIdentifier || customerIdentifier.length < 3 || !customerIdentifier.includes('_')) {
+          console.error('Invalid customer identifier generated:', { deviceId, barId, customerIdentifier });
+          logPaymentDebugInfo();
+          throw new Error('Unable to generate customer identifier. Please refresh and try again.');
+        }
+        
+        // Validate payment amount
+        const paymentAmountNum = parseFloat(paymentAmount);
+        if (isNaN(paymentAmountNum) || paymentAmountNum <= 0) {
+          throw new Error('Invalid payment amount. Please enter a valid number.');
+        }
+        
+        // Validate phone number format
+        const phoneNumberToUse = validation.formatted || validation.international;
+        if (!phoneNumberToUse) {
+          throw new Error('Invalid phone number format. Please check and try again.');
+        }
+        
+        // Prepare payment data with validation
+        const paymentData = {
+          barId,
+          customerIdentifier,
+          phoneNumber: phoneNumberToUse,
+          amount: paymentAmountNum
+        };
+        
+        // Final validation of all required fields
+        if (!paymentData.barId || !paymentData.customerIdentifier || !paymentData.phoneNumber || !paymentData.amount) {
+          console.error('Missing required payment fields:', paymentData);
+          logPaymentDebugInfo();
+          throw new Error('Payment data incomplete. Please check all fields and try again.');
+        }
+        
+        console.log('Menu payment context:', { 
+          barId, 
+          customerIdentifier, 
+          deviceId, 
+          phoneNumber: phoneNumberToUse,
+          amount: paymentAmountNum,
+          tabData: tab 
+        });
+        
         const response = await fetch('/api/payments/mpesa/initiate', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            phoneNumber: validation.formatted,
-            amount: parseFloat(paymentAmount),
-            tabId: tab.id, // Now we know tab.id exists
-            description: `Payment for tab at ${tab?.bar?.name || 'Bar'}`
-          }),
+          body: JSON.stringify(paymentData),
         });
 
-        const data = await response.json();
+        let data;
+        try {
+          data = await response.json();
+        } catch (jsonError) {
+          console.error('Failed to parse menu payment API response:', jsonError);
+          throw new Error('Invalid response from payment service. Please try again.');
+        }
 
         if (!response.ok) {
-          throw new Error(data.error || 'Payment initiation failed');
+          console.error('Menu payment API error:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: data.error,
+            details: data.details,
+            paymentData
+          });
+          
+          // Log debug info for API errors
+          if (response.status === 400 && data.error?.includes('Missing required fields')) {
+            logPaymentDebugInfo();
+          }
+          
+          throw new Error(data.error || `Payment failed with status ${response.status}`);
         }
 
         showToast({

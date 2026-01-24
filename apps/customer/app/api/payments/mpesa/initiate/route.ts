@@ -23,18 +23,62 @@ export async function POST(request: NextRequest) {
     // Extract IP address for rate limiting
     const ipAddress = extractIpAddress(request);
 
-    // Validate required fields - now using barId and customerIdentifier instead of tabId
-    if (!barId || !customerIdentifier || !phoneNumber || !amount) {
+    // Enhanced validation with specific error messages for each field
+    const missingFields = [];
+    if (!barId) missingFields.push('barId');
+    if (!customerIdentifier) missingFields.push('customerIdentifier');
+    if (!phoneNumber) missingFields.push('phoneNumber');
+    if (!amount) missingFields.push('amount');
+
+    if (missingFields.length > 0) {
+      console.error('Missing required fields in payment request:', {
+        received: { barId, customerIdentifier, phoneNumber, amount },
+        missing: missingFields,
+        ipAddress
+      });
+      
       return NextResponse.json(
-        { error: 'Missing required fields: barId, customerIdentifier, phoneNumber, amount' },
+        { 
+          error: `Missing required fields: ${missingFields.join(', ')}`,
+          details: {
+            received: {
+              barId: !!barId,
+              customerIdentifier: !!customerIdentifier,
+              phoneNumber: !!phoneNumber,
+              amount: !!amount
+            },
+            missing: missingFields
+          }
+        },
         { status: 400 }
       );
     }
 
-    // Validate amount
-    if (amount <= 0) {
+    // Validate field types and formats
+    if (typeof barId !== 'string' || barId.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Amount must be greater than 0' },
+        { error: 'barId must be a non-empty string' },
+        { status: 400 }
+      );
+    }
+
+    if (typeof customerIdentifier !== 'string' || customerIdentifier.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'customerIdentifier must be a non-empty string' },
+        { status: 400 }
+      );
+    }
+
+    if (typeof phoneNumber !== 'string' || phoneNumber.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'phoneNumber must be a non-empty string' },
+        { status: 400 }
+      );
+    }
+
+    if (typeof amount !== 'number' || amount <= 0) {
+      return NextResponse.json(
+        { error: 'amount must be a positive number' },
         { status: 400 }
       );
     }
