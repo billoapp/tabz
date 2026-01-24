@@ -1,6 +1,7 @@
 /**
  * Tab Resolution Service
  * Resolves tab ownership to identify the tenant/bar for M-Pesa credential lookup
+ * Updated 2026-01-24: Added support for overdue tab payments
  * 
  * Requirements: 1.1, 3.4
  */

@@ -15,6 +15,7 @@ import {
 import { BaseService, Logger, HttpClient } from './base';
 import { TransactionService } from './transaction';
 import { OrderStatusUpdateService } from './order-sync';
+import { TabAutoCloseService, createTabAutoCloseService } from './tab-auto-close';
 import { ServiceConfig } from '../types';
 import { getAuditLogger } from '../middleware/audit-logger';
 
@@ -87,6 +88,7 @@ export class DefaultCallbackAuthenticator implements CallbackAuthenticator {
 export class CallbackHandler extends BaseService {
   private transactionService: TransactionService;
   private orderSyncService: OrderStatusUpdateService;
+  private tabAutoCloseService: TabAutoCloseService;
   private authenticator: CallbackAuthenticator;
 
   constructor(
@@ -100,6 +102,11 @@ export class CallbackHandler extends BaseService {
     super(config, logger, httpClient);
     this.transactionService = transactionService;
     this.orderSyncService = orderSyncService;
+    this.tabAutoCloseService = createTabAutoCloseService(
+      config.supabaseUrl || '',
+      config.supabaseServiceKey || '',
+      logger
+    );
     this.authenticator = authenticator || new DefaultCallbackAuthenticator(this.logger);
     this.validateConfig();
   }
@@ -316,6 +323,12 @@ export class CallbackHandler extends BaseService {
             remainingBalance: balanceInfo.balance,
             paymentMethods: balanceInfo.paymentMethods
           });
+
+          // Check if overdue tab should be auto-closed when paid in full
+          if (paymentSuccessful && balanceInfo.balance <= 0) {
+            await this.processTabAutoClose(transaction.tabId, transaction.amount);
+          }
+
         } catch (balanceError) {
           // Don't fail the whole process if balance info fails
           this.logWithContext('warn', 'Failed to get tab balance info', {
@@ -1115,5 +1128,53 @@ export class CallbackHandler extends BaseService {
     }
     
     return matrix[str2.length][str1.length];
+  }
+
+  /**
+   * Process tab auto-close after successful payment
+   * Checks if overdue tab is paid in full and auto-closes it
+   */
+  private async processTabAutoClose(tabId: string, paymentAmount: number): Promise<void> {
+    try {
+      this.logWithContext('info', 'Processing tab auto-close after payment', {
+        tabId,
+        paymentAmount
+      });
+
+      const autoCloseResult = await this.tabAutoCloseService.processTabAfterPayment(tabId, paymentAmount);
+
+      if (autoCloseResult.success) {
+        this.logWithContext('info', 'Tab auto-close processing completed', {
+          tabId,
+          tabClosed: autoCloseResult.tabClosed,
+          shouldCreateNewTab: autoCloseResult.shouldCreateNewTab,
+          message: autoCloseResult.message
+        });
+
+        // If tab was auto-closed, we could trigger additional notifications here
+        if (autoCloseResult.tabClosed) {
+          // TODO: Send notification to customer app about tab closure
+          // TODO: Send notification to staff app about auto-closure
+          this.logWithContext('info', 'Overdue tab auto-closed after full payment', {
+            tabId,
+            shouldOfferNewTab: autoCloseResult.shouldCreateNewTab
+          });
+        }
+      } else {
+        this.logWithContext('warn', 'Tab auto-close processing failed', {
+          tabId,
+          error: autoCloseResult.error,
+          message: autoCloseResult.message
+        });
+      }
+
+    } catch (error) {
+      // Don't fail the callback processing if auto-close fails
+      this.logWithContext('error', 'Error in tab auto-close processing', {
+        tabId,
+        paymentAmount,
+        error: error instanceof Error ? error.message : error
+      });
+    }
   }
 }

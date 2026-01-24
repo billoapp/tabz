@@ -28,6 +28,7 @@ export * from './services/transaction';
 export * from './services/callback';
 export * from './services/state-machine';
 export * from './services/order-sync';
+export * from './services/tab-auto-close';
 
 // Export middleware
 export * from './middleware/error-handler';

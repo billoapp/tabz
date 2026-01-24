@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase';
 import { validateMpesaPhoneNumber, sanitizePhoneNumber } from '@tabeza/shared/lib/phoneValidation';
+// Updated 2026-01-24: Fixed overdue tab payment support
 import { 
   MpesaRateLimiter, 
   extractIpAddress, 
