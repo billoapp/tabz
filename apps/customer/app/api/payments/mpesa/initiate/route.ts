@@ -169,9 +169,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (tab.status !== 'open') {
+    if (tab.status !== 'open' && tab.status !== 'overdue') {
       return NextResponse.json(
-        { error: 'Tab is not open for payments' },
+        { error: 'Tab is not available for payments' },
         { status: 400 }
       );
     }

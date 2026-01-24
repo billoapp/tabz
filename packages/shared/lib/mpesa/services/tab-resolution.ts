@@ -269,12 +269,12 @@ export class DatabaseTabResolutionService implements TabResolutionService {
           .select('id, bar_id, tab_number, status, owner_identifier, opened_at, closed_at')
           .eq('bar_id', barId)
           .eq('owner_identifier', customerIdentifier)
-          .eq('status', 'open')
+          .in('status', ['open', 'overdue'])
           .single();
 
         if (error || !tabData) {
           throw new MpesaError(
-            `No open tab found for customer at bar ${barId}`,
+            `No active tab found for customer at bar ${barId}`,
             'CUSTOMER_TAB_NOT_FOUND',
             404
           );
