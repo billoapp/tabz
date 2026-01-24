@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createServiceRoleClient } from '@/lib/supabase';
 import { validateMpesaPhoneNumber, sanitizePhoneNumber } from '@tabeza/shared/lib/phoneValidation';
 import { 
   MpesaRateLimiter, 
@@ -18,7 +18,18 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const { barId, phoneNumber, amount, customerIdentifier } = await request.json();
+    let requestBody;
+    try {
+      requestBody = await request.json();
+    } catch (jsonError) {
+      console.error('Failed to parse request JSON:', jsonError);
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
+
+    const { barId, phoneNumber, amount, customerIdentifier } = requestBody;
 
     // Extract IP address for rate limiting
     const ipAddress = extractIpAddress(request);
@@ -144,6 +155,7 @@ export async function POST(request: NextRequest) {
     const tabId = customerTab.id;
 
     // Check if tab exists and get customer info (using resolved tabId)
+    const supabase = createServiceRoleClient();
     const { data: tab, error: tabError } = await supabase
       .from('tabs')
       .select('id, customer_id, status')
@@ -411,8 +423,21 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('M-PESA initiation error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      name: error instanceof Error ? error.name : 'Unknown',
+      cause: error instanceof Error ? error.cause : undefined
+    });
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        } : undefined
+      },
       { status: 500 }
     );
   }

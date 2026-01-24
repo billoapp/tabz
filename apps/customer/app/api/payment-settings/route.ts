@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,20 +13,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create a service role client for this API endpoint
-    // This is safe because it's a server-side API route
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY!;
-    
-    if (!supabaseServiceKey) {
-      console.error('SUPABASE_SECRET_KEY is not configured');
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // Use centralized service role client
+    const supabase = createServiceRoleClient();
 
     // Get bar payment settings using service role key
     const { data: barData, error: barError } = await supabase
