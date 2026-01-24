@@ -13,7 +13,7 @@
     "dev:customer": "pnpm --filter @tabeza/customer dev",
     "dev:staff": "pnpm --filter @tabeza/staff dev",
     "build": "pnpm --recursive --filter \"./apps/*\" build",
-    "build:customer": "pnpm --filter @tabeza/shared build && pnpm --filter @tabeza/customer build",
+    "build:customer": "pnpm --filter @tabeza/customer build",
     "build:staff": "pnpm --filter @tabeza/staff build",
     "start": "pnpm --recursive --filter \"./apps/*\" start",
     "start:customer": "pnpm --filter @tabeza/customer start",
