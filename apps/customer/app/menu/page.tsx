@@ -2412,7 +2412,7 @@ export default function MenuPage() {
                           }}
                         >
                           <div
-                            className="bg-white overflow-hidden border-2 border-green-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300"
+                            className="bg-white overflow-hidden rounded-lg cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300"
                             style={{
                               height: '180px',
                               width: '240px',
@@ -2538,7 +2538,7 @@ export default function MenuPage() {
                           }}
                         >
                           <div
-                            className="bg-white overflow-hidden border-2 border-blue-400 cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-40 w-32"
+                            className="bg-white overflow-hidden rounded-lg cursor-pointer flex flex-col shadow-md hover:shadow-xl transition-all duration-300 h-40 w-32"
                             onClick={() => addToCart(barProduct)}
                           >
                             <div className="w-full h-24 relative bg-gray-100">
