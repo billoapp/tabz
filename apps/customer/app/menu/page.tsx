@@ -175,12 +175,8 @@ export default function MenuPage() {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
 
-  // THREE COLLAPSIBLE SECTIONS - food menu starts open, others closed
-  const [foodMenuCollapsed, setFoodMenuCollapsed] = useState(false); // Start open
-  const [drinksMenuCollapsed, setDrinksMenuCollapsed] = useState(true);
-  const [promoCollapsed, setPromoCollapsed] = useState(true); // PROMO panel - starts closed
+  // Removed collapsible functionality - all sections now always visible
   const [cartCollapsed, setCartCollapsed] = useState(true);
-  const [paymentCollapsed, setPaymentCollapsed] = useState(true);
 
   // NEW: Average response time state
   const [averageResponseTime, setAverageResponseTime] = useState<number | null>(null);
@@ -893,92 +889,20 @@ export default function MenuPage() {
     setImageScale(1);
   };
 
-  // Toggle functions for THREE EXCLUSIVE collapsible sections
-  const toggleFoodMenu = () => {
-    if (!foodMenuCollapsed) {
-      // If already open, just close it
-      setFoodMenuCollapsed(true);
-    } else {
-      // Open food menu, close others
-      setFoodMenuCollapsed(false);
-      setDrinksMenuCollapsed(true);
-      setPromoCollapsed(true);
-      setCartCollapsed(true);
-      setPaymentCollapsed(true);
-      setShowStaticMenu(false);
-    }
-  };
-
-  const toggleDrinksMenu = () => {
-    if (!drinksMenuCollapsed) {
-      // If already open, just close it
-      setDrinksMenuCollapsed(true);
-    } else {
-      // Open drinks menu, close others
-      setDrinksMenuCollapsed(false);
-      setFoodMenuCollapsed(true);
-      setPromoCollapsed(true);
-      setCartCollapsed(true);
-      setPaymentCollapsed(true);
-      setShowStaticMenu(false);
-    }
-  };
-
-  const togglePromoMenu = () => {
-    if (!promoCollapsed) {
-      // If already open, just close it
-      setPromoCollapsed(true);
-    } else {
-      // Open promo menu, close others
-      setPromoCollapsed(false);
-      setFoodMenuCollapsed(true);
-      setDrinksMenuCollapsed(true);
-      setCartCollapsed(true);
-      setPaymentCollapsed(true);
-      setShowStaticMenu(false);
-    }
-  };
-
-  // Toggle functions for remaining collapsible sections
+  // Removed toggle functions - sections are now always visible
+  
+  // Keep cart toggle function since cart remains collapsible
   const toggleCart = () => {
-    if (!cartCollapsed) {
-      // If already open, just close it
-      setCartCollapsed(true);
-    } else {
-      // Open cart, close others
-      setCartCollapsed(false);
-      setFoodMenuCollapsed(true);
-      setDrinksMenuCollapsed(true);
-      setPromoCollapsed(true);
-      setPaymentCollapsed(true);
-      setShowStaticMenu(false);
-    }
+    setCartCollapsed(!cartCollapsed);
   };
 
-  const togglePayment = () => {
-    if (!paymentCollapsed) {
-      // If already open, just close it
-      setPaymentCollapsed(true);
-    } else {
-      // Open payment, close others
-      setPaymentCollapsed(false);
-      setFoodMenuCollapsed(true);
-      setDrinksMenuCollapsed(true);
-      setPromoCollapsed(true);
-      setCartCollapsed(true);
-      setShowStaticMenu(false);
-    }
-  };
+  // Removed remaining toggle functions - sections are now always visible
 
   const toggleStaticMenu = () => {
     if (!showStaticMenu) {
-      // Opening static menu - close all collapsible sections
+      // Opening static menu - close cart only
       setShowStaticMenu(true);
-      setFoodMenuCollapsed(true);
-      setDrinksMenuCollapsed(true);
-      setPromoCollapsed(true);
       setCartCollapsed(true);
-      setPaymentCollapsed(true);
     } else {
       // Closing static menu - just collapse it
       setShowStaticMenu(false);
@@ -1674,12 +1598,6 @@ export default function MenuPage() {
     const newCart = [...cart, newItem];
     setCart(newCart);
     sessionStorage.setItem('cart', JSON.stringify(newCart));
-    
-    // Auto-open cart when items are added
-    setCartCollapsed(false);
-    setFoodMenuCollapsed(true);
-    setDrinksMenuCollapsed(true);
-    setPromoCollapsed(true);
     
     // Show toast notification for cart addition
     showToast({
@@ -2417,33 +2335,16 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* FOOD Menu Section - COLLAPSIBLE */}
+      {/* FOOD Menu Section - Always Visible */}
       <div className="bg-gray-50 px-4">
         <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
-          <div className="p-4 flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50">
+          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50">
             <div>
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">FOOD</h2>
             </div>
-            <button
-              onClick={toggleFoodMenu}
-              className="text-green-600 hover:text-green-700 p-2 transform transition-transform duration-200 hover:scale-110"
-            >
-              <ChevronDown 
-                size={20} 
-                className={`transform transition-transform duration-300 ease-in-out ${
-                  foodMenuCollapsed ? 'rotate-0' : 'rotate-180'
-                }`}
-              />
-            </button>
           </div>
           
-          <div 
-            className={`overflow-hidden transition-all duration-500 ease-in-out ${
-              foodMenuCollapsed 
-                ? 'max-h-0 opacity-0' 
-                : 'max-h-[1000px] opacity-100'
-            }`}
-          >
+          <div className="relative overflow-hidden">
             <div ref={foodMenuRef} className="relative overflow-hidden">
               <div className="p-4 border-b">
                 <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
@@ -2507,9 +2408,7 @@ export default function MenuPage() {
                             width: '240px',
                             minWidth: '240px',
                             maxWidth: '240px',
-                            animationDelay: `${index * 50}ms`,
-                            opacity: foodMenuCollapsed ? 0 : 1,
-                            transform: `translateY(${foodMenuCollapsed ? '20px' : '0'})`
+                            animationDelay: `${index * 50}ms`
                           }}
                         >
                           <div
@@ -2565,33 +2464,16 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* DRINKS Menu Section - COLLAPSIBLE */}
+      {/* DRINKS Menu Section - Always Visible */}
       <div className="bg-gray-50 px-4">
         <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
-          <div className="p-4 flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50">
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50">
             <div>
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">DRINKS</h2>
             </div>
-            <button
-              onClick={toggleDrinksMenu}
-              className="text-blue-600 hover:text-blue-700 p-2 transform transition-transform duration-200 hover:scale-110"
-            >
-              <ChevronDown 
-                size={20} 
-                className={`transform transition-transform duration-300 ease-in-out ${
-                  drinksMenuCollapsed ? 'rotate-0' : 'rotate-180'
-                }`}
-              />
-            </button>
           </div>
           
-          <div 
-            className={`overflow-hidden transition-all duration-500 ease-in-out ${
-              drinksMenuCollapsed 
-                ? 'max-h-0 opacity-0' 
-                : 'max-h-[1000px] opacity-100'
-            }`}
-          >
+          <div className="relative overflow-hidden">
             <div ref={drinksMenuRef} className="relative overflow-hidden">
               <div className="p-4 border-b">
                 <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
@@ -2652,9 +2534,7 @@ export default function MenuPage() {
                           key={barProduct.id}
                           className="flex-shrink-0 flex-grow-0 w-32 transform transition-all duration-300 hover:scale-105"
                           style={{ 
-                            animationDelay: `${index * 50}ms`,
-                            opacity: drinksMenuCollapsed ? 0 : 1,
-                            transform: `translateY(${drinksMenuCollapsed ? '20px' : '0'})`
+                            animationDelay: `${index * 50}ms`
                           }}
                         >
                           <div
@@ -2851,33 +2731,16 @@ export default function MenuPage() {
         </button>
       )}
 
-      {/* PROMO Section - COLLAPSIBLE */}
+      {/* PROMO Section - Always Visible */}
       <div className="bg-gray-50 px-4">
         <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
-          <div className="p-4 flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50">
+          <div className="p-4 bg-gradient-to-r from-orange-50 to-red-50">
             <div>
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PROMO</h2>
             </div>
-            <button
-              onClick={togglePromoMenu}
-              className="text-orange-600 hover:text-orange-700 p-2 transform transition-transform duration-200 hover:scale-110"
-            >
-              <ChevronDown 
-                size={20} 
-                className={`transform transition-transform duration-300 ease-in-out ${
-                  promoCollapsed ? 'rotate-0' : 'rotate-180'
-                }`}
-              />
-            </button>
           </div>
           
-          <div 
-            className={`overflow-hidden transition-all duration-500 ease-in-out ${
-              promoCollapsed 
-                ? 'max-h-0 opacity-0' 
-                : 'max-h-[70vh] opacity-100'
-            }`}
-          >
+          <div className="relative overflow-hidden">
             {(staticMenuUrl || staticMenuType === 'slideshow') ? (
               <div className="relative z-10 bg-gray-900 bg-opacity-95 flex flex-col h-[70vh] min-h-[400px]">
                 {/* Content */}
@@ -2963,8 +2826,7 @@ export default function MenuPage() {
                           className="max-w-full max-h-full object-contain rounded-lg shadow-lg transition-all duration-300"
                           style={{ 
                             transform: `scale(${imageScale})`, 
-                            transformOrigin: 'center',
-                            filter: !promoCollapsed ? 'brightness(1)' : 'brightness(0.8)'
+                            transformOrigin: 'center'
                           }}
                         />
                       </div>
@@ -3102,7 +2964,7 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Payment Section - COLLAPSIBLE */}
+      {/* Payment Section - Always Visible */}
       {balance > 0 && (
         <div ref={paymentRef} className="p-4">
           {/* Section Header - NEW */}
@@ -3111,193 +2973,174 @@ export default function MenuPage() {
           </div>
           
           <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
-            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50">
+            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50">
               <div>
                 <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment</h2>
                 <p className="text-sm text-gray-600 mt-1">Outstanding balance: {tempFormatCurrency(balance)}</p>
               </div>
-              <button
-                onClick={togglePayment}
-                className="text-green-600 hover:text-green-700 p-2 transform transition-transform duration-200 hover:scale-110"
-              >
-                <ChevronDown 
-                  size={20} 
-                  className={`transform transition-transform duration-300 ease-in-out ${
-                    paymentCollapsed ? 'rotate-0' : 'rotate-180'
-                  }`}
-                />
-              </button>
             </div>
             
-            <div 
-              className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                paymentCollapsed 
-                  ? 'max-h-0 opacity-0' 
-                  : 'max-h-[800px] opacity-100'
-              }`}
-            >
-              <div className="bg-white p-4">
-                <div className="flex border-b border-gray-200 mb-4">
-                  {paymentSettings.mpesa_enabled && (
-                    <button
-                      onClick={() => setActivePaymentMethod('mpesa')}
-                      className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
-                          ? 'text-green-600 border-b-2 border-green-500'
-                          : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Phone size={16} />
-                        M-Pesa
-                      </div>
-                    </button>
-                  )}
-                  {paymentSettings.card_enabled && (
-                    <button
-                      onClick={() => setActivePaymentMethod('cards')}
-                      className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
-                          ? 'text-orange-500 border-b-2 border-orange-500'
-                          : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <CreditCardIcon size={16} />
-                        Cards
-                      </div>
-                    </button>
-                  )}
-                  {paymentSettings.cash_enabled && (
-                    <button
-                      onClick={() => setActivePaymentMethod('cash')}
-                      className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
-                          ? 'text-orange-500 border-b-2 border-orange-500'
-                          : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <DollarSign size={16} />
-                        Cash
-                      </div>
-                    </button>
-                  )}
-                </div>
-                {activePaymentMethod === 'cards' && (
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-400 rounded flex items-center justify-center">
-                        <span className="text-white text-xs font-bold">VISA</span>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-900">•••• 4242</p>
-                        <p className="text-xs text-gray-400">Expires 12/26</p>
-                      </div>
+            <div className="bg-white p-4">
+              <div className="flex border-b border-gray-200 mb-4">
+                {paymentSettings.mpesa_enabled && (
+                  <button
+                    onClick={() => setActivePaymentMethod('mpesa')}
+                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'mpesa'
+                        ? 'text-green-600 border-b-2 border-green-500'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} />
+                      M-Pesa
                     </div>
-                    <button className="text-xs text-orange-500 font-medium">Change</button>
-                  </div>
+                  </button>
                 )}
-                <div className="border-t border-gray-100 pt-4">
-                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
-                    <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
-                    <p className="text-3xl font-bold text-orange-600">{tempFormatCurrency(balance)}</p>
+                {paymentSettings.card_enabled && (
+                  <button
+                    onClick={() => setActivePaymentMethod('cards')}
+                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cards'
+                        ? 'text-orange-500 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CreditCardIcon size={16} />
+                      Cards
+                    </div>
+                  </button>
+                )}
+                {paymentSettings.cash_enabled && (
+                  <button
+                    onClick={() => setActivePaymentMethod('cash')}
+                    className={`px-4 py-2 font-medium text-sm ${activePaymentMethod === 'cash'
+                        ? 'text-orange-500 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <DollarSign size={16} />
+                      Cash
+                    </div>
+                  </button>
+                )}
+              </div>
+              {activePaymentMethod === 'cards' && (
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-400 rounded flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">VISA</span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-900">•••• 4242</p>
+                      <p className="text-xs text-gray-400">Expires 12/26</p>
+                    </div>
                   </div>
-                  <div className="space-y-4">
-                    {activePaymentMethod === 'mpesa' && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">M-Pesa Number</label>
-                          <input
-                            type="tel"
-                            value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
-                            placeholder="0712345678"
-                            disabled={isProcessing}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
-                          <input
-                            type="number"
-                            value={paymentAmount}
-                            onChange={(e) => setPaymentAmount(e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
-                            placeholder="0"
-                            max={balance}
-                            min="1"
-                            disabled={isProcessing}
-                          />
-                        </div>
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-3">
-                          <p className="text-sm text-green-700">
-                            You will be prompted to enter your M-Pesa PIN on your phone.
-                          </p>
-                        </div>
-                      </>
-                    )}
-                    {activePaymentMethod === 'cards' && (
+                  <button className="text-xs text-orange-500 font-medium">Change</button>
+                </div>
+              )}
+              <div className="border-t border-gray-100 pt-4">
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+                  <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
+                  <p className="text-3xl font-bold text-orange-600">{tempFormatCurrency(balance)}</p>
+                </div>
+                <div className="space-y-4">
+                  {activePaymentMethod === 'mpesa' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">M-Pesa Number</label>
+                        <input
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
+                          placeholder="0712345678"
+                          disabled={isProcessing}
+                        />
+                      </div>
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
                         <input
                           type="number"
                           value={paymentAmount}
                           onChange={(e) => setPaymentAmount(e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none"
                           placeholder="0"
                           max={balance}
                           min="1"
                           disabled={isProcessing}
                         />
                       </div>
-                    )}
-                    {activePaymentMethod === 'cash' && (
-                      <div className="text-center py-4">
-                        <div className="bg-gray-100 rounded-xl p-6 mb-4">
-                          <DollarSign size={48} className="mx-auto text-gray-400 mb-3" />
-                          <p className="text-gray-600">Please request cash payment from staff</p>
-                          <p className="text-sm text-gray-500 mt-2">Your payment will be confirmed by the restaurant system</p>
-                        </div>
+                      <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                        <p className="text-sm text-green-700">
+                          You will be prompted to enter your M-Pesa PIN on your phone.
+                        </p>
                       </div>
+                    </>
+                  )}
+                  {activePaymentMethod === 'cards' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Amount to Pay</label>
+                      <input
+                        type="number"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                        placeholder="0"
+                        max={balance}
+                        min="1"
+                        disabled={isProcessing}
+                      />
+                    </div>
+                  )}
+                  {activePaymentMethod === 'cash' && (
+                    <div className="text-center py-4">
+                      <div className="bg-gray-100 rounded-xl p-6 mb-4">
+                        <DollarSign size={48} className="mx-auto text-gray-400 mb-3" />
+                        <p className="text-gray-600">Please request cash payment from staff</p>
+                        <p className="text-sm text-gray-500 mt-2">Your payment will be confirmed by the restaurant system</p>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={processPayment}
+                    disabled={!tab?.id || isProcessing || (activePaymentMethod === 'mpesa' && (!phoneNumber.trim() || !paymentAmount || parseFloat(paymentAmount) <= 0))}
+                    className={`w-full py-3 rounded-lg text-sm font-medium transition-colors ${
+                      activePaymentMethod === 'mpesa' 
+                        ? 'bg-green-500 hover:bg-green-600 text-white disabled:bg-gray-300 disabled:text-gray-500'
+                        : activePaymentMethod === 'cash'
+                        ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                        : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:text-gray-500'
+                    } disabled:cursor-not-allowed`}
+                  >
+                    {!tab?.id ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Loading Tab...
+                      </span>
+                    ) : isProcessing ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Processing...
+                      </span>
+                    ) : activePaymentMethod === 'mpesa' ? (
+                      'Send M-Pesa Request'
+                    ) : activePaymentMethod === 'cash' ? (
+                      'Confirm Cash Payment'
+                    ) : (
+                      'Process Payment'
                     )}
-                    <button
-                      onClick={processPayment}
-                      disabled={!tab?.id || isProcessing || (activePaymentMethod === 'mpesa' && (!phoneNumber.trim() || !paymentAmount || parseFloat(paymentAmount) <= 0))}
-                      className={`w-full py-3 rounded-lg text-sm font-medium transition-colors ${
-                        activePaymentMethod === 'mpesa' 
-                          ? 'bg-green-500 hover:bg-green-600 text-white disabled:bg-gray-300 disabled:text-gray-500'
-                          : activePaymentMethod === 'cash'
-                          ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                          : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:text-gray-500'
-                      } disabled:cursor-not-allowed`}
-                    >
-                      {!tab?.id ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Loading Tab...
-                        </span>
-                      ) : isProcessing ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Processing...
-                        </span>
-                      ) : activePaymentMethod === 'mpesa' ? (
-                        'Send M-Pesa Request'
-                      ) : activePaymentMethod === 'cash' ? (
-                        'Confirm Cash Payment'
-                      ) : (
-                        'Process Payment'
-                      )}
-                    </button>
-                    <p className="text-xs text-gray-500 text-center mt-2">
-                      Please pay at the bar using
-                      {(() => {
-                        const methods = [];
-                        if (paymentSettings.cash_enabled) methods.push('cash');
-                        if (paymentSettings.mpesa_enabled) methods.push('M-Pesa');
-                        if (paymentSettings.mpesa_enabled && paymentSettings.cash_enabled) methods.push('Airtel Money');
-                        return methods.join(', ');
-                      })()}
-                    </p>
-                  </div>
+                  </button>
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    Please pay at the bar using
+                    {(() => {
+                      const methods = [];
+                      if (paymentSettings.cash_enabled) methods.push('cash');
+                      if (paymentSettings.mpesa_enabled) methods.push('M-Pesa');
+                      if (paymentSettings.mpesa_enabled && paymentSettings.cash_enabled) methods.push('Airtel Money');
+                      return methods.join(', ');
+                    })()}
+                  </p>
                 </div>
               </div>
             </div>
