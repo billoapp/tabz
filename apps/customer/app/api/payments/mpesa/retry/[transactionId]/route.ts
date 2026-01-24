@@ -83,7 +83,7 @@ export async function POST(
     const rateLimiter = new MpesaRateLimiter(
       undefined, // Use default config
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SECRET_KEY
     );
 
     // Check rate limits for retry attempts
@@ -117,7 +117,7 @@ export async function POST(
     // Initialize transaction service
     const transactionService = new TransactionService(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Reset transaction to pending status for retry
@@ -136,12 +136,12 @@ export async function POST(
       // Create tenant-aware services
       const tabResolutionService = createTabResolutionService(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
+        process.env.SUPABASE_SECRET_KEY!
       );
 
       const credentialRetrievalService = createCredentialRetrievalService(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
+        process.env.SUPABASE_SECRET_KEY!
       );
 
       const tenantConfigFactory = createTenantMpesaConfigFactory({
@@ -149,7 +149,7 @@ export async function POST(
         defaultRetryAttempts: 3,
         defaultRateLimitPerMinute: 60,
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!
+        supabaseServiceKey: process.env.SUPABASE_SECRET_KEY!
       });
 
       // Create service configuration from tab ID with tenant credential resolution

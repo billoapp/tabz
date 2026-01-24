@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     // Create tenant-aware services for tab resolution
     const tabResolutionService = createTabResolutionService(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Find customer's tab using bar context and customer identifier
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     const rateLimiter = new MpesaRateLimiter(
       undefined, // Use default config
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SECRET_KEY
     );
 
     // Check rate limits and suspicious activity
@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
     // Create transaction record
     const transactionService = new TransactionService(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Determine environment (default to sandbox for safety)
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
       // Create tenant-aware services (reuse the already created tabResolutionService)
       const credentialRetrievalService = createCredentialRetrievalService(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
+        process.env.SUPABASE_SECRET_KEY!
       );
 
       const tenantConfigFactory = createTenantMpesaConfigFactory({
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
         defaultRetryAttempts: 3,
         defaultRateLimitPerMinute: 60,
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!
+        supabaseServiceKey: process.env.SUPABASE_SECRET_KEY!
       });
 
       // Create service configuration using customer context (barId + customerIdentifier)

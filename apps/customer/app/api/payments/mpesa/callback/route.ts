@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     // Initialize services
     const transactionService = new TransactionService(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     // Create service config for callback handler
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const orderSyncService = new OrderStatusUpdateService(
       config,
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SECRET_KEY!
     );
 
     const callbackHandler = new CallbackHandler(
