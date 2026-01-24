@@ -30,6 +30,23 @@ const nextConfig = {
   // Configure for monorepo - transpile shared packages
   transpilePackages: ['@tabeza/shared'],
   
+  // Experimental features for better monorepo support
+  experimental: {
+    externalDir: true,
+    transpilePackages: ['@tabeza/shared'],
+  },
+  
+  // Webpack configuration for monorepo
+  webpack: (config, { isServer }) => {
+    // Handle shared package imports
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@tabeza/shared': path.resolve(__dirname, '../../packages/shared'),
+    };
+    
+    return config;
+  },
+  
   // Ensure proper image optimization
   images: {
     unoptimized: true,
