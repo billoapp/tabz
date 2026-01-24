@@ -24,6 +24,7 @@ import {
 } from '@tabeza/shared/lib/phoneValidation';
 import { validatePaymentContext, logPaymentDebugInfo } from '@/lib/payment-debug';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
+import PWAInstallPrompt from '../../components/PWAInstallPrompt';
 import PDFViewer from '../../../../components/PDFViewer'; 
 import MessagePanel from './MessagePanel';
 import { playCustomerNotification } from '@/lib/notifications'; // ADDED MISSING IMPORT
@@ -1029,7 +1030,7 @@ export default function MenuPage() {
       // FIXED: Use correct column names from database
       const { data, error } = await supabase
         .from('bars')
-        .select('payment_mpesa_enabled, payment_card_enabled, payment_cash_enabled')
+        .select('mpesa_enabled')
         .eq('id', barId)
         .single();
 
@@ -1044,20 +1045,18 @@ export default function MenuPage() {
       } else if (data) {
         console.log('✅ Payment settings loaded:', data);
         const paymentData = data as {
-          payment_mpesa_enabled?: boolean;
-          payment_card_enabled?: boolean;
-          payment_cash_enabled?: boolean;
+          mpesa_enabled?: boolean;
         };
         setPaymentSettings({
-          mpesa_enabled: paymentData.payment_mpesa_enabled ?? false,
-          card_enabled: paymentData.payment_card_enabled ?? false,
-          cash_enabled: paymentData.payment_cash_enabled ?? true
+          mpesa_enabled: paymentData.mpesa_enabled ?? false,
+          card_enabled: false, // Not implemented yet
+          cash_enabled: true // Always available
         });
 
         // Set default payment method to first available one
-        if (paymentData.payment_mpesa_enabled) {
+        if (paymentData.mpesa_enabled) {
           setActivePaymentMethod('mpesa');
-        } else if (paymentData.payment_card_enabled) {
+        } else if (false) { // Card payments not implemented yet
           setActivePaymentMethod('cards');
         } else if (paymentData.payment_cash_enabled) {
           setActivePaymentMethod('cash');
@@ -2137,7 +2136,9 @@ export default function MenuPage() {
   const pendingOrderTime = getPendingOrderTime();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
+      <PWAInstallPrompt />
+      <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0 z-20 shadow-lg">
         {/* Top Row: Restaurant Name & Tab Info */}
@@ -3697,5 +3698,6 @@ export default function MenuPage() {
         onMessageSent={loadTelegramMessages}
       />
     </div>
+    </>
   );
 }

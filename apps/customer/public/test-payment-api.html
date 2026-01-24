@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Payment API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        .debug-info {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Direct Payment API Test</h1>
+        <p>This tool tests the payment API directly with custom data.</p>
+        
+        <div id="status"></div>
+        
+        <form id="testForm">
+            <label for="barId">Bar ID:</label>
+            <input type="text" id="barId" value="438c80c1-fe11-4ac5-8a48-2fc45104ba31" required>
+            
+            <label for="customerIdentifier">Customer Identifier:</label>
+            <input type="text" id="customerIdentifier" value="test-device-123_438c80c1-fe11-4ac5-8a48-2fc45104ba31" required>
+            
+            <label for="phoneNumber">Phone Number:</label>
+            <input type="text" id="phoneNumber" value="+254712345678" required>
+            
+            <label for="amount">Amount:</label>
+            <input type="number" id="amount" value="100" min="1" required>
+            
+            <button type="submit">🚀 Test Payment API</button>
+        </form>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+
+        function showResults(content) {
+            document.getElementById('results').innerHTML = content;
+        }
+
+        document.getElementById('testForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            showStatus('Testing payment API...', 'info');
+            
+            const formData = new FormData(e.target);
+            const testData = {
+                barId: document.getElementById('barId').value,
+                customerIdentifier: document.getElementById('customerIdentifier').value,
+                phoneNumber: document.getElementById('phoneNumber').value,
+                amount: parseFloat(document.getElementById('amount').value)
+            };
+            
+            try {
+                console.log('Sending payment request:', testData);
+                
+                const response = await fetch('/api/payments/mpesa/initiate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                let result;
+                try {
+                    result = await response.json();
+                } catch (jsonError) {
+                    result = { error: 'Failed to parse response as JSON', rawResponse: await response.text() };
+                }
+                
+                let html = '<h3>🧪 API Test Results</h3>';
+                html += `<div class="status ${response.ok ? 'success' : 'error'}">`;
+                html += `Status: ${response.status} ${response.statusText}`;
+                html += '</div>';
+                
+                html += '<h4>📤 Request Data</h4>';
+                html += '<div class="debug-info">';
+                html += JSON.stringify(testData, null, 2);
+                html += '</div>';
+                
+                html += '<h4>📥 Response Data</h4>';
+                html += '<div class="debug-info">';
+                html += JSON.stringify(result, null, 2);
+                html += '</div>';
+                
+                if (!response.ok) {
+                    html += '<h4>🔍 Troubleshooting</h4>';
+                    html += '<div class="debug-info">';
+                    
+                    if (response.status === 400) {
+                        html += 'Bad Request (400) - Check if all required fields are provided and valid.\n';
+                        if (result.error && result.error.includes('Missing required fields')) {
+                            html += 'Missing fields detected. Check the request data above.\n';
+                        }
+                    } else if (response.status === 500) {
+                        html += 'Internal Server Error (500) - Check server logs for detailed error information.\n';
+                        html += 'Common causes:\n';
+                        html += '- Environment variables not configured\n';
+                        html += '- Database connection issues\n';
+                        html += '- M-Pesa service configuration problems\n';
+                    } else if (response.status === 404) {
+                        html += 'Not Found (404) - The API endpoint may not exist or tab not found.\n';
+                    }
+                    
+                    html += '</div>';
+                }
+                
+                showResults(html);
+                showStatus(`API test complete - ${response.ok ? 'Success' : 'Error'}`, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                console.error('API test error:', error);
+                showStatus(`API test failed: ${error.message}`, 'error');
+                
+                let html = '<h3>❌ Network Error</h3>';
+                html += `<div class="status error">Error: ${error.message}</div>`;
+                html += '<h4>🔍 Possible Causes</h4>';
+                html += '<div class="debug-info">';
+                html += '- Server is not running\n';
+                html += '- Network connectivity issues\n';
+                html += '- CORS policy blocking the request\n';
+                html += '- API endpoint URL is incorrect\n';
+                html += '</div>';
+                
+                showResults(html);
+            }
+        });
+    </script>
+</body>
+</html>
