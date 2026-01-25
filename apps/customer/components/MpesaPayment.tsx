@@ -122,50 +122,17 @@ export default function MpesaPayment({
     try {
       const internationalPhone = convertToInternationalFormat(phoneNumber);
       
-      // Get customer context from session storage with enhanced validation
-      const tabData = sessionStorage.getItem('currentTab');
-      if (!tabData) {
+      // Database-first approach: Get customer identifier from source of truth
+      const { resolveCustomerIdentifier } = await import('../lib/database-customer-identifier');
+      const identifierResult = await resolveCustomerIdentifier();
+      
+      if (!identifierResult.success) {
+        console.error('Failed to resolve customer identifier:', identifierResult.error);
         logPaymentDebugInfo();
-        throw new Error('No active tab found. Please refresh and try again.');
+        throw new Error(identifierResult.error || 'Unable to find your active tab. Please refresh and try again.');
       }
       
-      let currentTab;
-      try {
-        currentTab = JSON.parse(tabData);
-      } catch (parseError) {
-        console.error('Failed to parse tab data:', parseError);
-        logPaymentDebugInfo();
-        throw new Error('Invalid tab data. Please refresh and try again.');
-      }
-      
-      // Validate tab data structure
-      if (!currentTab || typeof currentTab !== 'object') {
-        logPaymentDebugInfo();
-        throw new Error('Invalid tab data format. Please refresh and try again.');
-      }
-      
-      const barId = currentTab.bar_id;
-      if (!barId || typeof barId !== 'string') {
-        console.error('Invalid bar_id in tab data:', { currentTab, barId });
-        logPaymentDebugInfo();
-        throw new Error('Bar information not available. Please refresh and try again.');
-      }
-      
-      // Get device ID for customer identifier with enhanced validation
-      const deviceId = localStorage.getItem('tabeza_device_id_v2') || localStorage.getItem('Tabeza_device_id');
-      if (!deviceId || typeof deviceId !== 'string') {
-        console.error('Device ID not found or invalid:', { deviceId });
-        logPaymentDebugInfo();
-        throw new Error('Device not registered. Please refresh and try again.');
-      }
-      
-      // Generate customer identifier with validation
-      const customerIdentifier = `${deviceId}_${barId}`;
-      if (!customerIdentifier || customerIdentifier.length < 3 || !customerIdentifier.includes('_')) {
-        console.error('Invalid customer identifier generated:', { deviceId, barId, customerIdentifier });
-        logPaymentDebugInfo();
-        throw new Error('Unable to generate customer identifier. Please refresh and try again.');
-      }
+      const { customerIdentifier, barId } = identifierResult;
       
       // Validate all required fields before sending
       const paymentData = {
@@ -182,13 +149,13 @@ export default function MpesaPayment({
         throw new Error('Payment data incomplete. Please check all fields and try again.');
       }
       
-      console.log('Payment context:', { 
+      console.log('Payment context (from database):', { 
         barId, 
         customerIdentifier, 
-        deviceId, 
         phoneNumber: internationalPhone,
         amount,
-        tabData: currentTab 
+        tabId: identifierResult.tabId,
+        tabNumber: identifierResult.tabNumber
       });
       
       const response = await fetch('/api/payments/mpesa/initiate', {
