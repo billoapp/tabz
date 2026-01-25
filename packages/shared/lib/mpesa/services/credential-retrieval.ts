@@ -391,13 +391,13 @@ export class DatabaseCredentialRetrievalService implements CredentialRetrievalSe
    * @returns boolean indicating if formats are valid
    */
   private validateCredentialFormats(credentials: MpesaCredentials): boolean {
-    // Consumer key should be between 10-80 characters, alphanumeric (increased limit for M-Pesa)
-    if (credentials.consumerKey.length < 10 || credentials.consumerKey.length > 80) {
+    // Consumer key should be between 10-100 characters, alphanumeric (M-Pesa credentials can be long)
+    if (credentials.consumerKey.length < 10 || credentials.consumerKey.length > 100) {
       return false;
     }
 
-    // Consumer secret should be between 10-80 characters, alphanumeric (increased limit for M-Pesa)
-    if (credentials.consumerSecret.length < 10 || credentials.consumerSecret.length > 80) {
+    // Consumer secret should be between 10-100 characters, alphanumeric (M-Pesa credentials can be long)
+    if (credentials.consumerSecret.length < 10 || credentials.consumerSecret.length > 100) {
       return false;
     }
     if (!/^[A-Za-z0-9]+$/.test(credentials.consumerSecret)) {
@@ -430,15 +430,15 @@ export class DatabaseCredentialRetrievalService implements CredentialRetrievalSe
   private validateCredentialFormatsWithDetails(credentials: MpesaCredentials): string[] {
     const errors: string[] = [];
 
-    // Consumer key should be between 10-80 characters, alphanumeric (increased limit for M-Pesa)
-    if (credentials.consumerKey && (credentials.consumerKey.length < 10 || credentials.consumerKey.length > 80)) {
-      errors.push('Consumer key must be between 10-80 characters');
+    // Consumer key should be between 10-100 characters, alphanumeric (M-Pesa credentials can be long)
+    if (credentials.consumerKey && (credentials.consumerKey.length < 10 || credentials.consumerKey.length > 100)) {
+      errors.push('Consumer key must be between 10-100 characters');
     }
 
-    // Consumer secret should be between 10-80 characters, alphanumeric (increased limit for M-Pesa)
+    // Consumer secret should be between 10-100 characters, alphanumeric (M-Pesa credentials can be long)
     if (credentials.consumerSecret) {
-      if (credentials.consumerSecret.length < 10 || credentials.consumerSecret.length > 80) {
-        errors.push('Consumer secret must be between 10-80 characters');
+      if (credentials.consumerSecret.length < 10 || credentials.consumerSecret.length > 100) {
+        errors.push('Consumer secret must be between 10-100 characters');
       }
       if (!/^[A-Za-z0-9]+$/.test(credentials.consumerSecret)) {
         errors.push('Consumer secret must contain only alphanumeric characters');
