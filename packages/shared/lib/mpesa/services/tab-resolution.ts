@@ -228,7 +228,7 @@ export class DatabaseTabResolutionService implements TabResolutionService {
           );
         }
 
-        const barData = tabData.bars;
+        const barData = tabData.bars as { id: string; name: string; active: boolean };
 
         // Validate bar is active
         if (!barData.active) {
