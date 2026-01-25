@@ -97,7 +97,45 @@ export async function GET(request: NextRequest) {
       businessShortcode: credentialRecord.business_shortcode
     };
 
-    // Try to convert to Buffer and decrypt
+    /**
+     * Parse stored buffer data from Supabase (same logic as shared package)
+     * Handles both raw Buffer and JSON-encoded Buffer formats
+     */
+    function parseStoredBuffer(storedData: any): Buffer {
+      // If it's already a Buffer, return as-is
+      if (Buffer.isBuffer(storedData)) {
+        return storedData;
+      }
+      
+      // If it's a string (PostgreSQL bytea hex format)
+      if (typeof storedData === 'string') {
+        if (storedData.startsWith('\\x')) {
+          // PostgreSQL bytea hex format
+          const hexData = storedData.slice(2); // Remove \\x prefix
+          const buffer = Buffer.from(hexData, 'hex');
+          
+          // Check if this is a JSON-encoded Buffer
+          try {
+            const jsonStr = buffer.toString('utf8');
+            const parsed = JSON.parse(jsonStr);
+            
+            if (parsed.type === 'Buffer' && Array.isArray(parsed.data)) {
+              // This is a JSON representation of a Buffer
+              return Buffer.from(parsed.data);
+            }
+          } catch (e) {
+            // Not JSON, treat as raw buffer
+          }
+          
+          return buffer;
+        }
+      }
+      
+      // Try to convert whatever we have to a Buffer
+      return Buffer.from(storedData);
+    }
+
+    // Try to convert to Buffer and decrypt using shared package logic
     let decryptionResults = {
       consumerKey: { success: false, error: '', length: 0, decryptedLength: 0, startsWithExpected: false },
       consumerSecret: { success: false, error: '', length: 0, decryptedLength: 0, startsWithExpected: false },
@@ -105,18 +143,8 @@ export async function GET(request: NextRequest) {
     };
 
     try {
-      // Convert consumer key to Buffer
-      let consumerKeyBuffer: Buffer;
-      if (typeof credentialRecord.consumer_key_enc === 'string') {
-        if (credentialRecord.consumer_key_enc.startsWith('\\x')) {
-          consumerKeyBuffer = Buffer.from(credentialRecord.consumer_key_enc.slice(2), 'hex');
-        } else {
-          consumerKeyBuffer = Buffer.from(credentialRecord.consumer_key_enc, 'hex');
-        }
-      } else {
-        consumerKeyBuffer = Buffer.from(credentialRecord.consumer_key_enc);
-      }
-
+      // Parse consumer key using shared package logic
+      const consumerKeyBuffer = parseStoredBuffer(credentialRecord.consumer_key_enc);
       decryptionResults.consumerKey.length = consumerKeyBuffer.length;
 
       // Try to decrypt consumer key
@@ -130,18 +158,8 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Convert consumer secret to Buffer
-      let consumerSecretBuffer: Buffer;
-      if (typeof credentialRecord.consumer_secret_enc === 'string') {
-        if (credentialRecord.consumer_secret_enc.startsWith('\\x')) {
-          consumerSecretBuffer = Buffer.from(credentialRecord.consumer_secret_enc.slice(2), 'hex');
-        } else {
-          consumerSecretBuffer = Buffer.from(credentialRecord.consumer_secret_enc, 'hex');
-        }
-      } else {
-        consumerSecretBuffer = Buffer.from(credentialRecord.consumer_secret_enc);
-      }
-
+      // Parse consumer secret using shared package logic
+      const consumerSecretBuffer = parseStoredBuffer(credentialRecord.consumer_secret_enc);
       decryptionResults.consumerSecret.length = consumerSecretBuffer.length;
 
       // Try to decrypt consumer secret
@@ -155,18 +173,8 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Convert passkey to Buffer
-      let passkeyBuffer: Buffer;
-      if (typeof credentialRecord.passkey_enc === 'string') {
-        if (credentialRecord.passkey_enc.startsWith('\\x')) {
-          passkeyBuffer = Buffer.from(credentialRecord.passkey_enc.slice(2), 'hex');
-        } else {
-          passkeyBuffer = Buffer.from(credentialRecord.passkey_enc, 'hex');
-        }
-      } else {
-        passkeyBuffer = Buffer.from(credentialRecord.passkey_enc);
-      }
-
+      // Parse passkey using shared package logic
+      const passkeyBuffer = parseStoredBuffer(credentialRecord.passkey_enc);
       decryptionResults.passkey.length = passkeyBuffer.length;
 
       // Try to decrypt passkey
