@@ -173,16 +173,39 @@ export async function POST(request: NextRequest) {
     // Note: No need to validate tab status again - the tab resolution service
     // already filtered for 'open' or 'overdue' status when finding the tab
 
-    // TEMPORARY FIX: Skip rate limiter to resolve hanging issue
-    // The Rate Limiter was causing the payment API to hang when processing real customer data
-    // This is a temporary fix to restore payment functionality while we debug the Rate Limiter
-    console.log('🔍 Skipping rate limit check (temporary fix to resolve hanging issue)...');
-    const rateLimitResult = {
-      allowed: true,
-      remainingAttempts: 10,
-      resetTime: new Date(Date.now() + 60000)
-    };
-    console.log('✅ Rate limit check skipped - payment processing continues');
+    // Re-enable Rate Limiter now that mpesa_rate_limit_logs table exists
+    console.log('🔍 Starting rate limit check...');
+    const rateLimiter = new MpesaRateLimiter(
+      undefined, // Use default config
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SECRET_KEY!
+    );
+
+    const rateLimitResult = await Promise.race([
+      rateLimiter.checkCustomerRateLimit(
+        tab.owner_identifier,
+        validatedPhoneNumber,
+        amount,
+        ipAddress
+      ),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Rate limit check timeout')), 10000)
+      )
+    ]) as any; // Type assertion to fix TypeScript error
+
+    if (!rateLimitResult.allowed) {
+      console.log('❌ Rate limit exceeded:', rateLimitResult.reason);
+      return NextResponse.json(
+        { 
+          error: rateLimitResult.reason || 'Rate limit exceeded',
+          retryAfter: rateLimitResult.retryAfter,
+          remainingAttempts: rateLimitResult.remainingAttempts,
+          resetTime: rateLimitResult.resetTime
+        },
+        { status: 429 }
+      );
+    }
+    console.log('✅ Rate limit check passed');
 
     // Create transaction record
     console.log('🔍 Starting transaction creation...');
@@ -267,14 +290,14 @@ export async function POST(request: NextRequest) {
         failureReason: 'Payment service configuration error'
       });
 
-      // TEMPORARY FIX: Skip rate limiter recording since we disabled rate limiting
-      // await rateLimiter.recordFailedAttempt(
-      //   tab.owner_identifier,
-      //   validatedPhoneNumber,
-      //   amount,
-      //   'Payment service configuration error',
-      //   ipAddress
-      // );
+      // Record failed attempt for rate limiting
+      await rateLimiter.recordFailedAttempt(
+        tab.owner_identifier,
+        validatedPhoneNumber,
+        amount,
+        'Payment service configuration error',
+        ipAddress
+      );
 
       // Return user-friendly error based on the specific credential error
       if (credentialError instanceof MpesaError) {
@@ -347,13 +370,13 @@ export async function POST(request: NextRequest) {
         merchantRequestId: stkResponse.MerchantRequestID
       });
 
-      // TEMPORARY FIX: Skip rate limiter recording for successful payments
-      // await rateLimiter.recordSuccessfulPayment(
-      //   tab.owner_identifier,
-      //   validatedPhoneNumber,
-      //   amount,
-      //   ipAddress
-      // );
+      // Record successful payment for rate limiting
+      await rateLimiter.recordSuccessfulPayment(
+        tab.owner_identifier,
+        validatedPhoneNumber,
+        amount,
+        ipAddress
+      );
 
       return NextResponse.json({
         success: true,
@@ -381,14 +404,14 @@ export async function POST(request: NextRequest) {
         failureReason: failureReason
       });
 
-      // TEMPORARY FIX: Skip rate limiter recording for failed attempts
-      // await rateLimiter.recordFailedAttempt(
-      //   tab.owner_identifier,
-      //   validatedPhoneNumber,
-      //   amount,
-      //   failureReason,
-      //   ipAddress
-      // );
+      // Record failed attempt for rate limiting
+      await rateLimiter.recordFailedAttempt(
+        tab.owner_identifier,
+        validatedPhoneNumber,
+        amount,
+        failureReason,
+        ipAddress
+      );
 
       // Return appropriate error response
       if (error instanceof MpesaValidationError) {
