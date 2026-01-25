@@ -181,12 +181,19 @@ export async function POST(request: NextRequest) {
     );
 
     // Check rate limits and suspicious activity
-    const rateLimitResult = await rateLimiter.checkCustomerRateLimit(
-      tab.owner_identifier,
-      validatedPhoneNumber,
-      amount,
-      ipAddress
-    );
+    console.log('🔍 Starting rate limit check...');
+    const rateLimitResult = await Promise.race([
+      rateLimiter.checkCustomerRateLimit(
+        tab.owner_identifier,
+        validatedPhoneNumber,
+        amount,
+        ipAddress
+      ),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Rate limit check timeout')), 10000)
+      )
+    ]);
+    console.log('✅ Rate limit check completed');
 
     if (!rateLimitResult.allowed) {
       // Log the rate limit violation
@@ -209,6 +216,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create transaction record
+    console.log('🔍 Starting transaction creation...');
     const transactionService = new TransactionService(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SECRET_KEY!
@@ -217,13 +225,19 @@ export async function POST(request: NextRequest) {
     // Determine environment (default to sandbox for safety)
     const environment: MpesaEnvironment = (process.env.MPESA_ENVIRONMENT || 'sandbox') as MpesaEnvironment;
 
-    const transaction = await transactionService.createTransaction({
-      tabId: tabId,
-      customerId: tab.owner_identifier,
-      phoneNumber: validatedPhoneNumber,
-      amount: amount,
-      environment: environment
-    });
+    const transaction = await Promise.race([
+      transactionService.createTransaction({
+        tabId: tabId,
+        customerId: tab.owner_identifier,
+        phoneNumber: validatedPhoneNumber,
+        amount: amount,
+        environment: environment
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Transaction creation timeout')), 10000)
+      )
+    ]);
+    console.log('✅ Transaction created:', transaction.id);
 
     // Initialize M-PESA configuration and STK Push service using tenant credentials
     let stkPushService: STKPushService;
@@ -249,14 +263,21 @@ export async function POST(request: NextRequest) {
       });
 
       // Create service configuration using customer context (barId + customerIdentifier)
-      const serviceConfig = await ServiceFactory.createServiceConfigFromCustomerContext(
-        barId,
-        customerIdentifier,
-        tabResolutionService,
-        credentialRetrievalService,
-        tenantConfigFactory,
-        { environment }
-      );
+      console.log('🔍 Starting ServiceFactory call...');
+      const serviceConfig = await Promise.race([
+        ServiceFactory.createServiceConfigFromCustomerContext(
+          barId,
+          customerIdentifier,
+          tabResolutionService,
+          credentialRetrievalService,
+          tenantConfigFactory,
+          { environment }
+        ),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('ServiceFactory timeout')), 15000)
+        )
+      ]);
+      console.log('✅ ServiceFactory completed');
 
       // Create STK Push service with tenant-specific configuration
       const logger = ServiceFactory.createLogger();
