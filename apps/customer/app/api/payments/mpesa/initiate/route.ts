@@ -119,15 +119,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create tenant-aware services for tab resolution
-    const tabResolutionService = createTabResolutionService(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SECRET_KEY!
-    );
-
     // Find customer's tab using bar context and customer identifier
     let customerTab: any;
     try {
+      // Create tenant-aware services for tab resolution
+      const tabResolutionService = createTabResolutionService(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SECRET_KEY!
+      );
+      
       customerTab = await tabResolutionService.findCustomerTab(barId, customerIdentifier);
     } catch (error) {
       console.error('Customer tab resolution error:', error);
@@ -229,7 +229,12 @@ export async function POST(request: NextRequest) {
     let stkPushService: STKPushService;
     
     try {
-      // Create tenant-aware services (reuse the already created tabResolutionService)
+      // Create tenant-aware services (create fresh instances for consistency)
+      const tabResolutionService = createTabResolutionService(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SECRET_KEY!
+      );
+      
       const credentialRetrievalService = createCredentialRetrievalService(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SECRET_KEY!
