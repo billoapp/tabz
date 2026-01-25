@@ -105,7 +105,10 @@ export async function GET(request: NextRequest) {
           environment: serviceConfig.environment,
           timeoutMs: serviceConfig.timeoutMs,
           retryAttempts: serviceConfig.retryAttempts,
-          hasCredentials: !!serviceConfig.credentials
+          hasConsumerKey: !!serviceConfig.consumerKey,
+          hasConsumerSecret: !!serviceConfig.consumerSecret,
+          hasPasskey: !!serviceConfig.passkey,
+          businessShortCode: serviceConfig.businessShortCode
         }
       };
       console.log('✅ Step 5: Service config created successfully');
