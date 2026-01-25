@@ -99,9 +99,9 @@ export async function GET(request: NextRequest) {
 
     // Try to convert to Buffer and decrypt
     let decryptionResults = {
-      consumerKey: { success: false, error: '', length: 0 },
-      consumerSecret: { success: false, error: '', length: 0 },
-      passkey: { success: false, error: '', length: 0 }
+      consumerKey: { success: false, error: '', length: 0, decryptedLength: 0, startsWithExpected: false },
+      consumerSecret: { success: false, error: '', length: 0, decryptedLength: 0, startsWithExpected: false },
+      passkey: { success: false, error: '', length: 0, decryptedLength: 0, startsWithExpected: false }
     };
 
     try {
