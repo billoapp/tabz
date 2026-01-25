@@ -260,6 +260,12 @@ export async function POST(request: NextRequest) {
 
     } catch (credentialError) {
       console.error('Tenant credential resolution error:', credentialError);
+      console.error('Error details:', {
+        message: credentialError instanceof Error ? credentialError.message : 'Unknown error',
+        code: credentialError instanceof MpesaError ? credentialError.code : 'UNKNOWN_ERROR',
+        stack: credentialError instanceof Error ? credentialError.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
 
       // Update transaction status to failed
       await transactionService.updateTransactionStatus(transaction.id, 'failed', {

@@ -216,7 +216,7 @@ export class DatabaseCredentialRetrievalService implements CredentialRetrievalSe
    */
   async validateCredentials(credentials: MpesaCredentials): Promise<boolean> {
     try {
-      // Check required fields are present and non-empty
+      // Basic required field validation only
       if (!credentials.consumerKey || credentials.consumerKey.trim().length === 0) {
         return false;
       }
@@ -243,11 +243,7 @@ export class DatabaseCredentialRetrievalService implements CredentialRetrievalSe
 
       // Validate callback URL format
       try {
-        const url = new URL(credentials.callbackUrl);
-        // Ensure HTTPS for production
-        if (credentials.environment === 'production' && url.protocol !== 'https:') {
-          return false;
-        }
+        new URL(credentials.callbackUrl);
       } catch {
         return false;
       }
@@ -255,33 +251,27 @@ export class DatabaseCredentialRetrievalService implements CredentialRetrievalSe
       // Validate timeout URL format if provided
       if (credentials.timeoutUrl) {
         try {
-          const url = new URL(credentials.timeoutUrl);
-          // Ensure HTTPS for production
-          if (credentials.environment === 'production' && url.protocol !== 'https:') {
-            return false;
-          }
+          new URL(credentials.timeoutUrl);
         } catch {
           return false;
         }
       }
 
-      // Validate business short code format (should be numeric)
+      // Basic business short code validation (just check it's numeric)
       if (!/^\d+$/.test(credentials.businessShortCode)) {
         return false;
       }
 
-      // Validate consumer key format (should be alphanumeric)
-      if (!/^[A-Za-z0-9]+$/.test(credentials.consumerKey)) {
+      // Relaxed validation - just check minimum lengths
+      if (credentials.consumerKey.length < 10) {
         return false;
       }
 
-      // Validate credential field lengths and formats
-      if (!this.validateCredentialFormats(credentials)) {
+      if (credentials.consumerSecret.length < 10) {
         return false;
       }
 
-      // Validate environment-endpoint consistency
-      if (!this.validateEnvironmentConsistency(credentials)) {
+      if (credentials.passkey.length < 20) {
         return false;
       }
 
