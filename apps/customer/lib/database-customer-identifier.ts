@@ -45,7 +45,7 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
     const { data: tabs, error } = await supabase
       .from('tabs')
       .select('id, bar_id, owner_identifier, tab_number, status, opened_at')
-      .like('owner_identifier', `${deviceId}_%`)
+      .like('owner_identifier', `${deviceId}%`) // Use prefix match for device ID
       .in('status', ['open', 'overdue'])
       .order('opened_at', { ascending: false })
       .limit(1);
@@ -70,8 +70,8 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
     // The owner_identifier IS the customer identifier!
     const customerIdentifier = tab.owner_identifier;
     
-    // Validate the format (should be device_id_bar_id)
-    if (!customerIdentifier || !customerIdentifier.includes('_')) {
+    // Validate the format (should start with device ID)
+    if (!customerIdentifier || !customerIdentifier.startsWith(deviceId)) {
       return {
         success: false,
         error: 'Invalid customer identifier format in database'
