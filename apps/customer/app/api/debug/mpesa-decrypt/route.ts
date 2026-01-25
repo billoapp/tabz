@@ -1,6 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase';
-import { decryptCredential } from '@tabeza/shared/lib/mpesa/services/encryption';
+import * as crypto from 'crypto';
+
+/**
+ * Decrypt using same logic as shared package
+ */
+function decryptCredential(encryptedBuffer: Buffer): string {
+  try {
+    const masterKey = process.env.MPESA_KMS_KEY;
+    
+    if (!masterKey) {
+      throw new Error('MPESA_KMS_KEY environment variable is required');
+    }
+    
+    if (masterKey.length !== 32) {
+      throw new Error('MPESA_KMS_KEY must be exactly 32 bytes');
+    }
+    
+    if (encryptedBuffer.length < 28) { // 12 (IV) + 16 (AuthTag) = 28 minimum
+      throw new Error('Invalid encrypted data: too short');
+    }
+    
+    // Extract components
+    const iv = encryptedBuffer.subarray(0, 12);
+    const authTag = encryptedBuffer.subarray(12, 28);
+    const encrypted = encryptedBuffer.subarray(28);
+    
+    // Create decipher
+    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(masterKey, 'utf8'), iv);
+    decipher.setAuthTag(authTag);
+    
+    // Decrypt
+    let decrypted = decipher.update(encrypted, undefined, 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    return decrypted;
+  } catch (error) {
+    throw new Error(`Failed to decrypt credential: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
