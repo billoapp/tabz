@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
 
     const tabId = customerTab.id;
 
-    // Check if tab exists and get tab info (using resolved tabId)
+    // Get tab owner identifier for rate limiting (tab resolution service already validated status)
     const supabase = createServiceRoleClient();
     const { data: tab, error: tabError } = await supabase
       .from('tabs')
@@ -170,12 +170,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (tab.status !== 'open' && tab.status !== 'overdue') {
-      return NextResponse.json(
-        { error: 'Tab is not available for payments' },
-        { status: 400 }
-      );
-    }
+    // Note: No need to validate tab status again - the tab resolution service
+    // already filtered for 'open' or 'overdue' status when finding the tab
 
     // Initialize rate limiter
     const rateLimiter = new MpesaRateLimiter(
