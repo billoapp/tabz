@@ -200,7 +200,7 @@ export class DatabaseTabResolutionService implements TabResolutionService {
             owner_identifier,
             opened_at,
             closed_at,
-            bars (
+            bars!inner (
               id,
               name,
               active
@@ -220,7 +220,7 @@ export class DatabaseTabResolutionService implements TabResolutionService {
         }
 
         // Validate tab has associated bar (not orphaned)
-        if (!tabData.bars || !tabData.bar_id) {
+        if (!tabData.bars || !Array.isArray(tabData.bars) || tabData.bars.length === 0 || !tabData.bar_id) {
           throw new MpesaError(
             `Orphaned tab detected: ${tabData.id} has no associated bar`,
             'ORPHANED_TAB',
@@ -228,7 +228,7 @@ export class DatabaseTabResolutionService implements TabResolutionService {
           );
         }
 
-        const barData = tabData.bars as { id: string; name: string; active: boolean };
+        const barData = tabData.bars[0]; // Get the first (and only) bar from the array
 
         // Validate bar is active
         if (!barData.active) {
