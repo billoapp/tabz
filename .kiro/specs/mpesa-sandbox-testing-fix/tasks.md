@@ -17,7 +17,7 @@ This implementation plan addresses the M-Pesa sandbox testing issues by systemat
   - **Validates: Requirements 1.1, 1.4, 5.1**
 
 - [ ] 2. Enhance environment validation service
-  - [~] 2.1 Extend existing environment validator to check M-Pesa configuration
+  - [ ] 2.1 Extend existing environment validator to check M-Pesa configuration
     - Modify `packages/shared/lib/diagnostics/environment-validator.ts`
     - Add M-Pesa specific validation functions
     - Include validation for all required M-Pesa variables
@@ -27,7 +27,7 @@ This implementation plan addresses the M-Pesa sandbox testing issues by systemat
     - **Property 2: Environment Validation at Startup**
     - **Validates: Requirements 1.2, 5.2, 5.4**
 
-  - [~] 2.3 Add configuration template generation
+  - [ ] 2.3 Add configuration template generation
     - Create function to generate M-Pesa environment variable templates
     - Include placeholder values and documentation
     - _Requirements: 5.3_
@@ -37,7 +37,7 @@ This implementation plan addresses the M-Pesa sandbox testing issues by systemat
     - **Validates: Requirements 5.3**
 
 - [ ] 3. Improve tab lookup functionality and error handling
-  - [~] 3.1 Enhance tab lookup in payment initiation endpoint
+  - [ ] 3.1 Enhance tab lookup in payment initiation endpoint
     - Modify `apps/customer/app/api/payments/mpesa/initiate/route.ts`
     - Add detailed diagnostic information to tab lookup failures
     - Include tab search metadata in error responses
@@ -47,7 +47,7 @@ This implementation plan addresses the M-Pesa sandbox testing issues by systemat
     - **Property 4: Tab Lookup Success**
     - **Validates: Requirements 2.1, 2.3, 2.4**
 
-  - [~] 3.3 Implement enhanced error response format
+  - [ ] 3.3 Implement enhanced error response format
     - Create standardized error response structure
     - Include diagnostic information for debugging
     - Add request/response details to error logs
@@ -57,11 +57,11 @@ This implementation plan addresses the M-Pesa sandbox testing issues by systemat
     - **Property 6: Error Response Quality**
     - **Validates: Requirements 2.2, 4.4, 6.1, 6.3, 6.4**
 
-- [~] 4. Checkpoint - Ensure configuration and tab lookup tests pass
+- [ ] 4. Checkpoint - Ensure configuration and tab lookup tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 5. Implement M-Pesa configuration service
-  - [~] 5.1 Create M-Pesa configuration service
+  - [ ] 5.1 Create M-Pesa configuration service
     - Create new service in `packages/shared/lib/mpesa-config-service.ts`
     - Implement environment-specific configuration management
     - Add credential validation functionality
@@ -75,14 +75,14 @@ This implementation plan addresses the M-Pesa sandbox testing issues by systemat
     - **Property 7: Sandbox API Connectivity**
     - **Validates: Requirements 3.1, 3.3, 3.4**
 
-  - [~] 5.4 Integrate configuration service with existing STK Push service
+  - [ ] 5.4 Integrate configuration service with existing STK Push service
     - Update existing services to use new configuration service
     - Ensure backward compatibility
     - Add configuration health checks
     - _Requirements: 3.1, 4.1, 4.2_
 
 - [ ] 6. Enhance payment initiation flow
-  - [~] 6.1 Update payment initiation endpoint with improved error handling
+  - [ ] 6.1 Update payment initiation endpoint with improved error handling
     - Enhance error handling in payment initiation flow
     - Add validation for all input parameters
     - Implement proper response formatting
@@ -92,7 +92,7 @@ This implementation plan addresses the M-Pesa sandbox testing issues by systemat
     - **Property 5: Payment Initiation Flow**
     - **Validates: Requirements 4.1, 4.2, 4.3**
 
-  - [~] 6.3 Add comprehensive logging and diagnostics
+  - [ ] 6.3 Add comprehensive logging and diagnostics
     - Implement detailed logging for all M-Pesa operations
     - Add diagnostic tools for configuration validation
     - Include request/response logging for debugging
@@ -103,7 +103,7 @@ This implementation plan addresses the M-Pesa sandbox testing issues by systemat
     - **Validates: Requirements 6.2**
 
 - [ ] 7. Integration and testing
-  - [~] 7.1 Wire all components together
+  - [ ] 7.1 Wire all components together
     - Integrate environment validator with app startup
     - Connect configuration service with payment endpoints
     - Ensure proper error propagation throughout the system
@@ -115,13 +115,13 @@ This implementation plan addresses the M-Pesa sandbox testing issues by systemat
     - Test error handling and diagnostic information
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-  - [~] 7.3 Add startup validation to customer app
+  - [ ] 7.3 Add startup validation to customer app
     - Implement environment validation during app initialization
     - Display clear error messages for configuration issues
     - Provide actionable guidance for fixing configuration
     - _Requirements: 1.2, 1.4, 5.4_
 
-- [~] 8. Final checkpoint - Ensure all tests pass and M-Pesa sandbox testing works
+- [ ] 8. Final checkpoint - Ensure all tests pass and M-Pesa sandbox testing works
   - Ensure all tests pass, ask the user if questions arise.
   - Verify M-Pesa sandbox testing works end-to-end
   - Confirm "Tab not found" errors are resolved

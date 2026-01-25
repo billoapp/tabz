@@ -8,6 +8,7 @@ import PaymentTabs from '@/components/PaymentTabs';
 import CashPaymentTab from '@/components/CashPaymentTab';
 import MpesaPaymentTab from '@/components/MpesaPaymentTab';
 import { useToast } from '@/components/ui/Toast';
+import { supabase } from '@/lib/supabase';
 
 export default function PaymentPage() {
   const router = useRouter();
@@ -91,7 +92,6 @@ export default function PaymentPage() {
       router.push('/');
     }
   };
-  }, [router]);
 
   const fetchPaymentSettings = async (barId: string) => {
     try {

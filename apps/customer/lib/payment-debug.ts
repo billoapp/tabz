@@ -41,11 +41,25 @@ export function collectPaymentDebugInfo(): PaymentDebugInfo {
   try {
     if (currentTabData) {
       currentTab = JSON.parse(currentTabData);
-      currentTabValid = currentTab && typeof currentTab === 'object' && currentTab.bar_id;
+      // More robust validation - check for bar_id or id field
+      currentTabValid = currentTab && 
+                       typeof currentTab === 'object' && 
+                       (currentTab.bar_id || currentTab.id);
       barId = currentTab?.bar_id || null;
+      
+      // Debug logging
+      console.log('🔍 Payment Debug - Tab validation:', {
+        hasCurrentTabData: !!currentTabData,
+        currentTabType: typeof currentTab,
+        hasBarId: !!currentTab?.bar_id,
+        hasId: !!currentTab?.id,
+        currentTabValid,
+        barId
+      });
     }
   } catch (error) {
     console.error('Failed to parse currentTab from sessionStorage:', error);
+    console.error('Raw data:', currentTabData);
   }
 
   // Local storage analysis
@@ -141,6 +155,9 @@ export function logPaymentDebugInfo(): PaymentDebugInfo {
 export function validatePaymentContext(): { isValid: boolean; error?: string; debugInfo: PaymentDebugInfo } {
   const debugInfo = collectPaymentDebugInfo();
   
+  // Log debug info for troubleshooting
+  console.log('🔍 Payment context validation:', debugInfo);
+  
   if (!debugInfo.sessionStorage.hasCurrentTab) {
     return {
       isValid: false,
@@ -150,9 +167,24 @@ export function validatePaymentContext(): { isValid: boolean; error?: string; de
   }
   
   if (!debugInfo.sessionStorage.currentTabValid) {
+    // More specific error message based on what's missing
+    let errorMessage = 'Invalid tab data. ';
+    
+    if (!debugInfo.sessionStorage.currentTab) {
+      errorMessage += 'Tab data is null.';
+    } else if (typeof debugInfo.sessionStorage.currentTab !== 'object') {
+      errorMessage += 'Tab data is not an object.';
+    } else if (!debugInfo.sessionStorage.barId) {
+      errorMessage += 'Missing bar information.';
+    } else {
+      errorMessage += 'Tab structure is invalid.';
+    }
+    
+    errorMessage += ' Please refresh the page and try again.';
+    
     return {
       isValid: false,
-      error: 'Invalid tab data. Please refresh the page and try again.',
+      error: errorMessage,
       debugInfo
     };
   }
