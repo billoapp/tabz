@@ -122,10 +122,10 @@ export class DatabaseCredentialRetrievalService implements CredentialRetrievalSe
         // Decrypt credentials
         let decryptedCredentials: MpesaCredentials;
         try {
-          const consumerKey = decryptCredential(credentialRecord.consumer_key_enc);
-          const consumerSecret = decryptCredential(credentialRecord.consumer_secret_enc);
+          const consumerKey = decryptCredential(this.parseStoredBuffer(credentialRecord.consumer_key_enc));
+          const consumerSecret = decryptCredential(this.parseStoredBuffer(credentialRecord.consumer_secret_enc));
           const businessShortCode = credentialRecord.business_shortcode; // Not encrypted
-          const passkey = decryptCredential(credentialRecord.passkey_enc);
+          const passkey = decryptCredential(this.parseStoredBuffer(credentialRecord.passkey_enc));
 
           decryptedCredentials = {
             consumerKey,
@@ -167,6 +167,46 @@ export class DatabaseCredentialRetrievalService implements CredentialRetrievalSe
         operation: 'getTenantCredentials'
       }
     );
+  }
+
+  /**
+   * Parse stored buffer data from Supabase
+   * Handles both raw Buffer and JSON-encoded Buffer formats
+   * @param storedData - Data retrieved from Supabase bytea column
+   * @returns Buffer ready for decryption
+   */
+  private parseStoredBuffer(storedData: any): Buffer {
+    // If it's already a Buffer, return as-is
+    if (Buffer.isBuffer(storedData)) {
+      return storedData;
+    }
+    
+    // If it's a string (PostgreSQL bytea hex format)
+    if (typeof storedData === 'string') {
+      if (storedData.startsWith('\\x')) {
+        // PostgreSQL bytea hex format
+        const hexData = storedData.slice(2); // Remove \\x prefix
+        const buffer = Buffer.from(hexData, 'hex');
+        
+        // Check if this is a JSON-encoded Buffer
+        try {
+          const jsonStr = buffer.toString('utf8');
+          const parsed = JSON.parse(jsonStr);
+          
+          if (parsed.type === 'Buffer' && Array.isArray(parsed.data)) {
+            // This is a JSON representation of a Buffer
+            return Buffer.from(parsed.data);
+          }
+        } catch (e) {
+          // Not JSON, treat as raw buffer
+        }
+        
+        return buffer;
+      }
+    }
+    
+    // Try to convert whatever we have to a Buffer
+    return Buffer.from(storedData);
   }
 
   /**
