@@ -61,6 +61,8 @@ dev-tools/sql/*
 !dev-tools/sql/.gitkeep
 dev-tools/debug/*
 !dev-tools/debug/.gitkeep
+dev-tools/config/*
+!dev-tools/config/.gitkeep
 
 # Additional development directories to ignore
 supabase/

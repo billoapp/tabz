@@ -7,7 +7,7 @@ def should_include(path):
     exclude_dirs = {
         'node_modules', '.next', '.git', '.firebase', '.vercel', 
         '.github', '__pycache__', 'dist', 'build', '.cache',
-        '.vscode', '.idea', '.DS_Store', 'coverage', '.yarn'
+        '.vscode', '.idea', '.DS_Store', 'coverage', '.yarn', 'dev-tools', 'supabase', 'database'
     }
     
     exclude_files = {
