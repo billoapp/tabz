@@ -15,6 +15,7 @@ export interface MpesaConfig {
   callbackUrl: string;
   oauthUrl: string;
   stkPushUrl: string;
+  stkQueryUrl: string;
 }
 
 export interface BarMpesaData {
@@ -100,6 +101,7 @@ export function loadMpesaConfigFromBar(barData: BarMpesaData): MpesaConfig {
     callbackUrl: barData.mpesa_callback_url,
     oauthUrl: urls.oauth,
     stkPushUrl: urls.stkPush,
+    stkQueryUrl: urls.stkQuery,
   };
 
   // Requirement 4.5: Validate all required configuration
@@ -131,22 +133,47 @@ function validateEnvironment(env: string): MpesaEnvironment {
 
 /**
  * Decrypt M-Pesa credential using KMS key
- * Simple decryption - in production this should use proper encryption
+ * Handles bytea data from database using AES-256-GCM decryption
  */
 function decryptCredential(encryptedValue: string, kmsKey: string): string {
   try {
-    // For now, assume the encrypted value is base64 encoded
-    // In a real implementation, this would use proper AES decryption
-    const decoded = Buffer.from(encryptedValue, 'base64').toString('utf8');
-    
-    // Simple XOR decryption with KMS key (not secure, just for demo)
-    // In production, use proper AES-256-GCM decryption
-    let decrypted = '';
-    for (let i = 0; i < decoded.length; i++) {
-      decrypted += String.fromCharCode(
-        decoded.charCodeAt(i) ^ kmsKey.charCodeAt(i % kmsKey.length)
+    // Handle test values for development
+    if (encryptedValue === 'test_encrypted_value') {
+      throw new Error(
+        'Test M-Pesa credentials detected. Please configure real Safaricom sandbox credentials in the database. ' +
+        'Get credentials from: https://developer.safaricom.co.ke/MyApps'
       );
     }
+    
+    // The encrypted value from database is a bytea hex string (e.g., "\\x1234abcd...")
+    // Convert hex string to Buffer
+    let encryptedBuffer: Buffer;
+    
+    if (encryptedValue.startsWith('\\x')) {
+      // PostgreSQL bytea hex format
+      encryptedBuffer = Buffer.from(encryptedValue.slice(2), 'hex');
+    } else {
+      // Try base64 format as fallback
+      encryptedBuffer = Buffer.from(encryptedValue, 'base64');
+    }
+    
+    if (encryptedBuffer.length < 28) { // 12 (IV) + 16 (AuthTag) = 28 minimum
+      throw new Error('Invalid encrypted data: too short');
+    }
+    
+    // Extract components (same as staff app)
+    const iv = encryptedBuffer.subarray(0, 12);
+    const authTag = encryptedBuffer.subarray(12, 28);
+    const encrypted = encryptedBuffer.subarray(28);
+    
+    // Create decipher using Node.js crypto
+    const crypto = require('crypto');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(kmsKey, 'utf8'), iv);
+    decipher.setAuthTag(authTag);
+    
+    // Decrypt
+    let decrypted = decipher.update(encrypted, undefined, 'utf8');
+    decrypted += decipher.final('utf8');
     
     return decrypted;
   } catch (error) {
@@ -165,6 +192,7 @@ function getEnvironmentUrls(environment: MpesaEnvironment) {
   return {
     oauth: `${baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
     stkPush: `${baseUrl}/mpesa/stkpush/v1/processrequest`,
+    stkQuery: `${baseUrl}/mpesa/stkpushquery/v1/query`,
   };
 }
 
@@ -276,6 +304,7 @@ export function loadMpesaConfig(): MpesaConfig {
     callbackUrl: callbackUrl!,
     oauthUrl: urls.oauth,
     stkPushUrl: urls.stkPush,
+    stkQueryUrl: urls.stkQuery,
   };
 
   validateConfig(config);

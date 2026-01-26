@@ -166,14 +166,14 @@ This implementation plan transforms the over-engineered M-Pesa payment system in
     - Remove references to deleted services and tables
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 11. Documentation and deployment preparation
-  - [~] 11.1 Create environment variable documentation
+- [x] 11. Documentation and deployment preparation
+  - [x] 11.1 Create environment variable documentation
     - Document all required M-Pesa environment variables
     - Provide examples for both sandbox and production configurations
     - Create deployment checklist for environment setup
     - _Requirements: 4.1, 4.2, 4.5_
 
-  - [~] 11.2 Update API documentation
+  - [x] 11.2 Update API documentation
     - Document new payment initiation endpoint
     - Document callback endpoint format
     - Provide example requests and responses

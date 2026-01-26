@@ -70,8 +70,24 @@ export default function MpesaPaymentTab({
   };
 
   const handleSendPayment = () => {
+    console.log('🔘 M-Pesa button clicked', {
+      phoneValidation: phoneValidation?.isValid,
+      isValidAmount,
+      phoneNumber,
+      amount
+    });
+    
     if (phoneValidation?.isValid && isValidAmount) {
+      console.log('✅ Validation passed, showing M-Pesa payment');
       setShowMpesaPayment(true);
+    } else {
+      console.log('❌ Validation failed', {
+        phoneValid: phoneValidation?.isValid,
+        phoneError: phoneValidation?.error,
+        amountValid: isValidAmount,
+        amount,
+        balance
+      });
     }
   };
 
@@ -229,9 +245,15 @@ export default function MpesaPaymentTab({
         onClick={handleSendPayment}
         disabled={!phoneValidation?.isValid || !isValidAmount}
         className="w-full bg-green-600 text-white py-4 rounded-xl font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+        title={!phoneValidation?.isValid ? 'Please enter a valid phone number' : !isValidAmount ? 'Please enter a valid amount' : 'Send M-PESA payment request'}
       >
         <Phone size={20} />
         Send M-PESA Request
+        {(!phoneValidation?.isValid || !isValidAmount) && (
+          <span className="text-xs opacity-75 ml-2">
+            ({!phoneValidation?.isValid ? 'Invalid phone' : 'Invalid amount'})
+          </span>
+        )}
       </button>
 
       {/* M-PESA Information */}
