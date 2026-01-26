@@ -1734,7 +1734,7 @@ export default function MenuPage() {
         }
         
         // Database-first approach: Get customer identifier from source of truth
-        const { resolveCustomerIdentifier } = await import('../lib/database-customer-identifier');
+        const { resolveCustomerIdentifier } = await import('../../lib/database-customer-identifier');
         const identifierResult = await resolveCustomerIdentifier();
         
         if (!identifierResult.success) {

@@ -148,7 +148,7 @@ This implementation plan transforms the over-engineered M-Pesa payment system in
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 10. Clean up over-engineered components
-  - [~] 10.1 Create database cleanup migration
+  - [x] 10.1 Create database cleanup migration
     - Write SQL script to drop unused M-Pesa tables (mpesa_credentials, mpesa_transactions, mpesa_credential_events, mpesa_rate_limit_logs)
     - Remove unused database functions and triggers
     - Preserve existing `tab_payments` records
