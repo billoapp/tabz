@@ -1752,7 +1752,7 @@ export default function MenuPage() {
         }
         
         // Validate phone number format
-        const phoneNumberToUse = validation.formatted || validation.international;
+        const phoneNumberToUse = validation.normalized;
         if (!phoneNumberToUse) {
           throw new Error('Invalid phone number format. Please check and try again.');
         }

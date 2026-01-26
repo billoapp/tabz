@@ -8,6 +8,7 @@
 export interface PhoneValidationResult {
   isValid: boolean;
   normalized?: string; // Always in 254XXXXXXXXX format
+  formatted?: string; // Display format: +254 XXX XXX XXX
   error?: string;
 }
 
@@ -109,7 +110,8 @@ export function validateKenyanPhoneNumber(phoneNumber: string): PhoneValidationR
   
   return {
     isValid: true,
-    normalized
+    normalized,
+    formatted: formatKenyanPhoneNumber(normalized) || undefined
   };
 }
 
