@@ -332,7 +332,9 @@ export default function MpesaPayment({
     } finally {
       setIsProcessing(false);
     }
-  };yPayment = () => {
+  };
+
+  const retryPayment = () => {
     setCurrentTransaction(null);
     setPaymentStatus(null);
     initiatePayment();
