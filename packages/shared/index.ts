@@ -18,6 +18,18 @@ export {
 // Export phone validation utilities
 export * from './lib/phoneValidation';
 
+// Export simplified phone validation for M-Pesa payments
+export * from './lib/services/phoneValidation';
+
+// Export simplified M-Pesa configuration loader
+export * from './lib/services/mpesa-config';
+
+// Export simplified M-Pesa OAuth token service
+export * from './lib/services/mpesa-oauth';
+
+// Export simplified M-Pesa STK Push service
+export * from './lib/services/mpesa-stk-push';
+
 // Export diagnostic services
 export * from './lib/diagnostics/environment-validator';
 export * from './lib/diagnostics/mpesa-diagnostic';

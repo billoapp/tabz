@@ -113,6 +113,55 @@ export async function GET(request: NextRequest) {
       };
       console.log('✅ Step 5: Service config created successfully');
       
+      // Step 6: Test the FULL ServiceFactory method (this is what fails in main API)
+      console.log('🔍 Step 6: Testing FULL ServiceFactory.createServiceConfigFromCustomerContext()');
+      try {
+        const fullServiceConfig = await ServiceFactory.createServiceConfigFromCustomerContext(
+          barId,
+          customerIdentifier,
+          tabResolutionService,
+          credentialRetrievalService,
+          tenantConfigFactory,
+          { environment }
+        );
+        
+        result.steps.step6 = { 
+          success: true, 
+          message: 'Full ServiceFactory method works',
+          data: {
+            environment: fullServiceConfig.environment,
+            timeoutMs: fullServiceConfig.timeoutMs,
+            retryAttempts: fullServiceConfig.retryAttempts,
+            hasConsumerKey: !!fullServiceConfig.consumerKey,
+            hasConsumerSecret: !!fullServiceConfig.consumerSecret,
+            hasPasskey: !!fullServiceConfig.passkey,
+            businessShortCode: fullServiceConfig.businessShortCode
+          }
+        };
+        console.log('✅ Step 6: Full ServiceFactory method works perfectly!');
+        
+      } catch (fullMethodError) {
+        console.error('❌ Step 6: Full ServiceFactory method failed:', fullMethodError);
+        
+        result.steps.step6 = { 
+          success: false, 
+          message: 'Full ServiceFactory method failed - THIS IS THE BUG!',
+          error: {
+            message: fullMethodError instanceof Error ? fullMethodError.message : 'Unknown error',
+            code: fullMethodError instanceof MpesaError ? fullMethodError.code : 'UNKNOWN_ERROR',
+            stack: fullMethodError instanceof Error ? fullMethodError.stack : undefined,
+            originalError: fullMethodError instanceof MpesaError ? fullMethodError.originalError : undefined
+          }
+        };
+        
+        // This is the critical finding - individual steps work but full method fails
+        result.criticalFinding = {
+          individualStepsWork: true,
+          fullMethodFails: true,
+          conclusion: 'ServiceFactory integration has a bug in the full method implementation'
+        };
+      }
+      
       result.success = true;
       result.message = 'All steps completed successfully';
       
