@@ -12,17 +12,17 @@ import { loadMpesaConfigFromBar, MpesaConfigurationError } from '@tabeza/shared'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SECRET_KEY!
 );
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { checkoutRequestId: string } }
+  { params }: { params: Promise<{ checkoutRequestId: string }> }
 ) {
   const startTime = Date.now();
   
   try {
-    const { checkoutRequestId } = params;
+    const { checkoutRequestId } = await params;
     
     if (!checkoutRequestId) {
       return NextResponse.json(
@@ -42,23 +42,7 @@ export async function GET(
         amount,
         status,
         reference,
-        metadata,
-        tabs!inner (
-          id,
-          bar_id,
-          tab_number,
-          bars!inner (
-            id,
-            name,
-            mpesa_enabled,
-            mpesa_environment,
-            mpesa_business_shortcode,
-            mpesa_consumer_key_encrypted,
-            mpesa_consumer_secret_encrypted,
-            mpesa_passkey_encrypted,
-            mpesa_callback_url
-          )
-        )
+        metadata
       `)
       .eq('reference', checkoutRequestId)
       .eq('method', 'mpesa')
@@ -72,7 +56,36 @@ export async function GET(
       );
     }
 
-    const bar = payment.tabs.bars;
+    // Get tab and bar information
+    const { data: tabData, error: tabError } = await supabase
+      .from('tabs')
+      .select(`
+        id,
+        tab_number,
+        bars (
+          id,
+          name,
+          mpesa_enabled,
+          mpesa_environment,
+          mpesa_business_shortcode,
+          mpesa_consumer_key_encrypted,
+          mpesa_consumer_secret_encrypted,
+          mpesa_passkey_encrypted,
+          mpesa_callback_url
+        )
+      `)
+      .eq('id', payment.tab_id)
+      .single();
+
+    if (tabError || !tabData) {
+      console.error('Tab not found:', tabError);
+      return NextResponse.json(
+        { error: 'Tab not found' },
+        { status: 404 }
+      );
+    }
+
+    const bar = Array.isArray(tabData.bars) ? tabData.bars[0] : tabData.bars;
     
     // Load M-Pesa configuration for this bar
     let mpesaConfig;
@@ -173,7 +186,7 @@ export async function GET(
       status: paymentStatus.status,
       message: paymentStatus.message,
       amount: payment.amount,
-      tabNumber: payment.tabs.tab_number,
+      tabNumber: tabData.tab_number,
       barName: bar.name,
       responseTime,
       rawResponse: queryResponse

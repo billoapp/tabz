@@ -19,6 +19,9 @@ export * from './lib/services/mpesa-oauth';
 // Export simplified M-Pesa STK Push service
 export * from './lib/services/mpesa-stk-push';
 
+// Export simplified M-Pesa STK Query service
+export * from './lib/services/mpesa-stk-query';
+
 // Export diagnostic services
 export * from './lib/diagnostics/environment-validator';
 
