@@ -129,7 +129,7 @@ This implementation plan transforms the over-engineered M-Pesa payment system in
     - **Validates: Requirements 1.5**
 
 - [ ] 8. Create test utilities and end-to-end testing
-  - [~] 8.1 Create M-Pesa callback simulation utilities
+  - [ ] 8.1 Create M-Pesa callback simulation utilities
     - Write functions to simulate various callback scenarios (success, failure, timeout)
     - Create test data generators for different callback formats
     - _Requirements: 9.4_
@@ -144,7 +144,7 @@ This implementation plan transforms the over-engineered M-Pesa payment system in
     - Test tab auto-close behavior with various tab states
     - _Requirements: 9.1, 9.2, 9.3, 9.5_
 
-- [~] 9. Checkpoint - Complete system testing
+- [ ] 9. Checkpoint - Complete system testing
   - Ensure all tests pass, ask the user if questions arise.
 
 - [x] 10. Clean up over-engineered components
@@ -179,7 +179,7 @@ This implementation plan transforms the over-engineered M-Pesa payment system in
     - Provide example requests and responses
     - _Requirements: 5.1, 5.2_
 
-- [~] 12. Final checkpoint - System validation
+- [ ] 12. Final checkpoint - System validation
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
