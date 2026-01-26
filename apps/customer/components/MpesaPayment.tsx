@@ -11,7 +11,7 @@ import {
   getNetworkProvider,
   sanitizePhoneNumber,
   convertToInternationalFormat
-} from '@tabeza/shared/lib/phoneValidation';
+} from '@tabeza/shared';
 import { validatePaymentContext, logPaymentDebugInfo } from '@/lib/payment-debug';
 
 interface MpesaPaymentProps {

@@ -21,7 +21,7 @@ import {
   formatPhoneNumberInput, 
   getPhoneNumberGuidance,
   getNetworkProvider
-} from '@tabeza/shared/lib/phoneValidation';
+} from '@tabeza/shared';
 import { validatePaymentContext, logPaymentDebugInfo } from '@/lib/payment-debug';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 import PWAInstallPrompt from '../../components/PWAInstallPrompt';

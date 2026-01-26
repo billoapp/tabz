@@ -143,3 +143,125 @@ export function formatKenyanPhoneNumber(phoneNumber: string): string | null {
   // Format as: +254 XXX XXX XXX
   return `+${normalized.substring(0, 3)} ${normalized.substring(3, 6)} ${normalized.substring(6, 9)} ${normalized.substring(9)}`;
 }
+
+// ===== COMPATIBILITY FUNCTIONS FOR EXISTING COMPONENTS =====
+
+/**
+ * Legacy function name for validateKenyanPhoneNumber
+ * @deprecated Use validateKenyanPhoneNumber instead
+ */
+export function validateMpesaPhoneNumber(phoneNumber: string): PhoneValidationResult {
+  return validateKenyanPhoneNumber(phoneNumber);
+}
+
+/**
+ * Format phone number input with basic formatting
+ * Adds spaces for readability: 0712 345 678
+ */
+export function formatPhoneNumberInput(newValue: string, previousValue: string = ''): string {
+  // Remove all non-digits
+  const digits = newValue.replace(/\D/g, '');
+  
+  // Limit to 12 digits (international format)
+  const limitedDigits = digits.substring(0, 12);
+  
+  // Format based on length and starting digits
+  if (limitedDigits.startsWith('254')) {
+    // International format: 254 712 345 678
+    if (limitedDigits.length <= 3) return limitedDigits;
+    if (limitedDigits.length <= 6) return `${limitedDigits.substring(0, 3)} ${limitedDigits.substring(3)}`;
+    if (limitedDigits.length <= 9) return `${limitedDigits.substring(0, 3)} ${limitedDigits.substring(3, 6)} ${limitedDigits.substring(6)}`;
+    return `${limitedDigits.substring(0, 3)} ${limitedDigits.substring(3, 6)} ${limitedDigits.substring(6, 9)} ${limitedDigits.substring(9)}`;
+  } else if (limitedDigits.startsWith('0')) {
+    // Local format: 0712 345 678
+    if (limitedDigits.length <= 4) return limitedDigits;
+    if (limitedDigits.length <= 7) return `${limitedDigits.substring(0, 4)} ${limitedDigits.substring(4)}`;
+    return `${limitedDigits.substring(0, 4)} ${limitedDigits.substring(4, 7)} ${limitedDigits.substring(7)}`;
+  } else if (limitedDigits.startsWith('7')) {
+    // Raw format: 712 345 678
+    if (limitedDigits.length <= 3) return limitedDigits;
+    if (limitedDigits.length <= 6) return `${limitedDigits.substring(0, 3)} ${limitedDigits.substring(3)}`;
+    return `${limitedDigits.substring(0, 3)} ${limitedDigits.substring(3, 6)} ${limitedDigits.substring(6)}`;
+  }
+  
+  // Default: just return the digits
+  return limitedDigits;
+}
+
+/**
+ * Get phone number guidance messages
+ * Returns array of guidance strings
+ */
+export function getPhoneNumberGuidance(phoneNumber: string): string[] {
+  if (!phoneNumber || phoneNumber.trim().length === 0) {
+    return ['Enter your M-PESA phone number', 'Supported formats: 0712345678 or 254712345678'];
+  }
+  
+  const sanitized = sanitizePhoneNumber(phoneNumber);
+  
+  if (sanitized.length < 9) {
+    return ['Phone number too short', 'Enter at least 9 digits'];
+  }
+  
+  if (sanitized.length > 12) {
+    return ['Phone number too long', 'Maximum 12 digits allowed'];
+  }
+  
+  if (!sanitized.startsWith('254') && !sanitized.startsWith('0') && !sanitized.startsWith('7')) {
+    return ['Invalid format', 'Use 0712345678 or 254712345678'];
+  }
+  
+  return ['Continue typing...', 'Format will be validated automatically'];
+}
+
+/**
+ * Get network provider from phone number
+ * Returns provider name or null if unknown
+ */
+export function getNetworkProvider(phoneNumber: string): string | null {
+  const normalized = normalizeKenyanPhoneNumber(phoneNumber);
+  if (!normalized) {
+    return null;
+  }
+  
+  // Get the mobile prefix (first two digits after 254)
+  const prefix = normalized.substring(3, 5);
+  
+  // Map prefixes to providers
+  const providerMap: Record<string, string> = {
+    '70': 'Safaricom',
+    '71': 'Safaricom', 
+    '72': 'Safaricom',
+    '74': 'Safaricom',
+    '75': 'Airtel',
+    '73': 'Airtel',
+    '78': 'Airtel',
+    '76': 'Safaricom',
+    '77': 'Telkom',
+    '79': 'Safaricom'
+  };
+  
+  return providerMap[prefix] || 'Unknown Provider';
+}
+
+/**
+ * Export sanitizePhoneNumber for external use
+ */
+export { sanitizePhoneNumber };
+
+/**
+ * Convert phone number to international format (254XXXXXXXXX)
+ * Alias for normalizeKenyanPhoneNumber
+ */
+export function convertToInternationalFormat(phoneNumber: string): string {
+  const normalized = normalizeKenyanPhoneNumber(phoneNumber);
+  if (!normalized) {
+    throw new Error('Invalid phone number format');
+  }
+  return normalized;
+}
+
+/**
+ * Export normalizeToInternationalFormat for external use
+ */
+export { normalizeToInternationalFormat };

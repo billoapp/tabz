@@ -9,7 +9,7 @@ import {
   formatPhoneNumberInput, 
   getPhoneNumberGuidance,
   getNetworkProvider
-} from '@tabeza/shared/lib/phoneValidation';
+} from '@tabeza/shared';
 
 interface MpesaPaymentTabProps {
   amount: string;
