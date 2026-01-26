@@ -613,41 +613,6 @@ export default function TabDetailPage() {
     }
   };
 
-  // Function to check if tab should be auto-closed after payment
-  const checkTabAutoClose = async (tabId: string, paymentAmount: number) => {
-    try {
-      // Import the auto-close service
-      const { createTabAutoCloseService } = await import('@tabeza/shared/lib/mpesa/services/tab-auto-close');
-      
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY;
-      
-      if (!supabaseUrl || !supabaseServiceKey) {
-        console.warn('Missing Supabase configuration for auto-close service');
-        return;
-      }
-
-      const autoCloseService = createTabAutoCloseService(supabaseUrl, supabaseServiceKey);
-      const result = await autoCloseService.processTabAfterPayment(tabId, paymentAmount);
-
-      if (result.success && result.tabClosed) {
-        showToast({
-          type: 'success',
-          title: 'Tab Auto-Closed',
-          message: result.message
-        });
-        
-        // Refresh the tab data to reflect the closure
-        setTimeout(() => {
-          loadTabData();
-        }, 1000);
-      }
-    } catch (error) {
-      console.error('Error checking tab auto-close:', error);
-      // Don't show error to user as payment was successful
-    }
-  };
-
   // Check for pending orders awaiting customer approval
   const hasPendingStaffOrders = () => {
     if (!tab?.orders) return false;

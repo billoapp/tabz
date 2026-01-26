@@ -154,13 +154,13 @@ This implementation plan transforms the over-engineered M-Pesa payment system in
     - Preserve existing `tab_payments` records
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 10.1, 10.2_
 
-  - [~] 10.2 Remove over-engineered service classes
+  - [x] 10.2 Remove over-engineered service classes
     - Delete ServiceFactory, TenantMpesaConfigFactory, CredentialRetrievalService
     - Remove TabResolutionService and complex tenant resolution logic
     - Delete rate limiting and complex audit logging systems
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-  - [~] 10.3 Update existing code to use simplified M-Pesa system
+  - [x] 10.3 Update existing code to use simplified M-Pesa system
     - Replace complex M-Pesa payment calls with simple API calls
     - Update staff interface to use new payment endpoints
     - Remove references to deleted services and tables

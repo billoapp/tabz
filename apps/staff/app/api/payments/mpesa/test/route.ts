@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { decryptCredential, validateMpesaCredentials, generateMpesaToken } from '@/lib/mpesa-encryption';
-import { EnvironmentConfigManager, STKPushService, MpesaCredentials, MpesaEnvironment } from '@tabeza/shared';
 
 // Use service role for backend operations (bypasses RLS)
 const supabaseServiceRole = createClient(

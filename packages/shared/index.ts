@@ -4,19 +4,8 @@ export * from './tokens-service';
 export * from './utils';
 export * from './lib/response-time';
 
-// Export M-PESA payment integration infrastructure
-export * from './lib/mpesa';
-
-// Export M-PESA sync manager with explicit naming to avoid conflicts
-export {
-  MpesaSyncManager,
-  type SyncResult,
-  type SyncValidationResult,
-  type RepairResult
-} from './lib/mpesa-sync-manager';
-
-// Export phone validation utilities
-export * from './lib/phoneValidation';
+// Export phone validation utilities (simplified version)
+export * from './lib/services/phoneValidation';
 
 // Export simplified phone validation for M-Pesa payments
 export * from './lib/services/phoneValidation';
