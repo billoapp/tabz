@@ -5,7 +5,7 @@ import { Phone, Loader2, CheckCircle, AlertCircle, RefreshCw, Info } from 'lucid
 import { formatCurrency } from '@/lib/formatUtils';
 import { useToast } from './ui/Toast';
 import { 
-  validateMpesaPhoneNumber, 
+  validateKenyanPhoneNumber, 
   formatPhoneNumberInput, 
   getPhoneNumberGuidance,
   getNetworkProvider,
@@ -54,7 +54,7 @@ export default function MpesaPayment({
   // Validate phone number whenever it changes
   useEffect(() => {
     if (phoneNumber.trim()) {
-      const validation = validateMpesaPhoneNumber(phoneNumber);
+      const validation = validateKenyanPhoneNumber(phoneNumber);
       setPhoneValidation(validation);
     } else {
       setPhoneValidation(null);
@@ -86,7 +86,7 @@ export default function MpesaPayment({
       return;
     }
 
-    const validation = validateMpesaPhoneNumber(phoneNumber);
+    const validation = validateKenyanPhoneNumber(phoneNumber);
     if (!validation.isValid) {
       showToast({
         type: 'error',

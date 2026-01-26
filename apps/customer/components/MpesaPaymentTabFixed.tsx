@@ -24,7 +24,7 @@ interface MpesaPaymentTabProps {
   onShowMpesaPaymentChange?: (show: boolean) => void;
 }
 
-export default function MpesaPaymentTab({ 
+export default function MpesaPaymentTabFixed({ 
   amount, 
   onAmountChange, 
   balance, 
@@ -76,7 +76,7 @@ export default function MpesaPaymentTab({
 
   const handleSendPayment = useCallback(() => {
     try {
-      console.log('🔘 M-Pesa button clicked', {
+      console.log('🔘 M-Pesa button clicked (FIXED VERSION)', {
         phoneValidation: phoneValidation?.isValid,
         isValidAmount,
         phoneNumber,
@@ -94,6 +94,13 @@ export default function MpesaPaymentTab({
           amount,
           balance
         });
+        
+        // Show user-friendly error message
+        if (!phoneValidation?.isValid) {
+          alert('Please enter a valid phone number');
+        } else if (!isValidAmount) {
+          alert('Please enter a valid amount');
+        }
       }
     } catch (error) {
       console.error('❌ Error in handleSendPayment:', error);
@@ -184,6 +191,16 @@ export default function MpesaPaymentTab({
 
   return (
     <div className="space-y-6">
+      {/* Fixed Version Notice */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <p className="text-sm text-blue-700 font-medium">
+          🔧 Fixed Version - Stack Overflow Issue Resolved
+        </p>
+        <p className="text-xs text-blue-600 mt-1">
+          This version uses useCallback and memoization to prevent infinite loops.
+        </p>
+      </div>
+
       {/* Amount Input Section */}
       <div>
         <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -201,8 +218,6 @@ export default function MpesaPaymentTab({
             max={balance}
           />
         </div>
-        
-
       </div>
 
       {/* Phone Number Input */}
@@ -258,13 +273,25 @@ export default function MpesaPaymentTab({
         title={!phoneValidation?.isValid ? 'Please enter a valid phone number' : !isValidAmount ? 'Please enter a valid amount' : 'Send M-PESA payment request'}
       >
         <Phone size={20} />
-        Send M-PESA Request
+        Send M-PESA Request (FIXED)
         {(!phoneValidation?.isValid || !isValidAmount) && (
           <span className="text-xs opacity-75 ml-2">
             ({!phoneValidation?.isValid ? 'Invalid phone' : 'Invalid amount'})
           </span>
         )}
       </button>
+
+      {/* Debug Information */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <p className="text-xs font-medium text-gray-700 mb-2">Debug Info:</p>
+        <div className="text-xs text-gray-600 space-y-1">
+          <p>Phone: {phoneNumber || 'empty'}</p>
+          <p>Valid: {phoneValidation?.isValid ? 'Yes' : 'No'}</p>
+          <p>Amount: {amount || 'empty'}</p>
+          <p>Amount Valid: {isValidAmount ? 'Yes' : 'No'}</p>
+          <p>Button Enabled: {(phoneValidation?.isValid && isValidAmount) ? 'Yes' : 'No'}</p>
+        </div>
+      </div>
 
       {/* M-PESA Information */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
