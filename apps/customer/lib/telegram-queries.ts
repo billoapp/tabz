@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { Database } from '../types/supabase'
-import { MessageStatus, InitiatedBy, TelegramMessageWithTab } from '../../../packages/shared/types'
+import { MessageStatus, InitiatedBy, TelegramMessageWithTab } from '@tabeza/shared'
 
 export type TypedSupabaseClient = SupabaseClient<Database>
 

@@ -6,9 +6,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase';
-import { validateKenyanPhoneNumber } from '@tabeza/shared/lib/services/phoneValidation';
-import { sendSTKPush } from '@tabeza/shared/lib/services/mpesa-stk-push';
-import { loadMpesaConfigFromBar, MpesaConfigurationError, type BarMpesaData } from '@tabeza/shared/lib/services/mpesa-config';
+import { 
+  validateKenyanPhoneNumber,
+  sendSTKPush,
+  loadMpesaConfigFromBar, 
+  MpesaConfigurationError,
+  type BarMpesaData 
+} from '@tabeza/shared';
 
 interface MpesaPaymentRequest {
   tabId: string;

@@ -334,12 +334,6 @@ export default function MpesaPayment({
     }
   };
 
-  const retryPayment = () => {
-    setCurrentTransaction(null);
-    setPaymentStatus(null);
-    initiatePayment();
-  };
-
   const getValidationDisplay = () => {
     if (!phoneNumber.trim()) {
       return (
