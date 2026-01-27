@@ -112,35 +112,34 @@ export async function recoverTabData(): Promise<TabRecoveryResult> {
         .order('opened_at', { ascending: false })
         .limit(1);
         
-        if (!error && tabs && tabs.length > 0) {
-          const recoveredTab = tabs[0];
-          const tabData = {
-            id: recoveredTab.id,
-            bar_id: recoveredTab.bar_id,
-            tab_number: recoveredTab.tab_number,
-            status: recoveredTab.status,
-            owner_identifier: recoveredTab.owner_identifier,
-            opened_at: recoveredTab.opened_at
-          };
-          
-          // Store recovered data in both storage methods
-          sessionStorage.setItem('currentTab', JSON.stringify(tabData));
-          sessionStorage.setItem('Tabeza_current_bar', recoveredTab.bar_id);
-          sessionStorage.setItem(`Tabeza_active_tab_${recoveredTab.bar_id}`, JSON.stringify(tabData));
-          
-          if (recoveredTab.bars) {
-            sessionStorage.setItem('barName', recoveredTab.bars.name);
-          }
-          
-          console.log('✅ Recovered tab data from database');
-          
-          return {
-            success: true,
-            tab: tabData,
-            barId: recoveredTab.bar_id,
-            source: 'database'
-          };
+      if (!error && tabs && tabs.length > 0) {
+        const recoveredTab = tabs[0];
+        const tabData = {
+          id: recoveredTab.id,
+          bar_id: recoveredTab.bar_id,
+          tab_number: recoveredTab.tab_number,
+          status: recoveredTab.status,
+          owner_identifier: recoveredTab.owner_identifier,
+          opened_at: recoveredTab.opened_at
+        };
+        
+        // Store recovered data in both storage methods
+        sessionStorage.setItem('currentTab', JSON.stringify(tabData));
+        sessionStorage.setItem('Tabeza_current_bar', recoveredTab.bar_id);
+        sessionStorage.setItem(`Tabeza_active_tab_${recoveredTab.bar_id}`, JSON.stringify(tabData));
+        
+        if (recoveredTab.bars) {
+          sessionStorage.setItem('barName', recoveredTab.bars.name);
         }
+        
+        console.log('✅ Recovered tab data from database');
+        
+        return {
+          success: true,
+          tab: tabData,
+          barId: recoveredTab.bar_id,
+          source: 'database'
+        };
       }
     }
   } catch (error) {

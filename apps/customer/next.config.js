@@ -4,7 +4,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: true, // TEMPORARILY DISABLED - Fix M-Pesa first, then re-enable
+  disable: process.env.NODE_ENV === 'development', // Enable in production only
   sw: 'sw.js', // Explicitly specify the service worker file
   buildExcludes: [/middleware-manifest\.json$/],
   runtimeCaching: [
@@ -19,6 +19,40 @@ const withPWA = require('next-pwa')({
         },
         cacheableResponse: {
           statuses: [0, 200]
+        },
+        networkTimeoutSeconds: 10
+      }
+    },
+    {
+      urlPattern: /\/_next\/static\//,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'tabeza-static-v1',
+        expiration: {
+          maxEntries: 50,
+          maxAgeSeconds: 30 * 24 * 60 * 60 // 30 days
+        }
+      }
+    },
+    {
+      urlPattern: /\/_next\/image\//,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'tabeza-images-v1',
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 7 * 24 * 60 * 60 // 7 days
+        }
+      }
+    },
+    {
+      urlPattern: /\/api\//,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'tabeza-api-v1',
+        expiration: {
+          maxEntries: 50,
+          maxAgeSeconds: 5 * 60 // 5 minutes
         },
         networkTimeoutSeconds: 10
       }
@@ -113,6 +147,24 @@ const nextConfig = {
         ],
       },
     ];
+  },
+  
+  // PWA-specific optimizations
+  poweredByHeader: false,
+  reactStrictMode: true,
+  
+  // Performance optimizations for mobile
+  swcMinify: true,
+  
+  // Add service worker precache manifest
+  generateBuildId: async () => {
+    return `tabeza-customer-${Date.now()}`;
+  },
+  
+  // Ensure static assets are properly cached
+  onDemandEntries: {
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
   },
 };
 
