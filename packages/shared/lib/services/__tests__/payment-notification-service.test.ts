@@ -39,7 +39,7 @@ describe('PaymentNotificationService Property Tests', () => {
   
   const testConfig: PaymentNotificationServiceConfig = {
     supabaseUrl: 'https://test.supabase.co',
-    supabaseServiceRoleKey: 'test-service-role-key',
+    supabaseSecretKey: 'test-secret-key',
     maxRetries: 3,
     retryDelayMs: [1000, 2000, 5000],
     notificationTimeoutMs: 2000,

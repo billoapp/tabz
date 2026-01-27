@@ -84,7 +84,7 @@ export interface NotificationQueueItem {
  */
 export interface PaymentNotificationServiceConfig {
   supabaseUrl: string;
-  supabaseServiceRoleKey: string;
+  supabaseSecretKey: string;
   maxRetries?: number;
   retryDelayMs?: number[];
   notificationTimeoutMs?: number;
@@ -116,7 +116,7 @@ export class PaymentNotificationService {
 
     this.supabase = createClient(
       this.config.supabaseUrl,
-      this.config.supabaseServiceRoleKey
+      this.config.supabaseSecretKey
     );
   }
 

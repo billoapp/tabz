@@ -8,7 +8,6 @@ import { useAuth } from '@/lib/useAuth';
 import { checkAndUpdateOverdueTabs } from '@/lib/businessHours';
 import { calculateResponseTimeFromTabs, formatResponseTime, type ResponseTimeResult } from '@tabeza/shared';
 import { PaymentNotificationContainer, usePaymentNotifications, type PaymentNotificationData } from '@/components/PaymentNotification';
-import { BalanceUpdateService } from '@tabeza/shared/lib/services/balance-update-service';
 
 // Format functions for thousand separators
 const formatCurrency = (amount: number | string, decimals = 0): string => {
@@ -461,34 +460,16 @@ export default function TabsPage() {
         paymentMethod
       });
 
-      // Initialize balance update service
-      const balanceUpdateService = new BalanceUpdateService({
-        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        supabaseServiceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-        enableRealTimeNotifications: false, // Staff interface handles its own notifications
-        enableAuditLogging: true
-      });
-
-      // Process balance update
-      const result = await balanceUpdateService.processPaymentBalanceUpdate(
+      // Balance update will be handled by existing real-time subscriptions
+      console.log('Payment processed, balance will update via real-time subscriptions:', {
         paymentId,
         tabId,
-        paymentAmount,
-        paymentMethod as 'mpesa' | 'cash' | 'card',
-        'success'
-      );
+        amount: paymentAmount,
+        method: paymentMethod
+      });
 
-      if (result.success) {
-        console.log('✅ Balance update processed successfully:', result);
-        
-        // Refresh tabs to show updated balances immediately
-        await loadTabs();
-        
-        if (result.autoCloseTriggered) {
-          console.log('🔒 Tab auto-close triggered, refreshing tab list');
-        }
-      } else {
-        console.error('❌ Balance update failed:', result.error);
+      // Refresh tabs to show updated balances immediately
+      await loadTabs();
         // Still refresh tabs to ensure UI consistency
         await loadTabs();
       }

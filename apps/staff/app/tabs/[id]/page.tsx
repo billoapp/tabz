@@ -10,7 +10,6 @@ import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
 import { checkTabOverdueStatus } from '@/lib/businessHours';
 import { useRealtimeSubscription } from '@tabeza/shared/hooks/useRealtimeSubscription';
 import { ConnectionStatusIndicator } from '@tabeza/shared/components/ConnectionStatus';
-import { BalanceUpdateService } from '@tabeza/shared/lib/services/balance-update-service';
 
 // Temporary format functions
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -153,44 +152,23 @@ export default function TabDetailPage() {
         paymentMethod
       });
 
-      // Initialize balance update service
-      const balanceUpdateService = new BalanceUpdateService({
-        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        supabaseServiceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-        enableRealTimeNotifications: false, // Tab detail page handles its own notifications
-        enableAuditLogging: true
+      // Balance update will be handled by existing real-time subscriptions
+      console.log('Payment processed, balance will update via real-time subscriptions:', {
+        paymentId,
+        tabId: tabId,
+        amount: paymentAmount,
+        method: paymentMethod
       });
 
-      // Process balance update
-      const result = await balanceUpdateService.processPaymentBalanceUpdate(
-        paymentId,
-        tabId,
-        paymentAmount,
-        paymentMethod as 'mpesa' | 'cash' | 'card',
-        'success'
-      );
-
-      if (result.success) {
-        console.log('✅ Balance update processed successfully for tab detail:', result);
-        
-        // Refresh tab data to show updated balance immediately
-        await loadTabData();
-        
-        if (result.autoCloseTriggered) {
-          console.log('🔒 Tab auto-close triggered, refreshing tab data');
-          showToast({
-            type: 'info',
-            title: 'Tab Auto-Closed',
-            message: 'Tab was automatically closed due to zero balance'
-          });
-        }
-      } else {
-        console.error('❌ Balance update failed for tab detail:', result.error);
-        // Still refresh tab data to ensure UI consistency
-        await loadTabData();
-      }
+      // Refresh tab data to show updated balance immediately
+      await loadTabData();
+      showToast({
+        type: 'success',
+        title: 'Payment Processed',
+        message: `Balance updated successfully`
+      });
     } catch (error) {
-      console.error('Error triggering balance update for tab detail:', error);
+      console.error('Error processing payment:', error);
       // Fallback: refresh tab data to maintain UI consistency
       await loadTabData();
     }
