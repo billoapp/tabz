@@ -3,7 +3,7 @@
  * The database IS the source of truth - local storage is just caching
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabase';
 
 export interface CustomerIdentifierFromDB {
   success: boolean;
@@ -26,19 +26,6 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
         error: 'Device ID is required'
       };
     }
-
-    // Get Supabase client
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return {
-        success: false,
-        error: 'Supabase configuration missing'
-      };
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
     // Query database for open tabs with this device ID
     // The owner_identifier IS the customer identifier we need!

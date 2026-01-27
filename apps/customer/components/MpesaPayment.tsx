@@ -13,6 +13,7 @@ import {
   convertToInternationalFormat
 } from '@tabeza/shared';
 import { validatePaymentContext, logPaymentDebugInfo } from '@/lib/payment-debug';
+import { useRealtimeSubscription } from '@tabeza/shared/hooks/useRealtimeSubscription';
 
 interface MpesaPaymentProps {
   amount: number;
@@ -46,7 +47,126 @@ export default function MpesaPayment({
   const [currentTransaction, setCurrentTransaction] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [tabId, setTabId] = useState<string | null>(null);
   const { showToast } = useToast();
+
+  // Get tab ID for real-time subscriptions
+  useEffect(() => {
+    const getTabId = async () => {
+      try {
+        const { resolveCustomerIdentifier } = await import('../lib/database-customer-identifier');
+        const result = await resolveCustomerIdentifier();
+        if (result.success && result.tabId) {
+          setTabId(result.tabId);
+        }
+      } catch (error) {
+        console.error('Failed to get tab ID for subscriptions:', error);
+      }
+    };
+    
+    getTabId();
+  }, []);
+
+  // Real-time subscription for payment updates (Requirements 6.1, 6.2)
+  const realtimeConfigs = tabId ? [
+    {
+      channelName: `customer-payments-${tabId}`,
+      table: 'tab_payments',
+      filter: `tab_id=eq.${tabId}`,
+      event: '*' as const,
+      handler: (payload: any) => {
+        console.log('💰 Customer payment update:', payload.eventType);
+        
+        // Handle payment status updates
+        if (payload.eventType === 'UPDATE' && payload.new && payload.old) {
+          const newPayment = payload.new;
+          const oldPayment = payload.old;
+          
+          // Check if this is our current transaction
+          if (currentTransaction && newPayment.reference === currentTransaction) {
+            // Payment status changed
+            if (newPayment.status !== oldPayment.status) {
+              if (newPayment.status === 'success') {
+                // Extract M-Pesa details from metadata
+                let mpesaReceiptNumber = '';
+                let transactionDate = new Date();
+                
+                if (newPayment.metadata?.Body?.stkCallback?.CallbackMetadata?.Item) {
+                  const metadata = newPayment.metadata.Body.stkCallback.CallbackMetadata.Item;
+                  const receiptItem = metadata.find((item: any) => item.Name === 'MpesaReceiptNumber');
+                  const dateItem = metadata.find((item: any) => item.Name === 'TransactionDate');
+                  
+                  if (receiptItem) mpesaReceiptNumber = receiptItem.Value.toString();
+                  if (dateItem) {
+                    // M-Pesa date format: YYYYMMDDHHMMSS
+                    const dateStr = dateItem.Value.toString();
+                    const year = parseInt(dateStr.substring(0, 4));
+                    const month = parseInt(dateStr.substring(4, 6)) - 1; // Month is 0-indexed
+                    const day = parseInt(dateStr.substring(6, 8));
+                    const hour = parseInt(dateStr.substring(8, 10));
+                    const minute = parseInt(dateStr.substring(10, 12));
+                    const second = parseInt(dateStr.substring(12, 14));
+                    transactionDate = new Date(year, month, day, hour, minute, second);
+                  }
+                }
+                
+                setPaymentStatus({
+                  transactionId: currentTransaction,
+                  status: 'completed',
+                  amount: newPayment.amount,
+                  phoneNumber: phoneNumber,
+                  mpesaReceiptNumber,
+                  transactionDate,
+                  createdAt: new Date(newPayment.created_at),
+                  updatedAt: new Date(newPayment.updated_at)
+                });
+                
+                setShowSuccessMessage(true);
+                
+                showToast({
+                  type: 'success',
+                  title: 'Payment Confirmed!',
+                  message: `M-PESA payment of ${formatCurrency(newPayment.amount)} completed successfully`,
+                  duration: 8000
+                });
+                
+                // Call success callback
+                onPaymentSuccess(mpesaReceiptNumber || currentTransaction);
+                
+              } else if (newPayment.status === 'failed') {
+                const failureReason = newPayment.metadata?.Body?.stkCallback?.ResultDesc || 'Payment failed';
+                
+                setPaymentStatus(prev => prev ? {
+                  ...prev,
+                  status: 'failed',
+                  failureReason,
+                  updatedAt: new Date(newPayment.updated_at)
+                } : null);
+                
+                showToast({
+                  type: 'error',
+                  title: 'Payment Failed',
+                  message: failureReason,
+                  duration: 8000
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  ] : [];
+
+  // Initialize real-time subscription
+  const { connectionStatus, isConnected } = useRealtimeSubscription(
+    realtimeConfigs,
+    [tabId, currentTransaction],
+    {
+      maxRetries: 5,
+      retryDelay: [1000, 2000, 5000, 10000, 30000],
+      debounceMs: 300
+    }
+  );
 
   // Validate payment amount
   const isValidAmount = amount > 0 && (!maxAmount || amount <= maxAmount);
@@ -126,6 +246,11 @@ export default function MpesaPayment({
       }
       
       const { customerIdentifier, barId } = identifierResult;
+      
+      // Set tab ID for real-time subscriptions if not already set
+      if (!tabId && identifierResult.tabId) {
+        setTabId(identifierResult.tabId);
+      }
       
       // Validate all required fields before sending
       const paymentData = {
@@ -250,17 +375,18 @@ export default function MpesaPayment({
   };
 
   // Auto-refresh when tab regains focus (user returns from M-Pesa app)
+  // Note: With real-time subscriptions, this is less critical but kept as fallback
   useEffect(() => {
     const handleFocus = () => {
-      if (currentTransaction && paymentStatus?.status === 'sent') {
-        console.log('Tab regained focus, refreshing page to check payment status...');
+      if (currentTransaction && paymentStatus?.status === 'sent' && !isConnected) {
+        console.log('Tab regained focus and not connected to real-time, refreshing page...');
         window.location.reload();
       }
     };
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [currentTransaction, paymentStatus?.status]);
+  }, [currentTransaction, paymentStatus?.status, isConnected]);
 
   const retryPayment = () => {
     setCurrentTransaction(null);
@@ -624,12 +750,15 @@ export default function MpesaPayment({
           <ol className="text-sm text-blue-700 space-y-1">
             <li>1. Check your phone for the M-PESA prompt</li>
             <li>2. Enter your M-PESA PIN to complete payment</li>
-            <li>3. Return to this page - it will refresh automatically</li>
+            <li>3. Payment confirmation will appear automatically</li>
           </ol>
           <div className="mt-3 pt-3 border-t border-blue-200">
-            <p className="text-xs text-blue-600">
-              <strong>Tip:</strong> The page will refresh automatically when you return, or click "Refresh Page" above.
-            </p>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+              <p className="text-xs text-blue-600">
+                <strong>{isConnected ? 'Connected:' : 'Connecting:'}</strong> {isConnected ? 'Real-time updates active' : 'Establishing connection...'}
+              </p>
+            </div>
           </div>
         </div>
       )}

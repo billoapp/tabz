@@ -10,6 +10,7 @@ import { timeAgo as kenyaTimeAgo } from '@/lib/formatUtils';
 import { checkTabOverdueStatus } from '@/lib/businessHours';
 import { useRealtimeSubscription } from '@tabeza/shared/hooks/useRealtimeSubscription';
 import { ConnectionStatusIndicator } from '@tabeza/shared/components/ConnectionStatus';
+import { BalanceUpdateService } from '@tabeza/shared/lib/services/balance-update-service';
 
 // Temporary format functions
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -142,6 +143,59 @@ export default function TabDetailPage() {
   // Optimistic updates state
   const [optimisticOrders, setOptimisticOrders] = useState<Map<string, any>>(new Map());
 
+  // Balance update helper function (Requirements 4.1, 4.3, 4.5)
+  const triggerBalanceUpdateForTab = async (tabId: string, paymentId: string, paymentAmount: number, paymentMethod: string) => {
+    try {
+      console.log('💰 Triggering balance update for tab detail page:', {
+        tabId,
+        paymentId,
+        paymentAmount,
+        paymentMethod
+      });
+
+      // Initialize balance update service
+      const balanceUpdateService = new BalanceUpdateService({
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        supabaseServiceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        enableRealTimeNotifications: false, // Tab detail page handles its own notifications
+        enableAuditLogging: true
+      });
+
+      // Process balance update
+      const result = await balanceUpdateService.processPaymentBalanceUpdate(
+        paymentId,
+        tabId,
+        paymentAmount,
+        paymentMethod as 'mpesa' | 'cash' | 'card',
+        'success'
+      );
+
+      if (result.success) {
+        console.log('✅ Balance update processed successfully for tab detail:', result);
+        
+        // Refresh tab data to show updated balance immediately
+        await loadTabData();
+        
+        if (result.autoCloseTriggered) {
+          console.log('🔒 Tab auto-close triggered, refreshing tab data');
+          showToast({
+            type: 'info',
+            title: 'Tab Auto-Closed',
+            message: 'Tab was automatically closed due to zero balance'
+          });
+        }
+      } else {
+        console.error('❌ Balance update failed for tab detail:', result.error);
+        // Still refresh tab data to ensure UI consistency
+        await loadTabData();
+      }
+    } catch (error) {
+      console.error('Error triggering balance update for tab detail:', error);
+      // Fallback: refresh tab data to maintain UI consistency
+      await loadTabData();
+    }
+  };
+
   // Load cart from localStorage on mount
   useEffect(() => {
     const storedCart = localStorage.getItem(`tab_cart_${tabId}`);
@@ -234,7 +288,44 @@ export default function TabDetailPage() {
       filter: `tab_id=eq.${tabId}`,
       event: '*' as const,
       handler: async (payload: any) => {
+        console.log('💰 Payment update in detail page:', payload.eventType);
         loadTabData();
+        
+        // Show notification for new payments (Requirements 6.1, 6.2)
+        if (payload.eventType === 'INSERT' && payload.new) {
+          const payment = payload.new;
+          showToast({
+            type: 'info',
+            title: 'New Payment Initiated',
+            message: `${payment.method.toUpperCase()} payment of ${tempFormatCurrency(payment.amount)} initiated`
+          });
+        }
+        
+        // Show notification for payment status updates (Requirements 6.1, 6.2)
+        if (payload.eventType === 'UPDATE' && payload.new && payload.old) {
+          const newPayment = payload.new;
+          const oldPayment = payload.old;
+          
+          // Payment status changed
+          if (newPayment.status !== oldPayment.status) {
+            if (newPayment.status === 'success') {
+              showToast({
+                type: 'success',
+                title: 'Payment Received',
+                message: `${newPayment.method.toUpperCase()} payment of ${tempFormatCurrency(newPayment.amount)} completed successfully`
+              });
+              
+              // Trigger balance update for successful payments (Requirements 4.1, 4.3, 4.5)
+              await triggerBalanceUpdateForTab(tabId, newPayment.id, parseFloat(newPayment.amount), newPayment.method);
+            } else if (newPayment.status === 'failed') {
+              showToast({
+                type: 'error',
+                title: 'Payment Failed',
+                message: `${newPayment.method.toUpperCase()} payment of ${tempFormatCurrency(newPayment.amount)} failed`
+              });
+            }
+          }
+        }
       }
     },
     {
@@ -586,7 +677,7 @@ export default function TabDetailPage() {
     if (!amount || isNaN(Number(amount))) return;
 
     try {
-      const { error } = await (supabase as any)
+      const { data: paymentData, error } = await (supabase as any)
         .from('tab_payments')
         .insert({
           tab_id: tabId,
@@ -594,9 +685,16 @@ export default function TabDetailPage() {
           method: 'cash',
           status: 'success',
           reference: `CASH_${Date.now()}`
-        }) as { data: any, error: any };
+        })
+        .select()
+        .single() as { data: any, error: any };
 
       if (error) throw error;
+
+      // Trigger immediate balance update for cash payment (Requirements 4.1, 4.3, 4.5)
+      if (paymentData) {
+        await triggerBalanceUpdateForTab(tabId, paymentData.id, parseFloat(amount), 'cash');
+      }
 
       // Auto-close is now handled by database trigger on tab_payments table
       // No need for application-level auto-close logic

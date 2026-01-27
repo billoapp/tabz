@@ -67,12 +67,23 @@ export default function MpesaPaymentTab({
   const handlePhoneNumberChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     
-    // Only update if the value actually changed
-    if (newValue !== phoneNumber) {
-      const formatted = formatPhoneNumberInput(newValue, phoneNumber);
-      setPhoneNumber(formatted);
+    // Handle both React state setter and prop function
+    if (onPhoneNumberChange) {
+      // External prop function - only accepts string
+      if (newValue !== phoneNumber) {
+        const formatted = formatPhoneNumberInput(newValue, phoneNumber);
+        setPhoneNumber(formatted);
+      }
+    } else {
+      // Internal React state setter - accepts function
+      setInternalPhoneNumber((prevPhone: string) => {
+        if (newValue !== prevPhone) {
+          return formatPhoneNumberInput(newValue, prevPhone);
+        }
+        return prevPhone;
+      });
     }
-  }, [phoneNumber, setPhoneNumber]);
+  }, [onPhoneNumberChange, phoneNumber, setPhoneNumber]);
 
   const handleSendPayment = useCallback(() => {
     try {

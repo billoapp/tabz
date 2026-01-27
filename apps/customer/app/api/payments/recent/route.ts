@@ -6,12 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SECRET_KEY!
-);
+import { createServiceRoleClient } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,6 +23,8 @@ export async function GET(request: NextRequest) {
 
     console.log(`🔍 Checking for recent payments for tab: ${tabId}`);
 
+    // Use service role client for API routes
+    const supabase = createServiceRoleClient();
     // Build query for recent payments
     let query = supabase
       .from('tab_payments')

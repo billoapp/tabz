@@ -4,7 +4,7 @@
  * when primary storage methods fail (especially on Android PWA)
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabase';
 
 export interface TabRecoveryResult {
   success: boolean;
@@ -103,21 +103,14 @@ export async function recoverTabData(): Promise<TabRecoveryResult> {
     const deviceId = getDeviceIdWithFallback();
     
     if (deviceId && typeof window !== 'undefined' && window.location) {
-      // Only attempt database recovery if we have Supabase credentials
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      
-      if (supabaseUrl && supabaseAnonKey) {
-        const supabase = createClient(supabaseUrl, supabaseAnonKey);
-        
-        // Query for open tabs with this device ID
-        const { data: tabs, error } = await supabase
-          .from('tabs')
-          .select('*, bars!inner(id, name)')
-          .like('owner_identifier', `${deviceId}_%`)
-          .eq('status', 'open')
-          .order('opened_at', { ascending: false })
-          .limit(1);
+      // Query for open tabs with this device ID using singleton client
+      const { data: tabs, error } = await supabase
+        .from('tabs')
+        .select('*, bars!inner(id, name)')
+        .like('owner_identifier', `${deviceId}_%`)
+        .eq('status', 'open')
+        .order('opened_at', { ascending: false })
+        .limit(1);
         
         if (!error && tabs && tabs.length > 0) {
           const recoveredTab = tabs[0];

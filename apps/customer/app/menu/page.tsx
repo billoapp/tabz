@@ -28,6 +28,9 @@ import PWAInstallPrompt from '../../components/PWAInstallPrompt';
 import PDFViewer from '../../../../components/PDFViewer'; 
 import MessagePanel from './MessagePanel';
 import { playCustomerNotification } from '@/lib/notifications'; // ADDED MISSING IMPORT
+import { EnhancedBalanceDisplay } from '../../components/EnhancedBalanceDisplay';
+import { BalanceUpdateService } from '@tabeza/shared/lib/services/balance-update-service';
+import { PaymentNotificationService } from '@tabeza/shared/lib/services/payment-notification-service';
 
 // Temporary format function to bypass import issue
 const tempFormatCurrency = (amount: number | string, decimals = 0): string => {
@@ -150,6 +153,57 @@ export default function MenuPage() {
   const tokensService = supabase ? new TokensService(supabase) : null;
   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
   const { showNotification } = useTokenNotifications();
+
+  // Balance update service and state
+  const [balanceUpdateService] = useState(() => {
+    if (typeof window === 'undefined' || !supabase) return undefined;
+    
+    return new BalanceUpdateService({
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseServiceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, // Use anon key for client
+      enableRealTimeNotifications: true,
+      enableAuditLogging: false, // Disable audit logging on client side
+      paymentNotificationService: new PaymentNotificationService({
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        supabaseServiceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+      })
+    });
+  });
+
+  // Balance change handlers
+  const handleBalanceChange = (newBalance: number, previousBalance: number) => {
+    console.log('💰 Balance changed:', { newBalance, previousBalance });
+    
+    // Show balance change notification
+    const change = previousBalance - newBalance;
+    if (change > 0) {
+      showToast({
+        type: 'success',
+        title: '💳 Payment Applied',
+        message: `Balance reduced by ${tempFormatCurrency(change)}`,
+        duration: 4000
+      });
+    }
+  };
+
+  const handleAutoClose = (tabId: string, finalBalance: number) => {
+    console.log('🔒 Tab auto-closing:', { tabId, finalBalance });
+    
+    showToast({
+      type: 'success',
+      title: '🎉 Tab Closing!',
+      message: 'Your tab has been paid in full and will close automatically',
+      duration: 8000
+    });
+    
+    // Trigger celebration effects
+    if (notificationPrefs.soundEnabled) {
+      playAcceptanceSound();
+    }
+    if (notificationPrefs.vibrationEnabled) {
+      buzz([200, 100, 200, 100, 200]); // Celebration vibration pattern
+    }
+  };
 
   // Telegram messaging state
   const [showMessageModal, setShowMessageModal] = useState(false);
@@ -707,48 +761,295 @@ export default function MenuPage() {
       handler: async (payload: any) => {
         console.log('💳 Real-time payment update:', payload);
         
-        // Show token notification for successful payments
-        if (payload.eventType === 'INSERT' && 
-            payload.new?.status === 'success') {
+        // Enhanced payment status handling for customer interface (Requirements 2.1, 2.2, 2.3, 2.4)
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const payment = payload.new;
+          const previousPayment = payload.old;
           
-          // Award tokens for order value
-          if (!supabase || !tokensService) return;
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user && tab?.bar_id) {
-            const orderValue = Math.round(parseFloat(payload.new.amount) * 100); // Convert to cents
+          console.log('💳 Customer payment subscription update:', {
+            eventType: payload.eventType,
+            paymentId: payment?.id,
+            status: payment?.status,
+            previousStatus: previousPayment?.status,
+            amount: payment?.amount,
+            method: payment?.method
+          });
+          
+          // Handle successful payment confirmations (Requirement 2.2)
+          if (payment?.status === 'success' && 
+              (!previousPayment || previousPayment.status !== 'success')) {
             
-            try {
-              const result = await tokensService.awardOrderTokens(
-                user.id,
-                tab.bar_id,
-                payload.new.id, // payment ID
-                orderValue
-              );
-              
-              if (result.success && result.tokensAwarded) {
-                console.log('🎉 Tokens awarded successfully:', result.tokensAwarded);
-                showNotification({
-                  type: 'earned',
-                  title: 'Tokens Earned!',
-                  message: `🎉 +${result.tokensAwarded} tokens earned from your payment!`,
-                  amount: result.tokensAwarded,
-                  autoHide: 5000, // Auto-hide after 5 seconds
-                  timestamp: new Date().toISOString()
-                });
-                
-                // Refresh token balance immediately
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                  const balance = await tokensService.getBalance(user.id);
-                  setCurrentBalance(balance?.balance || 0);
-                  console.log('🪙 Updated token balance:', balance?.balance || 0);
+            console.log('✅ Payment successful - processing balance update and showing customer confirmation:', payment);
+            
+            // Extract payment details
+            const paymentAmount = parseFloat(payment.amount);
+            const paymentMethod = payment.method || 'unknown';
+            let mpesaReceipt = null;
+            let transactionDate = null;
+            
+            // Extract M-Pesa specific details from metadata
+            if (paymentMethod === 'mpesa' && payment.metadata) {
+              try {
+                const metadata = payment.metadata;
+                if (metadata.Body?.stkCallback?.CallbackMetadata?.Item) {
+                  const items = metadata.Body.stkCallback.CallbackMetadata.Item;
+                  const receiptItem = items.find((item: any) => item.Name === 'MpesaReceiptNumber');
+                  const dateItem = items.find((item: any) => item.Name === 'TransactionDate');
+                  
+                  if (receiptItem) mpesaReceipt = receiptItem.Value.toString();
+                  if (dateItem) {
+                    const dateStr = dateItem.Value.toString();
+                    const year = parseInt(dateStr.substring(0, 4));
+                    const month = parseInt(dateStr.substring(4, 6)) - 1;
+                    const day = parseInt(dateStr.substring(6, 8));
+                    const hour = parseInt(dateStr.substring(8, 10));
+                    const minute = parseInt(dateStr.substring(10, 12));
+                    const second = parseInt(dateStr.substring(12, 14));
+                    transactionDate = new Date(year, month, day, hour, minute, second);
+                  }
                 }
-              } else {
-                console.log('❌ Token awarding failed:', result);
+              } catch (error) {
+                console.error('Error parsing M-Pesa metadata:', error);
               }
-            } catch (error) {
-              console.error('Error awarding tokens for payment:', error);
             }
+            
+            // Process balance update using the balance update service (Requirements 4.1, 4.3, 4.5)
+            if (balanceUpdateService && tab?.id) {
+              try {
+                const balanceResult = await balanceUpdateService.processPaymentBalanceUpdate(
+                  payment.id,
+                  tab.id,
+                  paymentAmount,
+                  paymentMethod as 'mpesa' | 'cash' | 'card',
+                  'success'
+                );
+                
+                if (balanceResult.success && balanceResult.balanceUpdate) {
+                  console.log('💰 Balance update processed successfully:', balanceResult);
+                  
+                  // Get updated balance for UI display
+                  const uiUpdate = await balanceUpdateService.getBalanceUpdateForUI(
+                    tab.id,
+                    paymentAmount,
+                    paymentMethod as 'mpesa' | 'cash' | 'card'
+                  );
+                  
+                  // Show comprehensive payment confirmation with balance info (Requirement 2.2)
+                  const confirmationMessage = [
+                    `${tempFormatCurrency(paymentAmount)} payment successful`,
+                    mpesaReceipt ? `Receipt: ${mpesaReceipt}` : null,
+                    uiUpdate.currentBalance ? 
+                      (uiUpdate.currentBalance.balance > 0 ? 
+                        `Balance: ${uiUpdate.formattedBalance}` : 
+                        'Tab fully paid!') : null,
+                    balanceResult.autoCloseTriggered ? 'Tab will be closed automatically' : null
+                  ].filter(Boolean).join(' • ');
+                  
+                  showToast({
+                    type: 'success',
+                    title: '✅ Payment Confirmed!',
+                    message: confirmationMessage,
+                    duration: balanceResult.autoCloseTriggered ? 12000 : 8000
+                  });
+                  
+                  // Trigger balance change handler for additional UI updates
+                  if (uiUpdate.currentBalance) {
+                    handleBalanceChange(
+                      uiUpdate.currentBalance.balance,
+                      balanceResult.balanceUpdate.previousBalance
+                    );
+                  }
+                  
+                  // Handle auto-close notification
+                  if (balanceResult.autoCloseTriggered) {
+                    handleAutoClose(tab.id, uiUpdate.currentBalance?.balance || 0);
+                  }
+                  
+                } else {
+                  console.error('Balance update failed:', balanceResult.error);
+                  
+                  // Fallback to basic confirmation without balance details
+                  const basicConfirmation = [
+                    `${tempFormatCurrency(paymentAmount)} payment successful`,
+                    mpesaReceipt ? `Receipt: ${mpesaReceipt}` : null
+                  ].filter(Boolean).join(' • ');
+                  
+                  showToast({
+                    type: 'success',
+                    title: '✅ Payment Confirmed!',
+                    message: basicConfirmation,
+                    duration: 8000
+                  });
+                }
+              } catch (error) {
+                console.error('Error processing balance update:', error);
+                
+                // Fallback to basic confirmation
+                const basicConfirmation = [
+                  `${tempFormatCurrency(paymentAmount)} payment successful`,
+                  mpesaReceipt ? `Receipt: ${mpesaReceipt}` : null
+                ].filter(Boolean).join(' • ');
+                
+                showToast({
+                  type: 'success',
+                  title: '✅ Payment Confirmed!',
+                  message: basicConfirmation,
+                  duration: 8000
+                });
+              }
+            } else {
+              // Fallback calculation for balance display (legacy behavior)
+              const tabTotal = orders
+                .filter(order => order.status === 'confirmed')
+                .reduce((sum, order) => sum + parseFloat(order.total), 0);
+              const paidTotal = payments
+                .filter(p => p.status === 'success')
+                .reduce((sum, p) => sum + parseFloat(p.amount), 0) + paymentAmount;
+              const updatedBalance = Math.max(0, tabTotal - paidTotal);
+              
+              // Check if tab should be auto-closed (Requirement 2.4)
+              const shouldAutoClose = updatedBalance <= 0 && tab?.status === 'overdue';
+              
+              // Show comprehensive payment confirmation (Requirement 2.2)
+              const confirmationMessage = [
+                `${tempFormatCurrency(paymentAmount)} payment successful`,
+                mpesaReceipt ? `Receipt: ${mpesaReceipt}` : null,
+                updatedBalance > 0 ? `Balance: ${tempFormatCurrency(updatedBalance)}` : 'Tab fully paid!',
+                shouldAutoClose ? 'Tab will be closed automatically' : null
+              ].filter(Boolean).join(' • ');
+              
+              showToast({
+                type: 'success',
+                title: '✅ Payment Confirmed!',
+                message: confirmationMessage,
+                duration: shouldAutoClose ? 12000 : 8000
+              });
+              
+              if (shouldAutoClose) {
+                handleAutoClose(tab.id, updatedBalance);
+              }
+            }
+            
+            // Trigger notification sounds and vibration (Requirement 2.1)
+            if (notificationPrefs.soundEnabled) {
+              playAcceptanceSound();
+            }
+            if (notificationPrefs.vibrationEnabled) {
+              buzz([200, 100, 200]); // Success vibration pattern
+            }
+            
+            // Award tokens for order value
+            if (!supabase || !tokensService) return;
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user && tab?.bar_id) {
+              const orderValue = Math.round(paymentAmount * 100); // Convert to cents
+              
+              try {
+                const result = await tokensService.awardOrderTokens(
+                  user.id,
+                  tab.bar_id,
+                  payment.id, // payment ID
+                  orderValue
+                );
+                
+                if (result.success && result.tokensAwarded) {
+                  console.log('🎉 Tokens awarded successfully:', result.tokensAwarded);
+                  showNotification({
+                    type: 'earned',
+                    title: 'Tokens Earned!',
+                    message: `🎉 +${result.tokensAwarded} tokens earned from your payment!`,
+                    amount: result.tokensAwarded,
+                    autoHide: 5000, // Auto-hide after 5 seconds
+                    timestamp: new Date().toISOString()
+                  });
+                  
+                  // Refresh token balance immediately
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) {
+                    const balance = await tokensService.getBalance(user.id);
+                    setCurrentBalance(balance?.balance || 0);
+                    console.log('🪙 Updated token balance:', balance?.balance || 0);
+                  }
+                } else {
+                  console.log('❌ Token awarding failed:', result);
+                }
+              } catch (error) {
+                console.error('Error awarding tokens for payment:', error);
+              }
+            }
+          }
+          
+          // Handle failed payment notifications (Requirement 2.3)
+          else if (payment?.status === 'failed' && 
+                   (!previousPayment || previousPayment.status !== 'failed')) {
+            
+            console.log('❌ Payment failed - showing customer error:', payment);
+            
+            const paymentAmount = parseFloat(payment.amount);
+            let failureReason = 'Payment was declined';
+            
+            // Extract failure reason from metadata
+            if (payment.metadata) {
+              try {
+                if (payment.metadata.Body?.stkCallback?.ResultDesc) {
+                  failureReason = payment.metadata.Body.stkCallback.ResultDesc;
+                } else if (payment.metadata.failure_reason) {
+                  failureReason = payment.metadata.failure_reason;
+                }
+              } catch (error) {
+                console.error('Error parsing failure metadata:', error);
+              }
+            }
+            
+            // Show payment failure notification with retry option (Requirement 2.3)
+            showToast({
+              type: 'error',
+              title: '❌ Payment Failed',
+              message: `${tempFormatCurrency(paymentAmount)} payment failed: ${failureReason}. Please try again or use a different payment method.`,
+              duration: 10000
+            });
+            
+            // Trigger error notification
+            if (notificationPrefs.soundEnabled) {
+              // Could add error sound here
+            }
+            if (notificationPrefs.vibrationEnabled) {
+              buzz([100, 50, 100, 50, 100]); // Error vibration pattern
+            }
+          }
+          
+          // Handle processing/pending status updates (Requirement 2.5)
+          else if (payment?.status === 'pending' && 
+                   (!previousPayment || previousPayment.status !== 'pending')) {
+            
+            console.log('⏳ Payment processing - showing customer status:', payment);
+            
+            const paymentAmount = parseFloat(payment.amount);
+            
+            // Show processing notification (Requirement 2.5)
+            showToast({
+              type: 'info',
+              title: '⏳ Payment Processing',
+              message: `${tempFormatCurrency(paymentAmount)} payment is being processed. Please wait for confirmation.`,
+              duration: 5000
+            });
+          }
+          
+          // Handle timeout/cancelled payments
+          else if ((payment?.status === 'cancelled' || payment?.status === 'timeout') && 
+                   previousPayment && previousPayment.status !== payment.status) {
+            
+            console.log('⏰ Payment cancelled/timeout - showing customer notification:', payment);
+            
+            const paymentAmount = parseFloat(payment.amount);
+            const statusText = payment.status === 'timeout' ? 'timed out' : 'was cancelled';
+            
+            showToast({
+              type: 'error',
+              title: '❌ Payment Not Completed',
+              message: `${tempFormatCurrency(paymentAmount)} payment ${statusText}. Please try again.`,
+              duration: 8000
+            });
           }
         }
         
@@ -2962,6 +3263,21 @@ export default function MenuPage() {
           <div className="mb-3">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PAYMENT</h2>
           </div>
+          
+          {/* Enhanced Balance Display with Real-time Updates */}
+          {tab?.id && (
+            <div className="mb-4">
+              <EnhancedBalanceDisplay
+                tabId={tab.id}
+                barId={tab.bar_id}
+                balanceUpdateService={balanceUpdateService}
+                onBalanceChange={handleBalanceChange}
+                onAutoClose={handleAutoClose}
+                showPaymentSection={false} // Don't show the hint since we're in the payment section
+                className="mb-4"
+              />
+            </div>
+          )}
           
           <div className="bg-white border-b border-gray-100 overflow-hidden rounded-lg">
             <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50">

@@ -1,13 +1,6 @@
-// Jest setup file for shared package
-// Add any global test setup here
+import '@testing-library/jest-dom'
 
-// Increase timeout for property-based tests
-jest.setTimeout(30000);
-
-// Mock React and DOM environment for component tests
-global.React = require('react');
-
-// Mock Next.js router for component tests
+// Mock Next.js router
 jest.mock('next/navigation', () => ({
   useRouter() {
     return {
@@ -25,9 +18,9 @@ jest.mock('next/navigation', () => ({
   usePathname() {
     return ''
   },
-}));
+}))
 
-// Mock window.matchMedia for component tests
+// Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: jest.fn().mockImplementation(query => ({
@@ -40,4 +33,4 @@ Object.defineProperty(window, 'matchMedia', {
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
   })),
-});
+})

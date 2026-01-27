@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
 import { checkAndUpdateOverdueTabs } from '@/lib/businessHours';
 import { calculateResponseTimeFromTabs, formatResponseTime, type ResponseTimeResult } from '@tabeza/shared';
+import { PaymentNotificationContainer, usePaymentNotifications, type PaymentNotificationData } from '@/components/PaymentNotification';
+import { BalanceUpdateService } from '@tabeza/shared/lib/services/balance-update-service';
 
 // Format functions for thousand separators
 const formatCurrency = (amount: number | string, decimals = 0): string => {
@@ -325,6 +327,14 @@ export default function TabsPage() {
   });
   const [vibrationSupported, setVibrationSupported] = useState(false);
 
+  // Payment notifications state
+  const {
+    notifications: paymentNotifications,
+    showPaymentNotification,
+    removePaymentNotification,
+    clearAllNotifications: clearAllPaymentNotifications
+  } = usePaymentNotifications();
+
   useEffect(() => {
     return () => {
       mounted.current = false;
@@ -440,6 +450,54 @@ export default function TabsPage() {
       document.removeEventListener('touchstart', handleGlobalTouch);
     };
   }, [showAlert]);
+
+  // Balance update helper function (Requirements 4.1, 4.3, 4.5)
+  const triggerBalanceUpdate = async (tabId: string, paymentId: string, paymentAmount: number, paymentMethod: string) => {
+    try {
+      console.log('💰 Triggering balance update for staff interface:', {
+        tabId,
+        paymentId,
+        paymentAmount,
+        paymentMethod
+      });
+
+      // Initialize balance update service
+      const balanceUpdateService = new BalanceUpdateService({
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        supabaseServiceRoleKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        enableRealTimeNotifications: false, // Staff interface handles its own notifications
+        enableAuditLogging: true
+      });
+
+      // Process balance update
+      const result = await balanceUpdateService.processPaymentBalanceUpdate(
+        paymentId,
+        tabId,
+        paymentAmount,
+        paymentMethod as 'mpesa' | 'cash' | 'card',
+        'success'
+      );
+
+      if (result.success) {
+        console.log('✅ Balance update processed successfully:', result);
+        
+        // Refresh tabs to show updated balances immediately
+        await loadTabs();
+        
+        if (result.autoCloseTriggered) {
+          console.log('🔒 Tab auto-close triggered, refreshing tab list');
+        }
+      } else {
+        console.error('❌ Balance update failed:', result.error);
+        // Still refresh tabs to ensure UI consistency
+        await loadTabs();
+      }
+    } catch (error) {
+      console.error('Error triggering balance update:', error);
+      // Fallback: refresh tabs to maintain UI consistency
+      await loadTabs();
+    }
+  };
 
   // Load tabs function
   const loadTabs = async () => {
@@ -621,6 +679,109 @@ export default function TabsPage() {
         )
         .subscribe();
 
+      // Add subscription for bar-level payment notifications (Requirements 1.3, 3.2)
+      const barPaymentSubscription = supabase
+        .channel(`bar-payments-${bar.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tab_payments'
+          },
+          async (payload: any) => {
+            console.log('💰 Bar-level payment update:', {
+              eventType: payload.eventType,
+              new: payload.new,
+              old: payload.old
+            });
+            
+            // Filter payments for this bar only (multi-tenant isolation)
+            if (payload.new) {
+              // Get tab info to verify bar ownership and get display details
+              const { data: tabData, error } = await supabase
+                .from('tabs')
+                .select(`
+                  bar_id,
+                  tab_number,
+                  notes,
+                  bars(name)
+                `)
+                .eq('id', payload.new.tab_id)
+                .single();
+              
+              if (error || !tabData || tabData.bar_id !== bar.id) {
+                console.log('🚫 Payment not for this bar, ignoring');
+                return;
+              }
+              
+              // Parse display name and table number from notes
+              let displayName = `Tab ${tabData.tab_number}`;
+              let tableNumber: number | undefined;
+              
+              if (tabData.notes) {
+                try {
+                  const notes = JSON.parse(tabData.notes);
+                  displayName = notes.display_name || displayName;
+                  tableNumber = notes.table_number || undefined;
+                } catch (e) {
+                  // Use default display name if notes parsing fails
+                }
+              }
+              
+              // Create payment notification data
+              const paymentNotificationData: PaymentNotificationData = {
+                id: payload.new.id,
+                tabId: payload.new.tab_id,
+                tabNumber: tabData.tab_number,
+                amount: parseFloat(payload.new.amount),
+                method: payload.new.method,
+                status: payload.new.status,
+                timestamp: payload.new.created_at || payload.new.updated_at,
+                mpesaReceiptNumber: payload.new.metadata?.mpesa_receipt_number,
+                reference: payload.new.reference,
+                displayName,
+                tableNumber
+              };
+              
+              // Show payment notification for new payments
+              if (payload.eventType === 'INSERT') {
+                if (payload.new.status === 'success') {
+                  console.log('💰 Payment received notification');
+                  showPaymentNotification(paymentNotificationData, 'success');
+                  
+                  // Trigger balance update for successful payments (Requirements 4.1, 4.3, 4.5)
+                  await triggerBalanceUpdate(payload.new.tab_id, payload.new.id, parseFloat(payload.new.amount), payload.new.method);
+                } else if (payload.new.status === 'pending') {
+                  console.log('⏳ Payment processing notification');
+                  showPaymentNotification(paymentNotificationData, 'processing');
+                } else if (payload.new.status === 'failed') {
+                  console.log('❌ Payment failed notification');
+                  showPaymentNotification(paymentNotificationData, 'failed', 0); // Don't auto-dismiss failed payments
+                }
+              }
+              
+              // Show payment status updates
+              if (payload.eventType === 'UPDATE' && payload.new.status !== payload.old?.status) {
+                if (payload.new.status === 'success') {
+                  console.log('✅ Payment completed notification');
+                  showPaymentNotification(paymentNotificationData, 'success');
+                  
+                  // Trigger balance update for successful payments (Requirements 4.1, 4.3, 4.5)
+                  await triggerBalanceUpdate(payload.new.tab_id, payload.new.id, parseFloat(payload.new.amount), payload.new.method);
+                } else if (payload.new.status === 'failed') {
+                  console.log('❌ Payment failed notification');
+                  showPaymentNotification(paymentNotificationData, 'failed', 0); // Don't auto-dismiss failed payments
+                }
+              }
+            }
+            
+            // Refresh tabs to show updated balances
+            loadTabs();
+          }
+        )
+        .subscribe();
+
       // 🔥 CRITICAL FIX: Add subscription for customer cancellations
       const customerCancellationSubscription = supabase
         .channel(`customer-cancellation-updates-${bar.id}`)
@@ -704,6 +865,7 @@ export default function TabsPage() {
         telegramAckSubscription.unsubscribe();
         customerOrderSubscription.unsubscribe();
         staffOrderSubscription.unsubscribe();
+        barPaymentSubscription.unsubscribe();
         customerCancellationSubscription.unsubscribe();
         staffCancellationSubscription.unsubscribe();
       };
@@ -1139,6 +1301,17 @@ export default function TabsPage() {
             console.log('🔔 onDismiss called - stopping sound and setting showAlert to false');
             stopContinuousAlertSound();
             setShowAlert(false);
+          }}
+        />
+
+        {/* PAYMENT NOTIFICATIONS */}
+        <PaymentNotificationContainer
+          notifications={paymentNotifications}
+          onDismiss={removePaymentNotification}
+          onViewTab={(tabId) => router.push(`/tabs/${tabId}`)}
+          onRetry={(paymentId) => {
+            console.log('🔄 Retry payment:', paymentId);
+            // TODO: Implement payment retry logic
           }}
         />
 

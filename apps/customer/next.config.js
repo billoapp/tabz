@@ -4,7 +4,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
+  disable: true, // TEMPORARILY DISABLED - Fix M-Pesa first, then re-enable
   sw: 'sw.js', // Explicitly specify the service worker file
   buildExcludes: [/middleware-manifest\.json$/],
   runtimeCaching: [

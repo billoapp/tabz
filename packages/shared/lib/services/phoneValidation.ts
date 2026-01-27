@@ -111,7 +111,7 @@ export function validateKenyanPhoneNumber(phoneNumber: string): PhoneValidationR
   return {
     isValid: true,
     normalized,
-    formatted: formatKenyanPhoneNumber(normalized) || undefined
+    formatted: formatPhoneNumberForDisplay(normalized) || undefined
   };
 }
 
@@ -126,10 +126,39 @@ export function isValidKenyanPhoneNumber(phoneNumber: string): boolean {
 /**
  * Normalize phone number to 254XXXXXXXXX format
  * Returns the normalized number or null if invalid
+ * Does NOT call validateKenyanPhoneNumber to avoid circular dependency
  */
 export function normalizeKenyanPhoneNumber(phoneNumber: string): string | null {
-  const result = validateKenyanPhoneNumber(phoneNumber);
-  return result.isValid ? result.normalized! : null;
+  // Handle empty or invalid input
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    return null;
+  }
+  
+  const normalized = normalizeToInternationalFormat(phoneNumber);
+  
+  // Basic validation without calling validateKenyanPhoneNumber
+  if (normalized.length !== 12 || !normalized.startsWith('254') || !/^\d{12}$/.test(normalized)) {
+    return null;
+  }
+  
+  // Check if the mobile prefix is valid (first two digits after 254)
+  const mobilePrefix = normalized.substring(3, 5);
+  if (!VALID_KENYAN_PREFIXES.includes(mobilePrefix)) {
+    return null;
+  }
+  
+  return normalized;
+}
+
+/**
+ * Format phone number for display purposes (internal helper)
+ * Returns format: +254 XXX XXX XXX
+ * Does NOT call validation functions to avoid circular dependency
+ */
+function formatPhoneNumberForDisplay(normalizedPhone: string): string {
+  // Assume input is already normalized (254XXXXXXXXX format)
+  // Format as: +254 XXX XXX XXX
+  return `+${normalizedPhone.substring(0, 3)} ${normalizedPhone.substring(3, 6)} ${normalizedPhone.substring(6, 9)} ${normalizedPhone.substring(9)}`;
 }
 
 /**
@@ -142,8 +171,7 @@ export function formatKenyanPhoneNumber(phoneNumber: string): string | null {
     return null;
   }
   
-  // Format as: +254 XXX XXX XXX
-  return `+${normalized.substring(0, 3)} ${normalized.substring(3, 6)} ${normalized.substring(6, 9)} ${normalized.substring(9)}`;
+  return formatPhoneNumberForDisplay(normalized);
 }
 
 // ===== COMPATIBILITY FUNCTIONS FOR EXISTING COMPONENTS =====

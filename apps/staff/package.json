@@ -9,6 +9,8 @@
     "start": "next start -p 3003",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
     "clean": "rimraf .next node_modules"
   },
   "dependencies": {
@@ -28,12 +30,19 @@
     "sharp": "^0.33.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.1.4",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/jest": "^29.5.8",
     "@types/node": "^20.11.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.17",
     "eslint": "^8.56.0",
     "eslint-config-next": "15.1.4",
+    "fast-check": "^3.15.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.4.33",
     "rimraf": "^5.0.5",
     "tailwindcss": "^3.4.1",
