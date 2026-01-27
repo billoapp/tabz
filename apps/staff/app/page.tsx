@@ -451,6 +451,7 @@ export default function TabsPage() {
   }, [showAlert]);
 
   // Balance update helper function (Requirements 4.1, 4.3, 4.5)
+// Balance update helper function (Requirements 4.1, 4.3, 4.5)
   const triggerBalanceUpdate = async (tabId: string, paymentId: string, paymentAmount: number, paymentMethod: string) => {
     try {
       console.log('💰 Triggering balance update for staff interface:', {
@@ -470,9 +471,6 @@ export default function TabsPage() {
 
       // Refresh tabs to show updated balances immediately
       await loadTabs();
-        // Still refresh tabs to ensure UI consistency
-        await loadTabs();
-      }
     } catch (error) {
       console.error('Error triggering balance update:', error);
       // Fallback: refresh tabs to maintain UI consistency
@@ -680,41 +678,36 @@ export default function TabsPage() {
             // Filter payments for this bar only (multi-tenant isolation)
             if (payload.new) {
               // Get tab info to verify bar ownership and get display details
-              const { data: tabData, error } = await supabase
+              const { data: tabData, error: tabError } = await supabase
                 .from('tabs')
-                .select(`
-                  bar_id,
-                  tab_number,
-                  notes,
-                  bars(name)
-                `)
+                .select(`bar_id, tab_number, notes, bars(name)`)
                 .eq('id', payload.new.tab_id)
                 .single();
-              
-              if (error || !tabData || tabData.bar_id !== bar.id) {
+
+              if (tabError || !tabData || (tabData as any).bar_id !== bar.id) {
                 console.log('🚫 Payment not for this bar, ignoring');
                 return;
               }
-              
+
               // Parse display name and table number from notes
-              let displayName = `Tab ${tabData.tab_number}`;
+              let displayName = `Tab ${(tabData as any).tab_number}`;
               let tableNumber: number | undefined;
-              
-              if (tabData.notes) {
+
+              if ((tabData as any).notes) {
                 try {
-                  const notes = JSON.parse(tabData.notes);
+                  const notes = JSON.parse((tabData as any).notes);
                   displayName = notes.display_name || displayName;
                   tableNumber = notes.table_number || undefined;
                 } catch (e) {
                   // Use default display name if notes parsing fails
                 }
               }
-              
+
               // Create payment notification data
               const paymentNotificationData: PaymentNotificationData = {
                 id: payload.new.id,
                 tabId: payload.new.tab_id,
-                tabNumber: tabData.tab_number,
+                tabNumber: (tabData as any).tab_number,
                 amount: parseFloat(payload.new.amount),
                 method: payload.new.method,
                 status: payload.new.status,
