@@ -73,58 +73,56 @@ export function clearTokenCache(): void {
 
 /**
  * Request new OAuth token from Safaricom API
+ * OAuth MUST use GET method with query parameter - no exceptions
  */
 async function requestNewToken(config: MpesaConfig, cacheKey: string): Promise<string> {
   try {
-    // Create basic auth header
     const auth = Buffer.from(
       `${config.consumerKey}:${config.consumerSecret}`
     ).toString('base64');
 
-    // Make OAuth request
-    const response = await fetch(config.oauthUrl.replace('?grant_type=client_credentials', ''), {
-      method: 'POST',
+    // Construct OAuth URL with query parameter (MUST be exactly this format)
+    const oauthUrl = `${config.oauthUrl}?grant_type=client_credentials`;
+    
+    console.log('🔗 OAuth URL:', oauthUrl);
+    console.log('🔑 Auth header:', `Basic ${auth.substring(0, 20)}...`);
+
+    // Make OAuth request with timeout and proper error handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+    const response = await fetch(oauthUrl, {
+      method: 'GET',
       headers: {
         'Authorization': `Basic ${auth}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
       },
-      body: 'grant_type=client_credentials'
+      signal: controller.signal
     });
 
-    if (!response || !response.ok) {
-      const errorText = response ? await response.text() : 'No response received';
-      
-      // Check for common Safaricom API issues
-      if (response?.status === 400 && (!errorText || errorText.trim() === '')) {
-        throw new MpesaOAuthError(
-          'Safaricom API returned 400 Bad Request with empty response. This usually indicates invalid or expired credentials. Please verify your M-Pesa app credentials in the Safaricom Developer Portal.',
-          response?.status,
-          errorText
-        );
-      }
-      
-      // Check if API is echoing request (sandbox issue)
-      if (response?.status === 200 && errorText.includes('grant_type=client_credentials')) {
-        throw new MpesaOAuthError(
-          'Safaricom sandbox API is not responding correctly (echoing request). This may indicate API issues or invalid credentials. Please check Safaricom Developer Portal for API status.',
-          response?.status,
-          errorText
-        );
-      }
-      
+    clearTimeout(timeoutId);
+
+    const responseText = await response.text();
+    console.log('📊 OAuth Response Status:', response.status);
+    console.log('📋 OAuth Response Text:', responseText.substring(0, 200) + '...');
+
+    // Check if response is HTML (error page)
+    if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
+      console.error('❌ Safaricom returned HTML error page instead of JSON');
+      // Extract error message from HTML if possible
+      const errorMatch = responseText.match(/<title[^>]*>(.*?)<\/title>/i) || 
+                        responseText.match(/<h1[^>]*>(.*?)<\/h1>/i);
+      const errorMessage = errorMatch ? errorMatch[1] : 'Safaricom returned error HTML page';
       throw new MpesaOAuthError(
-        `OAuth request failed: ${response?.status || 'unknown'} ${response?.statusText || 'unknown error'}. Response: ${errorText}`,
-        response?.status,
-        errorText
+        `HTTP ${response.status}: ${errorMessage}`,
+        response.status,
+        responseText
       );
     }
 
-    const responseText = await response.text();
-    
-    // Check if response is echoing our request (sandbox issue)
-    if (responseText.includes('grant_type=client_credentials')) {
+    if (!response.ok) {
       throw new MpesaOAuthError(
-        'Safaricom sandbox API is not responding correctly (echoing request). This may indicate API issues or invalid credentials. Please check Safaricom Developer Portal for API status.',
+        `OAuth failed ${response.status}: ${responseText}`,
         response.status,
         responseText
       );
@@ -135,15 +133,18 @@ async function requestNewToken(config: MpesaConfig, cacheKey: string): Promise<s
       tokenResponse = JSON.parse(responseText) as OAuthTokenResponse;
     } catch (parseError) {
       throw new MpesaOAuthError(
-        `Invalid JSON response from Safaricom API: ${responseText}`,
+        `OAuth returned non-JSON: ${responseText}`,
         response.status,
         responseText
       );
     }
 
-    // Validate response
-    if (!tokenResponse.access_token || !tokenResponse.expires_in) {
-      throw new MpesaOAuthError('Invalid token response format from Safaricom API');
+    if (!tokenResponse.access_token) {
+      throw new MpesaOAuthError(
+        `OAuth missing access_token: ${responseText}`,
+        response.status,
+        responseText
+      );
     }
 
     // Cache the token (with 1 minute buffer before expiry)
@@ -157,14 +158,22 @@ async function requestNewToken(config: MpesaConfig, cacheKey: string): Promise<s
     };
 
     tokenCache.set(cacheKey, cachedToken);
-
     return tokenResponse.access_token;
 
   } catch (error) {
-    // Handle fetch errors (network issues) - these are thrown before response checking
+    // Handle fetch errors (network issues)
     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       throw new MpesaOAuthError(
         'Network error while requesting OAuth token',
+        undefined,
+        error
+      );
+    }
+
+    // Handle AbortError (timeout)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new MpesaOAuthError(
+        'OAuth request timed out after 10 seconds',
         undefined,
         error
       );

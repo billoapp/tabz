@@ -93,45 +93,71 @@ export async function POST(request: NextRequest) {
 
     // Test OAuth token generation
     try {
+      console.log('🔗 Testing M-Pesa OAuth token generation...');
+      console.log('📋 Environment:', mpesaConfig.environment);
+      console.log('🏷️ Business Shortcode:', mpesaConfig.businessShortcode);
+      console.log('🔑 Consumer Key length:', mpesaConfig.consumerKey?.length || 0);
+      console.log('🔒 Consumer Secret length:', mpesaConfig.consumerSecret?.length || 0);
+
+      // Create Basic Auth header
       const authString = Buffer.from(`${mpesaConfig.consumerKey}:${mpesaConfig.consumerSecret}`).toString('base64');
+
+      // Construct OAuth URL with query parameter (MUST be exactly this format)
+      const oauthUrl = `${mpesaConfig.oauthUrl}?grant_type=client_credentials`;
       
-      // Safaricom OAuth API - POST method (standard OAuth 2.0)
-      console.log('🔗 OAuth URL:', mpesaConfig.oauthUrl);
-      console.log('🔑 Auth header:', `Basic ${authString.substring(0, 20)}...`);
+      console.log('🔗 OAuth URL:', oauthUrl);
+      console.log('🔑 Auth header (first 20 chars):', `Basic ${authString.substring(0, 20)}...`);
       
-      const oauthResponse = await fetch(mpesaConfig.oauthUrl.replace('?grant_type=client_credentials', ''), {
-        method: 'POST',
+      // Make OAuth request with timeout and proper error handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+      const oauthResponse = await fetch(oauthUrl, {
+        method: 'GET',
         headers: {
           'Authorization': `Basic ${authString}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
         },
-        body: 'grant_type=client_credentials'
+        signal: controller.signal
       });
 
-      const oauthData = await oauthResponse.json();
-      
+      clearTimeout(timeoutId);
+
+      const responseText = await oauthResponse.text();
       console.log('📊 OAuth Response Status:', oauthResponse.status);
-      console.log('📋 OAuth Response Data:', oauthData);
+      console.log('📋 OAuth Response (first 500 chars):', responseText.substring(0, 500));
+
+      // Check if response is HTML (error page)
+      if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
+        console.error('❌ Safaricom returned HTML error page instead of JSON');
+        // Extract error message from HTML if possible
+        const errorMatch = responseText.match(/<title[^>]*>(.*?)<\/title>/i) || 
+                          responseText.match(/<h1[^>]*>(.*?)<\/h1>/i);
+        const errorMessage = errorMatch ? errorMatch[1] : 'Safaricom returned error HTML page';
+        throw new Error(`HTTP ${oauthResponse.status}: ${errorMessage}`);
+      }
 
       if (!oauthResponse.ok) {
-        const errorMsg = oauthData.error_description || oauthData.errorMessage || oauthData.error || 'OAuth failed';
-        console.error('❌ OAuth Error Details:', {
-          status: oauthResponse.status,
-          statusText: oauthResponse.statusText,
-          error: errorMsg,
-          fullResponse: oauthData
-        });
-        throw new Error(errorMsg);
+        throw new Error(`HTTP ${oauthResponse.status}: ${responseText.substring(0, 200)}`);
+      }
+
+      let oauthData;
+      try {
+        oauthData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ Failed to parse OAuth response as JSON:', responseText.substring(0, 200));
+        throw new Error(`OAuth returned non-JSON response: ${responseText.substring(0, 200)}`);
       }
 
       if (!oauthData.access_token) {
-        console.error('❌ No access token in response:', oauthData);
-        throw new Error('No access token received from Safaricom');
+        console.error('❌ OAuth response missing access_token:', oauthData);
+        throw new Error(`OAuth response missing access_token: ${JSON.stringify(oauthData)}`);
       }
 
-      console.log('✅ OAuth Success - Access token received');
-      console.log('🔑 Token type:', oauthData.token_type);
-      console.log('⏰ Expires in:', oauthData.expires_in, 'seconds');
+      console.log('✅ OAuth Success!');
+      console.log('🔑 Token type:', oauthData.token_type || 'N/A');
+      console.log('⏰ Expires in:', oauthData.expires_in || 'N/A', 'seconds');
+      console.log('📝 Access token (first 20 chars):', oauthData.access_token.substring(0, 20) + '...');
 
       // Update test status in database
       const { error: updateError } = await (supabase as any)
@@ -156,6 +182,8 @@ export async function POST(request: NextRequest) {
       });
 
     } catch (oauthError: any) {
+      console.error('❌ OAuth Error:', oauthError.message);
+
       // Update test status as failed
       const { error: updateError } = await (supabase as any)
         .from('bars')
@@ -167,17 +195,32 @@ export async function POST(request: NextRequest) {
         .eq('id', barId);
 
       if (updateError) {
-        console.error('Failed to update test status:', updateError);
+        console.error('⚠️ Failed to update test status:', updateError);
+      }
+
+      // Provide helpful error messages
+      let userMessage = oauthError.message;
+      let suggestion = '';
+
+      if (oauthError.message.includes('NetworkError') || oauthError.message.includes('Failed to fetch')) {
+        suggestion = 'Network error. Check your internet connection and firewall settings.';
+      } else if (oauthError.message.includes('401')) {
+        suggestion = 'Invalid Consumer Key or Consumer Secret. Please verify your credentials from Safaricom Developer Portal.';
+      } else if (oauthError.message.includes('404')) {
+        suggestion = 'OAuth endpoint not found. Check if the environment URLs are correct.';
+      } else if (oauthError.message.includes('HTML')) {
+        suggestion = 'Safaricom returned an error page. Your credentials might be invalid or the service is down.';
+      } else if (oauthError.message.includes('access_token')) {
+        suggestion = 'Safaricom did not return an access token. Check your app permissions in the Developer Portal.';
       }
 
       return NextResponse.json(
         { 
           success: false, 
-          error: `Authentication failed: ${oauthError.message}`,
+          error: userMessage,
+          suggestion: suggestion,
           environment: mpesaConfig.environment,
-          suggestion: mpesaConfig.environment === 'sandbox' 
-            ? 'Please check your Consumer Key and Consumer Secret from Safaricom Developer Portal'
-            : 'Please verify all your production credentials are correct'
+          timestamp: new Date().toISOString()
         },
         { status: 400 }
       );

@@ -809,6 +809,8 @@ export default function SettingsPage() {
 
       const userBarId = user.user_metadata.bar_id;
 
+      console.log('🧪 Testing M-Pesa credentials for bar:', userBarId);
+
       // Test M-Pesa credentials
       const response = await fetch('/api/payments/mpesa/test', {
         method: 'POST',
@@ -821,8 +823,10 @@ export default function SettingsPage() {
       });
 
       const result = await response.json();
+      console.log('📊 Test API response:', result);
 
       if (response.ok && result.success) {
+        // Success - update state
         setMpesaSettings(prev => ({
           ...prev,
           mpesa_setup_completed: true,
@@ -832,10 +836,18 @@ export default function SettingsPage() {
 
         alert('✅ M-Pesa credentials validated successfully! Your setup is complete.');
       } else {
-        throw new Error(result.error || 'Test failed');
+        // Show detailed error
+        let errorMessage = result.error || 'Test failed';
+        let suggestion = result.suggestion || '';
+
+        if (errorMessage.includes('grant_type') || errorMessage.includes('HTML')) {
+          suggestion = 'This usually means invalid credentials or network issues. Please check your Consumer Key and Consumer Secret from Safaricom Developer Portal.';
+        }
+
+        throw new Error(`${errorMessage}${suggestion ? '\n\nSuggestion: ' + suggestion : ''}`);
       }
     } catch (error: any) {
-      console.error('Error testing M-Pesa:', error);
+      console.error('❌ Error testing M-Pesa:', error);
       
       setMpesaSettings(prev => ({
         ...prev,
@@ -844,7 +856,8 @@ export default function SettingsPage() {
         mpesa_last_test_at: new Date().toISOString()
       }));
 
-      alert('❌ M-Pesa test failed: ' + error.message);
+      // Show detailed error to user
+      alert(`❌ M-Pesa test failed:\n\n${error.message}\n\nPlease check your credentials and try again.`);
     } finally {
       setTestingMpesa(false);
     }
