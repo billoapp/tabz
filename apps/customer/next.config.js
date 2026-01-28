@@ -6,28 +6,21 @@ const withPWA = require('next-pwa')({
   skipWaiting: true,
   disable: false, // Enable PWA in both development and production for testing
   sw: 'sw.js', // Explicitly specify the service worker file
-  buildExcludes: [/middleware-manifest\.json$/],
+  buildExcludes: [
+    /middleware-manifest\.json$/,
+    /app-build-manifest\.json$/, // Exclude the problematic Next.js 15 manifest
+    /build-manifest\.json$/,
+    /_buildManifest\.js$/,
+    /_ssgManifest\.js$/,
+    /\.map$/,
+    /^manifest.*\.js$/
+  ],
   runtimeCaching: [
     {
-      urlPattern: /^https?.*/,
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'tabeza-customer-v1',
-        expiration: {
-          maxEntries: 100,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
-        },
-        cacheableResponse: {
-          statuses: [0, 200]
-        },
-        networkTimeoutSeconds: 10
-      }
-    },
-    {
-      urlPattern: /\/_next\/static\//,
+      urlPattern: /^https:\/\/app\.tabeza\.co\.ke\/_next\/static\//,
       handler: 'CacheFirst',
       options: {
-        cacheName: 'tabeza-static-v1',
+        cacheName: 'tabeza-static-v2',
         expiration: {
           maxEntries: 50,
           maxAgeSeconds: 30 * 24 * 60 * 60 // 30 days
@@ -35,10 +28,10 @@ const withPWA = require('next-pwa')({
       }
     },
     {
-      urlPattern: /\/_next\/image\//,
+      urlPattern: /^https:\/\/app\.tabeza\.co\.ke\/_next\/image\//,
       handler: 'CacheFirst',
       options: {
-        cacheName: 'tabeza-images-v1',
+        cacheName: 'tabeza-images-v2',
         expiration: {
           maxEntries: 100,
           maxAgeSeconds: 7 * 24 * 60 * 60 // 7 days
@@ -46,13 +39,28 @@ const withPWA = require('next-pwa')({
       }
     },
     {
-      urlPattern: /\/api\//,
+      urlPattern: /^https:\/\/app\.tabeza\.co\.ke\/api\//,
       handler: 'NetworkFirst',
       options: {
-        cacheName: 'tabeza-api-v1',
+        cacheName: 'tabeza-api-v2',
         expiration: {
           maxEntries: 50,
           maxAgeSeconds: 5 * 60 // 5 minutes
+        },
+        networkTimeoutSeconds: 10
+      }
+    },
+    {
+      urlPattern: /^https:\/\/app\.tabeza\.co\.ke\//,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'tabeza-pages-v2',
+        expiration: {
+          maxEntries: 50,
+          maxAgeSeconds: 24 * 60 * 60 // 24 hours
+        },
+        cacheableResponse: {
+          statuses: [0, 200]
         },
         networkTimeoutSeconds: 10
       }
