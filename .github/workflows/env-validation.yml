@@ -1,0 +1,51 @@
+name: Environment Variable Validation
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+
+jobs:
+  validate-env-keys:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Validate environment variable naming
+      run: node dev-tools/scripts/validate-env-keys.js
+      
+    - name: Check for forbidden key patterns
+      run: node dev-tools/scripts/env-key-enforcer.js --check-all
+      
+    - name: Verify no secrets in steering files
+      run: |
+        echo "🔍 Checking steering files for secrets..."
+        if grep -r "sb_secret_\|ES_[a-f0-9]\{32\}\|AKIA[0-9A-Z]\{16\}" .kiro/steering/ 2>/dev/null; then
+          echo "❌ Secrets found in steering files!"
+          exit 1
+        else
+          echo "✅ No secrets found in steering files"
+        fi
+        
+    - name: Validate .env.example files exist
+      run: |
+        echo "📝 Checking for .env.example files..."
+        for app in apps/customer apps/staff; do
+          if [ ! -f "$app/.env.example" ]; then
+            echo "❌ Missing $app/.env.example"
+            exit 1
+          else
+            echo "✅ Found $app/.env.example"
+          fi
+        done
