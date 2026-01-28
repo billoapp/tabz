@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { loadMpesaConfigFromBar } from '@tabeza/shared/lib/services/mpesa-config';
+import { loadMpesaConfigFromBar, type BarMpesaData } from '@tabeza/shared/lib/services/mpesa-config';
 
 /**
  * Test M-Pesa credentials by attempting OAuth token generation
@@ -18,18 +18,58 @@ export async function POST(request: NextRequest) {
     }
 
     // Get bar data from database
-    const { data: barData, error: barError } = await supabase
+    const { data: rawBarData, error: barError } = await supabase
       .from('bars')
-      .select('*')
+      .select(`
+        id,
+        name,
+        mpesa_enabled,
+        mpesa_environment,
+        mpesa_business_shortcode,
+        mpesa_consumer_key_encrypted,
+        mpesa_consumer_secret_encrypted,
+        mpesa_passkey_encrypted,
+        mpesa_callback_url,
+        mpesa_setup_completed,
+        mpesa_test_status,
+        mpesa_last_test_at
+      `)
       .eq('id', barId)
-      .single();
+      .single() as { 
+        data: {
+          id: string;
+          name: string;
+          mpesa_enabled: boolean;
+          mpesa_environment: string;
+          mpesa_business_shortcode: string;
+          mpesa_consumer_key_encrypted: string | null;
+          mpesa_consumer_secret_encrypted: string | null;
+          mpesa_passkey_encrypted: string | null;
+          mpesa_callback_url: string;
+          mpesa_setup_completed: boolean;
+          mpesa_test_status: string;
+          mpesa_last_test_at: string | null;
+        } | null; 
+        error: any;
+      };
 
-    if (barError || !barData) {
+    if (barError || !rawBarData) {
       return NextResponse.json(
         { success: false, error: 'Bar not found' },
         { status: 404 }
       );
     }
+
+    // Convert to BarMpesaData format (handle null values)
+    const barData: BarMpesaData = {
+      mpesa_enabled: rawBarData.mpesa_enabled || false,
+      mpesa_environment: rawBarData.mpesa_environment || 'sandbox',
+      mpesa_business_shortcode: rawBarData.mpesa_business_shortcode || '',
+      mpesa_consumer_key_encrypted: rawBarData.mpesa_consumer_key_encrypted || '',
+      mpesa_consumer_secret_encrypted: rawBarData.mpesa_consumer_secret_encrypted || '',
+      mpesa_passkey_encrypted: rawBarData.mpesa_passkey_encrypted || '',
+      mpesa_callback_url: rawBarData.mpesa_callback_url || `https://app.tabeza.co.ke/api/payments/mpesa/callback`
+    };
 
     // Load M-Pesa configuration
     let mpesaConfig;
