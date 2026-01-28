@@ -1905,7 +1905,7 @@ export default function SettingsPage() {
                       </label>
                       <div className="relative">
                         <input
-                          type="text"
+                          type={mpesaSettings.mpesa_consumer_key === '••••••••••••••••' ? 'password' : 'text'}
                           value={mpesaSettings.mpesa_consumer_key}
                           onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_consumer_key: e.target.value})}
                           className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none ${
@@ -1981,7 +1981,7 @@ export default function SettingsPage() {
                         </label>
                         <div className="relative">
                           <input
-                            type="password"
+                            type={mpesaSettings.mpesa_passkey === '••••••••••••••••' ? 'password' : 'text'}
                             value={mpesaSettings.mpesa_passkey}
                             onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_passkey: e.target.value})}
                             className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none border-gray-200 focus:border-green-500 ${

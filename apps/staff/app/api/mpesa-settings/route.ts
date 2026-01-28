@@ -93,7 +93,9 @@ export async function GET(req: Request) {
         mpesa_consumer_key_encrypted,
         mpesa_consumer_secret_encrypted,
         mpesa_passkey_encrypted,
-        mpesa_setup_completed
+        mpesa_setup_completed,
+        mpesa_last_test_at,
+        mpesa_test_status
       `)
       .eq('id', barId)
       .single()
@@ -109,13 +111,15 @@ export async function GET(req: Request) {
       mpesa_environment: data.mpesa_environment,
       mpesa_business_shortcode: data.mpesa_business_shortcode,
       mpesa_setup_completed: data.mpesa_setup_completed,
+      mpesa_last_test_at: data.mpesa_last_test_at,
+      mpesa_test_status: data.mpesa_test_status,
       // Return masked versions for display
       mpesa_consumer_key: data.mpesa_consumer_key_encrypted ? '••••••••••••••••' : '',
       mpesa_consumer_secret: data.mpesa_consumer_secret_encrypted ? '••••••••••••••••' : '',
       mpesa_passkey: data.mpesa_passkey_encrypted ? '••••••••••••••••' : ''
     }
 
-    return NextResponse.json(sanitizedData)
+    return NextResponse.json({ success: true, settings: sanitizedData })
 
   } catch (err) {
     console.error('[MPESA SETTINGS] Get error:', err)
