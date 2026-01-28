@@ -21,8 +21,7 @@ export async function POST(req: Request) {
       mpesa_business_shortcode,
       mpesa_consumer_key,
       mpesa_consumer_secret,
-      mpesa_passkey,
-      mpesa_callback_url
+      mpesa_passkey
     } = body
 
     if (!barId) {
@@ -43,7 +42,7 @@ export async function POST(req: Request) {
     const encryptedConsumerSecret = mpesa_consumer_secret ? encryptToBytea(mpesa_consumer_secret) : null
     const encryptedPasskey = finalPasskey ? encryptToBytea(finalPasskey) : null
 
-    // Update the bars table with M-Pesa settings
+    // Update the bars table with M-Pesa settings (no callback URL - it's global)
     const { data, error } = await supabase
       .from('bars')
       .update({
@@ -53,7 +52,6 @@ export async function POST(req: Request) {
         mpesa_consumer_key_encrypted: encryptedConsumerKey,
         mpesa_consumer_secret_encrypted: encryptedConsumerSecret,
         mpesa_passkey_encrypted: encryptedPasskey,
-        mpesa_callback_url: mpesa_callback_url,
         mpesa_setup_completed: true,
         updated_at: new Date().toISOString()
       })
@@ -95,7 +93,6 @@ export async function GET(req: Request) {
         mpesa_consumer_key_encrypted,
         mpesa_consumer_secret_encrypted,
         mpesa_passkey_encrypted,
-        mpesa_callback_url,
         mpesa_setup_completed
       `)
       .eq('id', barId)
@@ -111,7 +108,6 @@ export async function GET(req: Request) {
       mpesa_enabled: data.mpesa_enabled,
       mpesa_environment: data.mpesa_environment,
       mpesa_business_shortcode: data.mpesa_business_shortcode,
-      mpesa_callback_url: data.mpesa_callback_url,
       mpesa_setup_completed: data.mpesa_setup_completed,
       // Return masked versions for display
       mpesa_consumer_key: data.mpesa_consumer_key_encrypted ? '••••••••••••••••' : '',

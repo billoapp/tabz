@@ -5,6 +5,37 @@ const withPWA = require('next-pwa')({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
+  
+  // Comprehensive build exclusions to prevent precaching errors
+  buildExcludes: [
+    /app-build-manifest\.json$/,
+    /build-manifest\.json$/,
+    /react-loadable-manifest\.json$/,
+    /server\/.*\.js$/,
+    /static\/chunks\/.*\.js$/,
+    /\.map$/,
+    /middleware-manifest\.json$/,
+    /prerender-manifest\.json$/,
+    /routes-manifest\.json$/,
+    /export-marker\.json$/,
+    /images-manifest\.json$/,
+    /font-manifest\.json$/,
+    /webpack-runtime-.*\.js$/,
+    /framework-.*\.js$/,
+    /main-.*\.js$/,
+    /polyfills-.*\.js$/,
+    /_app-.*\.js$/,
+    /_error-.*\.js$/,
+    /_document-.*\.js$/,
+    /chunks\/pages\/.*\.js$/,
+    /chunks\/.*\.js$/,
+    /\.next\/static\/.*$/,
+    /\.next\/server\/.*$/,
+  ],
+  
+  // Unique cache ID for cache invalidation
+  cacheId: `staff-pwa-${Date.now()}`,
+  
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,

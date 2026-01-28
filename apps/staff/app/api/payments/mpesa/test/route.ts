@@ -29,7 +29,6 @@ export async function POST(request: NextRequest) {
         mpesa_consumer_key_encrypted,
         mpesa_consumer_secret_encrypted,
         mpesa_passkey_encrypted,
-        mpesa_callback_url,
         mpesa_setup_completed,
         mpesa_test_status,
         mpesa_last_test_at
@@ -45,7 +44,6 @@ export async function POST(request: NextRequest) {
           mpesa_consumer_key_encrypted: string | null;
           mpesa_consumer_secret_encrypted: string | null;
           mpesa_passkey_encrypted: string | null;
-          mpesa_callback_url: string;
           mpesa_setup_completed: boolean;
           mpesa_test_status: string;
           mpesa_last_test_at: string | null;
@@ -67,8 +65,7 @@ export async function POST(request: NextRequest) {
       mpesa_business_shortcode: rawBarData.mpesa_business_shortcode || '',
       mpesa_consumer_key_encrypted: rawBarData.mpesa_consumer_key_encrypted || '',
       mpesa_consumer_secret_encrypted: rawBarData.mpesa_consumer_secret_encrypted || '',
-      mpesa_passkey_encrypted: rawBarData.mpesa_passkey_encrypted || '',
-      mpesa_callback_url: rawBarData.mpesa_callback_url || `https://app.tabeza.co.ke/api/payments/mpesa/callback`
+      mpesa_passkey_encrypted: rawBarData.mpesa_passkey_encrypted || ''
     };
 
     // Load M-Pesa configuration
@@ -102,7 +99,6 @@ export async function POST(request: NextRequest) {
         method: 'GET',
         headers: {
           'Authorization': `Basic ${authString}`,
-          'Content-Type': 'application/json',
         },
       });
 
@@ -117,7 +113,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Update test status in database
-      await (supabase as any)
+      const { error: updateError } = await (supabase as any)
         .from('bars')
         .update({
           mpesa_setup_completed: true,
@@ -125,6 +121,10 @@ export async function POST(request: NextRequest) {
           mpesa_last_test_at: new Date().toISOString()
         })
         .eq('id', barId);
+
+      if (updateError) {
+        console.error('Failed to update test status:', updateError);
+      }
 
       return NextResponse.json({
         success: true,
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     } catch (oauthError: any) {
       // Update test status as failed
-      await (supabase as any)
+      const { error: updateError } = await (supabase as any)
         .from('bars')
         .update({
           mpesa_setup_completed: false,
@@ -144,6 +144,10 @@ export async function POST(request: NextRequest) {
           mpesa_last_test_at: new Date().toISOString()
         })
         .eq('id', barId);
+
+      if (updateError) {
+        console.error('Failed to update test status:', updateError);
+      }
 
       return NextResponse.json(
         { 

@@ -29,7 +29,6 @@ export interface BarMpesaData {
   mpesa_consumer_key_encrypted: string;
   mpesa_consumer_secret_encrypted: string;
   mpesa_passkey_encrypted: string;
-  mpesa_callback_url: string;
 }
 
 export class MpesaConfigurationError extends Error {
@@ -56,14 +55,16 @@ export function loadMpesaConfigFromBar(barData: BarMpesaData): MpesaConfig {
   
   // Check for missing required fields
   if (!barData.mpesa_environment) missingFields.push('mpesa_environment');
-  if (!barData.mpesa_callback_url) missingFields.push('mpesa_callback_url');
 
   // Validate environment
   const environment = validateEnvironment(barData.mpesa_environment);
 
+  // Get global callback URL (same for all tenants)
+  const callbackUrl = getGlobalCallbackUrl();
+
   // For sandbox environment, use standard Safaricom test credentials if not provided
   if (environment === 'sandbox') {
-    return loadSandboxConfig(barData, missingFields);
+    return loadSandboxConfig(barData, missingFields, callbackUrl);
   }
 
   // For production, all credentials are required
@@ -108,7 +109,7 @@ export function loadMpesaConfigFromBar(barData: BarMpesaData): MpesaConfig {
     consumerSecret,
     businessShortcode: barData.mpesa_business_shortcode,
     passkey,
-    callbackUrl: barData.mpesa_callback_url,
+    callbackUrl,
     oauthUrl: urls.oauth,
     stkPushUrl: urls.stkPush,
     stkQueryUrl: urls.stkQuery,
@@ -128,7 +129,7 @@ export function loadMpesaConfigFromBar(barData: BarMpesaData): MpesaConfig {
  * IMPORTANT: Even though sandbox credentials are "standard", they must be stored
  * encrypted in the database to pass validation. Empty values will cause errors.
  */
-function loadSandboxConfig(barData: BarMpesaData, missingFields: string[]): MpesaConfig {
+function loadSandboxConfig(barData: BarMpesaData, missingFields: string[], callbackUrl: string): MpesaConfig {
   // For sandbox, we need individual consumer key and secret, but can use standard business shortcode and passkey
   const sandboxMissingFields: string[] = [];
   
@@ -196,7 +197,7 @@ function loadSandboxConfig(barData: BarMpesaData, missingFields: string[]): Mpes
     consumerSecret: consumerSecret, // Individual per tenant
     businessShortcode: businessShortcode, // Standard sandbox or custom
     passkey: passkey, // Standard sandbox or custom
-    callbackUrl: barData.mpesa_callback_url,
+    callbackUrl: callbackUrl, // Global for all tenants
     oauthUrl: urls.oauth,
     stkPushUrl: urls.stkPush,
     stkQueryUrl: urls.stkQuery,
@@ -242,6 +243,15 @@ function getEnvironmentUrls(environment: MpesaEnvironment) {
     stkPush: `${baseUrl}/mpesa/stkpush/v1/processrequest`,
     stkQuery: `${baseUrl}/mpesa/stkpushquery/v1/query`,
   };
+}
+
+/**
+ * Get global M-Pesa callback URL (same for all tenants)
+ * This is the webhook endpoint that Safaricom calls after payment processing
+ */
+function getGlobalCallbackUrl(): string {
+  // Use environment variable if set, otherwise use default production URL
+  return process.env.MPESA_CALLBACK_URL || 'https://app.tabeza.co.ke/api/payments/mpesa/callback';
 }
 
 /**
