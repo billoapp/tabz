@@ -95,22 +95,43 @@ export async function POST(request: NextRequest) {
     try {
       const authString = Buffer.from(`${mpesaConfig.consumerKey}:${mpesaConfig.consumerSecret}`).toString('base64');
       
-      const oauthResponse = await fetch(mpesaConfig.oauthUrl, {
-        method: 'GET',
+      // Safaricom OAuth API - POST method (standard OAuth 2.0)
+      console.log('🔗 OAuth URL:', mpesaConfig.oauthUrl);
+      console.log('🔑 Auth header:', `Basic ${authString.substring(0, 20)}...`);
+      
+      const oauthResponse = await fetch(mpesaConfig.oauthUrl.replace('?grant_type=client_credentials', ''), {
+        method: 'POST',
         headers: {
           'Authorization': `Basic ${authString}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
+        body: 'grant_type=client_credentials'
       });
 
       const oauthData = await oauthResponse.json();
+      
+      console.log('📊 OAuth Response Status:', oauthResponse.status);
+      console.log('📋 OAuth Response Data:', oauthData);
 
       if (!oauthResponse.ok) {
-        throw new Error(oauthData.error_description || oauthData.errorMessage || 'OAuth failed');
+        const errorMsg = oauthData.error_description || oauthData.errorMessage || oauthData.error || 'OAuth failed';
+        console.error('❌ OAuth Error Details:', {
+          status: oauthResponse.status,
+          statusText: oauthResponse.statusText,
+          error: errorMsg,
+          fullResponse: oauthData
+        });
+        throw new Error(errorMsg);
       }
 
       if (!oauthData.access_token) {
+        console.error('❌ No access token in response:', oauthData);
         throw new Error('No access token received from Safaricom');
       }
+
+      console.log('✅ OAuth Success - Access token received');
+      console.log('🔑 Token type:', oauthData.token_type);
+      console.log('⏰ Expires in:', oauthData.expires_in, 'seconds');
 
       // Update test status in database
       const { error: updateError } = await (supabase as any)
