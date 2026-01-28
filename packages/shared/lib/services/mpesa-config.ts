@@ -190,7 +190,7 @@ function getEnvironmentUrls(environment: MpesaEnvironment) {
     : 'https://api.safaricom.co.ke';
 
   return {
-    oauth: `${baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
+    oauth: `${baseUrl}/oauth/v1/generate`,
     stkPush: `${baseUrl}/mpesa/stkpush/v1/processrequest`,
     stkQuery: `${baseUrl}/mpesa/stkpushquery/v1/query`,
   };

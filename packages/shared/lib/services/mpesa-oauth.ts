@@ -76,24 +76,64 @@ async function requestNewToken(config: MpesaConfig, cacheKey: string): Promise<s
     ).toString('base64');
 
     // Make OAuth request
-    const response = await fetch(config.oauthUrl, {
-      method: 'GET',
+    const response = await fetch(config.oauthUrl.replace('?grant_type=client_credentials', ''), {
+      method: 'POST',
       headers: {
         'Authorization': `Basic ${auth}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
+      body: 'grant_type=client_credentials'
     });
 
     if (!response || !response.ok) {
       const errorText = response ? await response.text() : 'No response received';
+      
+      // Check for common Safaricom API issues
+      if (response?.status === 400 && (!errorText || errorText.trim() === '')) {
+        throw new MpesaOAuthError(
+          'Safaricom API returned 400 Bad Request with empty response. This usually indicates invalid or expired credentials. Please verify your M-Pesa app credentials in the Safaricom Developer Portal.',
+          response?.status,
+          errorText
+        );
+      }
+      
+      // Check if API is echoing request (sandbox issue)
+      if (response?.status === 200 && errorText.includes('grant_type=client_credentials')) {
+        throw new MpesaOAuthError(
+          'Safaricom sandbox API is not responding correctly (echoing request). This may indicate API issues or invalid credentials. Please check Safaricom Developer Portal for API status.',
+          response?.status,
+          errorText
+        );
+      }
+      
       throw new MpesaOAuthError(
-        `OAuth request failed: ${response?.status || 'unknown'} ${response?.statusText || 'unknown error'}`,
+        `OAuth request failed: ${response?.status || 'unknown'} ${response?.statusText || 'unknown error'}. Response: ${errorText}`,
         response?.status,
         errorText
       );
     }
 
-    const tokenResponse = await response.json() as OAuthTokenResponse;
+    const responseText = await response.text();
+    
+    // Check if response is echoing our request (sandbox issue)
+    if (responseText.includes('grant_type=client_credentials')) {
+      throw new MpesaOAuthError(
+        'Safaricom sandbox API is not responding correctly (echoing request). This may indicate API issues or invalid credentials. Please check Safaricom Developer Portal for API status.',
+        response.status,
+        responseText
+      );
+    }
+
+    let tokenResponse: OAuthTokenResponse;
+    try {
+      tokenResponse = JSON.parse(responseText) as OAuthTokenResponse;
+    } catch (parseError) {
+      throw new MpesaOAuthError(
+        `Invalid JSON response from Safaricom API: ${responseText}`,
+        response.status,
+        responseText
+      );
+    }
 
     // Validate response
     if (!tokenResponse.access_token || !tokenResponse.expires_in) {

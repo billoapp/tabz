@@ -241,7 +241,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<MpesaPaym
         .eq('id', payment.id);
 
       // Requirement 2.3 & 5.4: Return descriptive error message
-      const errorMessage = stkError instanceof Error ? stkError.message : 'STK Push request failed';
+      let errorMessage = 'STK Push request failed';
+      
+      if (stkError instanceof Error) {
+        if (stkError.message.includes('invalid or expired credentials')) {
+          errorMessage = 'M-Pesa service temporarily unavailable. Please try again later or pay at the bar.';
+        } else if (stkError.message.includes('sandbox API is not responding correctly')) {
+          errorMessage = 'M-Pesa service temporarily unavailable. Please try again later or pay at the bar.';
+        } else if (stkError.message.includes('Invalid phone number')) {
+          errorMessage = stkError.message;
+        } else if (stkError.message.includes('Authentication failed')) {
+          errorMessage = 'M-Pesa service temporarily unavailable. Please try again later or pay at the bar.';
+        } else {
+          errorMessage = stkError.message;
+        }
+      }
+      
       return NextResponse.json(
         { success: false, error: errorMessage },
         { status: 400 }

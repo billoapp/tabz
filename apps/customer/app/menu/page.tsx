@@ -1927,12 +1927,16 @@ export default function MenuPage() {
           tabNumber: identifierResult.tabNumber
         });
         
-        const response = await fetch('/api/payments/mpesa/initiate', {
+        const response = await fetch('/api/payments/mpesa', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(paymentData),
+          body: JSON.stringify({
+            tabId: identifierResult.tabId,
+            phoneNumber: paymentData.phoneNumber,
+            amount: paymentData.amount
+          }),
         });
 
         let data;
