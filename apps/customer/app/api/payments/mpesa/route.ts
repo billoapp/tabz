@@ -150,14 +150,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<MpesaPaym
       console.log('🧪 M-Pesa Mock Mode: Skipping real configuration loading');
       // Create a mock config to satisfy the interface
       mpesaConfig = {
-        environment: 'sandbox',
+        environment: 'sandbox' as const,
         businessShortcode: 'mock_shortcode',
         consumerKey: 'mock_key',
         consumerSecret: 'mock_secret',
         passkey: 'mock_passkey',
         callbackUrl: 'http://localhost:3002/api/mpesa/callback',
         oauthUrl: 'mock_oauth_url',
-        stkPushUrl: 'mock_stk_url'
+        stkPushUrl: 'mock_stk_url',
+        stkQueryUrl: 'mock_stk_query_url'
       };
     } else {
       // Only load real config if not in mock mode

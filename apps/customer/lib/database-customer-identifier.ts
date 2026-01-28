@@ -33,6 +33,7 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
     // Try multiple search strategies to handle different formats
     let tabs = null;
     let error = null;
+    let matchStrategy = 'none';
 
     // Strategy 1: Exact prefix match (new format)
     const { data: exactMatch, error: exactError } = await supabase
@@ -45,6 +46,7 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
 
     if (!exactError && exactMatch && exactMatch.length > 0) {
       tabs = exactMatch;
+      matchStrategy = 'exact';
       console.log('✅ Found tab using exact prefix match');
     } else {
       // Strategy 2: Try to find by device ID embedded in owner_identifier
@@ -59,6 +61,7 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
 
       if (!embeddedError && embeddedMatch && embeddedMatch.length > 0) {
         tabs = embeddedMatch;
+        matchStrategy = 'embedded';
         console.log('✅ Found tab using embedded device ID match');
       } else {
         // Strategy 3: Try old format compatibility
@@ -77,6 +80,7 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
 
           if (!legacyError && legacyMatch && legacyMatch.length > 0) {
             tabs = legacyMatch;
+            matchStrategy = 'legacy';
             console.log('✅ Found tab using legacy timestamp match');
           }
         }
@@ -132,8 +136,7 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
       barId: tab.bar_id,
       status: tab.status,
       identifierLength: customerIdentifier.length,
-      matchStrategy: tabs === exactMatch ? 'exact' : 
-                    tabs === embeddedMatch ? 'embedded' : 'legacy'
+      matchStrategy: matchStrategy
     });
 
     return {
