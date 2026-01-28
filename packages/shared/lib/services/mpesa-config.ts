@@ -2,7 +2,11 @@
  * Simple M-Pesa Configuration Loader
  * Loads M-Pesa credentials from database per bar (multi-tenant)
  * Requirements: 4.1, 4.2, 4.4, 4.5
+ * 
+ * Storage Contract: All encrypted credentials are stored as PostgreSQL bytea hex format
  */
+
+import { decryptFromBytea } from './mpesa-encryption';
 
 export type MpesaEnvironment = 'sandbox' | 'production';
 
@@ -76,9 +80,8 @@ export function loadMpesaConfigFromBar(barData: BarMpesaData): MpesaConfig {
     );
   }
 
-  // Decrypt credentials using KMS key
-  const kmsKey = process.env.MPESA_KMS_KEY;
-  if (!kmsKey) {
+  // Decrypt credentials using shared encryption utilities
+  if (!process.env.MPESA_KMS_KEY) {
     throw new MpesaConfigurationError('MPESA_KMS_KEY environment variable is required for decryption');
   }
 
@@ -87,9 +90,9 @@ export function loadMpesaConfigFromBar(barData: BarMpesaData): MpesaConfig {
   let passkey: string;
 
   try {
-    consumerKey = decryptCredential(barData.mpesa_consumer_key_encrypted, kmsKey);
-    consumerSecret = decryptCredential(barData.mpesa_consumer_secret_encrypted, kmsKey);
-    passkey = decryptCredential(barData.mpesa_passkey_encrypted, kmsKey);
+    consumerKey = decryptFromBytea(barData.mpesa_consumer_key_encrypted);
+    consumerSecret = decryptFromBytea(barData.mpesa_consumer_secret_encrypted);
+    passkey = decryptFromBytea(barData.mpesa_passkey_encrypted);
   } catch (error) {
     throw new MpesaConfigurationError(
       `Failed to decrypt M-Pesa credentials: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -151,8 +154,7 @@ function loadSandboxConfig(barData: BarMpesaData, missingFields: string[]): Mpes
   };
 
   // Decrypt individual tenant credentials
-  const kmsKey = process.env.MPESA_KMS_KEY;
-  if (!kmsKey) {
+  if (!process.env.MPESA_KMS_KEY) {
     throw new MpesaConfigurationError('MPESA_KMS_KEY environment variable is required for decryption');
   }
 
@@ -160,8 +162,8 @@ function loadSandboxConfig(barData: BarMpesaData, missingFields: string[]): Mpes
   let consumerSecret: string;
 
   try {
-    consumerKey = decryptCredential(barData.mpesa_consumer_key_encrypted, kmsKey);
-    consumerSecret = decryptCredential(barData.mpesa_consumer_secret_encrypted, kmsKey);
+    consumerKey = decryptFromBytea(barData.mpesa_consumer_key_encrypted);
+    consumerSecret = decryptFromBytea(barData.mpesa_consumer_secret_encrypted);
   } catch (error) {
     throw new MpesaConfigurationError(
       `Failed to decrypt M-Pesa sandbox credentials: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
@@ -176,7 +178,7 @@ function loadSandboxConfig(barData: BarMpesaData, missingFields: string[]): Mpes
   let passkey: string;
   if (barData.mpesa_passkey_encrypted) {
     try {
-      passkey = decryptCredential(barData.mpesa_passkey_encrypted, kmsKey);
+      passkey = decryptFromBytea(barData.mpesa_passkey_encrypted);
     } catch (error) {
       // If decryption fails, fall back to standard sandbox passkey
       passkey = SANDBOX_SHARED_CREDENTIALS.passkey;
@@ -225,56 +227,6 @@ function validateEnvironment(env: string): MpesaEnvironment {
   }
 
   return normalizedEnv as MpesaEnvironment;
-}
-
-/**
- * Decrypt M-Pesa credential using KMS key
- * Handles bytea data from database using AES-256-GCM decryption
- */
-function decryptCredential(encryptedValue: string, kmsKey: string): string {
-  try {
-    // Handle test values for development
-    if (encryptedValue === 'test_encrypted_value') {
-      throw new Error(
-        'Test M-Pesa credentials detected. Please configure real Safaricom sandbox credentials in the database. ' +
-        'Get credentials from: https://developer.safaricom.co.ke/MyApps'
-      );
-    }
-    
-    // The encrypted value from database is a bytea hex string (e.g., "\\x1234abcd...")
-    // Convert hex string to Buffer
-    let encryptedBuffer: Buffer;
-    
-    if (encryptedValue.startsWith('\\x')) {
-      // PostgreSQL bytea hex format
-      encryptedBuffer = Buffer.from(encryptedValue.slice(2), 'hex');
-    } else {
-      // Try base64 format as fallback
-      encryptedBuffer = Buffer.from(encryptedValue, 'base64');
-    }
-    
-    if (encryptedBuffer.length < 28) { // 12 (IV) + 16 (AuthTag) = 28 minimum
-      throw new Error('Invalid encrypted data: too short');
-    }
-    
-    // Extract components (same as staff app)
-    const iv = encryptedBuffer.subarray(0, 12);
-    const authTag = encryptedBuffer.subarray(12, 28);
-    const encrypted = encryptedBuffer.subarray(28);
-    
-    // Create decipher using Node.js crypto
-    const crypto = require('crypto');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(kmsKey, 'utf8'), iv);
-    decipher.setAuthTag(authTag);
-    
-    // Decrypt
-    let decrypted = decipher.update(encrypted, undefined, 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    return decrypted;
-  } catch (error) {
-    throw new Error(`Decryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
 }
 
 /**

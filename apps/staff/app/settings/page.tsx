@@ -1737,16 +1737,28 @@ export default function SettingsPage() {
                     <Phone size={20} className="text-green-600" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-800">M-Pesa Setup</h3>
-                    <p className="text-sm text-gray-500">Configure M-Pesa payments with your Daraja credentials</p>
+                    <h3 className="font-bold text-gray-800">M-Pesa Payments</h3>
+                    <p className="text-sm text-gray-500">Enable mobile money payments for your customers</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowMpesaSetup(!showMpesaSetup)}
-                  className="flex items-center gap-2 text-green-600 hover:text-green-700 font-medium"
-                >
-                  {showMpesaSetup ? 'Hide Setup' : 'Setup M-Pesa'}
-                </button>
+                
+                {/* M-Pesa Enable Toggle - Primary Control */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <span className="text-sm font-medium text-gray-700">Enable M-Pesa</span>
+                  <input
+                    type="checkbox"
+                    checked={mpesaSettings.mpesa_enabled}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      setMpesaSettings({...mpesaSettings, mpesa_enabled: enabled});
+                      // Auto-show setup when enabling
+                      if (enabled && !mpesaSettings.mpesa_setup_completed) {
+                        setShowMpesaSetup(true);
+                      }
+                    }}
+                    className="w-5 h-5 text-green-500 rounded focus:ring-green-500"
+                  />
+                </label>
               </div>
 
               {/* M-Pesa Status */}
@@ -1754,18 +1766,18 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${
-                      mpesaSettings.mpesa_setup_completed 
+                      !mpesaSettings.mpesa_enabled
+                        ? 'bg-gray-400'
+                        : mpesaSettings.mpesa_setup_completed 
                         ? 'bg-green-500' 
-                        : mpesaSettings.mpesa_enabled 
-                        ? 'bg-yellow-500' 
-                        : 'bg-gray-400'
+                        : 'bg-yellow-500'
                     }`}></div>
                     <span className="text-sm font-medium text-gray-700">
-                      {mpesaSettings.mpesa_setup_completed 
-                        ? 'M-Pesa Active' 
-                        : mpesaSettings.mpesa_enabled 
-                        ? 'Setup Required' 
-                        : 'Not Configured'}
+                      {!mpesaSettings.mpesa_enabled
+                        ? 'M-Pesa Disabled'
+                        : mpesaSettings.mpesa_setup_completed 
+                        ? `M-Pesa Active (${mpesaSettings.mpesa_environment})` 
+                        : 'Setup Required'}
                     </span>
                   </div>
                   {mpesaSettings.mpesa_last_test_at && (
@@ -1777,9 +1789,30 @@ export default function SettingsPage() {
                 {mpesaSettings.mpesa_test_status === 'failed' && (
                   <p className="text-xs text-red-600 mt-1">Last test failed. Please check your credentials.</p>
                 )}
+                {mpesaSettings.mpesa_enabled && !mpesaSettings.mpesa_setup_completed && (
+                  <p className="text-xs text-orange-600 mt-1">Complete setup below to start accepting M-Pesa payments.</p>
+                )}
               </div>
 
-              {showMpesaSetup && (
+              {/* Setup Instructions for New Users */}
+              {mpesaSettings.mpesa_enabled && !mpesaSettings.mpesa_setup_completed && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-2">🚀 Let's set up M-Pesa payments!</p>
+                      <ol className="text-xs space-y-1 ml-2">
+                        <li><strong>1. Start with Sandbox</strong> - Test your setup safely</li>
+                        <li><strong>2. Get Credentials</strong> - From <a href="https://developer.safaricom.co.ke/MyApps" target="_blank" className="underline">Safaricom Developer Portal</a></li>
+                        <li><strong>3. Test & Verify</strong> - Make sure everything works</li>
+                        <li><strong>4. Go Live</strong> - Switch to production when ready</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(mpesaSettings.mpesa_enabled || showMpesaSetup) && (
                 <div className="space-y-4 border-t border-gray-200 pt-4">
                   {/* Environment Selection */}
                   <div>

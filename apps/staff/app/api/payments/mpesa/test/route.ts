@@ -34,8 +34,16 @@ export async function POST(request: NextRequest) {
     // Load M-Pesa configuration
     let mpesaConfig;
     try {
+      console.log('Loading M-Pesa config for bar:', barId);
+      console.log('Bar M-Pesa enabled:', barData.mpesa_enabled);
+      console.log('Bar M-Pesa environment:', barData.mpesa_environment);
+      console.log('Has consumer key encrypted:', !!barData.mpesa_consumer_key_encrypted);
+      console.log('Has consumer secret encrypted:', !!barData.mpesa_consumer_secret_encrypted);
+      
       mpesaConfig = loadMpesaConfigFromBar(barData);
+      console.log('M-Pesa config loaded successfully');
     } catch (configError: any) {
+      console.error('M-Pesa config error:', configError);
       return NextResponse.json(
         { 
           success: false, 

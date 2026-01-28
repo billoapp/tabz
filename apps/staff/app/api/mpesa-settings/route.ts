@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { encryptCredential } from '../../../lib/mpesa-encryption'
+import { encryptToBytea } from '@tabeza/shared/lib/services/mpesa-encryption'
 
 export const runtime = 'nodejs'
 
@@ -38,10 +38,10 @@ export async function POST(req: Request) {
       ? '174379'
       : mpesa_business_shortcode
 
-    // Encrypt the credentials before storing
-    const encryptedConsumerKey = mpesa_consumer_key ? encryptCredential(mpesa_consumer_key) : null
-    const encryptedConsumerSecret = mpesa_consumer_secret ? encryptCredential(mpesa_consumer_secret) : null
-    const encryptedPasskey = finalPasskey ? encryptCredential(finalPasskey) : null
+    // Encrypt the credentials before storing (PostgreSQL bytea format)
+    const encryptedConsumerKey = mpesa_consumer_key ? encryptToBytea(mpesa_consumer_key) : null
+    const encryptedConsumerSecret = mpesa_consumer_secret ? encryptToBytea(mpesa_consumer_secret) : null
+    const encryptedPasskey = finalPasskey ? encryptToBytea(finalPasskey) : null
 
     // Update the bars table with M-Pesa settings
     const { data, error } = await supabase
@@ -114,9 +114,9 @@ export async function GET(req: Request) {
       mpesa_callback_url: data.mpesa_callback_url,
       mpesa_setup_completed: data.mpesa_setup_completed,
       // Return masked versions for display
-      mpesa_consumer_key: data.mpesa_consumer_key_encrypted ? '***' + data.mpesa_consumer_key_encrypted.slice(-4) : '',
-      mpesa_consumer_secret: data.mpesa_consumer_secret_encrypted ? '***' + data.mpesa_consumer_secret_encrypted.slice(-4) : '',
-      mpesa_passkey: data.mpesa_passkey_encrypted ? '***' + data.mpesa_passkey_encrypted.slice(-4) : ''
+      mpesa_consumer_key: data.mpesa_consumer_key_encrypted ? '••••••••••••••••' : '',
+      mpesa_consumer_secret: data.mpesa_consumer_secret_encrypted ? '••••••••••••••••' : '',
+      mpesa_passkey: data.mpesa_passkey_encrypted ? '••••••••••••••••' : ''
     }
 
     return NextResponse.json(sanitizedData)
