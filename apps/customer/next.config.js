@@ -64,6 +64,11 @@ const nextConfig = {
   // Configure for monorepo - transpile shared packages
   transpilePackages: ['@tabeza/shared'],
   
+  // Environment variables for client-side access
+  env: {
+    NEXT_PUBLIC_MPESA_MOCK_MODE: process.env.MPESA_MOCK_MODE,
+  },
+  
   // Experimental features for better monorepo support
   experimental: {
     externalDir: true,

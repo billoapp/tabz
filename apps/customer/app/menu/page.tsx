@@ -2207,6 +2207,12 @@ export default function MenuPage() {
   return (
     <>
       <PWAInstallPrompt />
+      {/* Mock Mode Indicator */}
+      {process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_MPESA_MOCK_MODE === 'true' && (
+        <div className="bg-yellow-400 text-yellow-900 px-4 py-2 text-center text-sm font-medium">
+          🧪 M-Pesa Mock Mode Active - Payments will be simulated
+        </div>
+      )}
       <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white sticky top-0 z-20 shadow-lg">

@@ -48,6 +48,34 @@ export class STKPushError extends Error {
  * Requirement 8.5: THE System SHALL retry failed API calls up to 3 times with exponential backoff
  */
 export async function sendSTKPush(request: STKPushRequest, config: MpesaConfig): Promise<STKPushResponse> {
+  // Check if mock mode is enabled
+  if (process.env.MPESA_MOCK_MODE === 'true') {
+    console.log('🧪 M-Pesa Mock Mode: Simulating STK Push request');
+    
+    // Validate inputs even in mock mode
+    validateSTKPushRequest(request);
+    
+    // Normalize phone number
+    const phoneValidation = validateKenyanPhoneNumber(request.phoneNumber);
+    if (!phoneValidation.isValid) {
+      throw new STKPushError(`Invalid phone number: ${phoneValidation.error}`);
+    }
+    
+    // Simulate processing delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Return mock successful response
+    const mockResponse: STKPushResponse = {
+      ResponseCode: '0',
+      ResponseDescription: 'Success. Request accepted for processing',
+      MerchantRequestID: `mock_merchant_${Date.now()}`,
+      CheckoutRequestID: `mock_checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+    
+    console.log('🧪 Mock STK Push successful:', mockResponse);
+    return mockResponse;
+  }
+
   // Validate inputs
   validateSTKPushRequest(request);
   

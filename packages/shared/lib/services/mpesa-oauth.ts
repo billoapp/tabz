@@ -32,6 +32,12 @@ const tokenCache = new Map<string, CachedToken>();
  * Requirement 2.1: WHEN a customer enters a valid phone number and amount, THE System SHALL initiate an STK Push request to Safaricom
  */
 export async function getOAuthToken(config: MpesaConfig): Promise<string> {
+  // Check if mock mode is enabled
+  if (process.env.MPESA_MOCK_MODE === 'true') {
+    console.log('🧪 M-Pesa Mock Mode: Returning mock OAuth token');
+    return `mock_token_${Date.now()}`;
+  }
+
   const cacheKey = getCacheKey(config);
   
   // Check if we have a valid cached token
