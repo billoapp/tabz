@@ -25,6 +25,7 @@ import {
 import { validatePaymentContext, logPaymentDebugInfo } from '@/lib/payment-debug';
 import { TokenNotifications, useTokenNotifications } from '../../components/TokenNotifications';
 import PWAInstallPrompt from '../../components/PWAInstallPrompt';
+import PWAUpdateManager from '../../components/PWAUpdateManager';
 import PDFViewer from '../../../../components/PDFViewer'; 
 import MessagePanel from './MessagePanel';
 import { playCustomerNotification } from '@/lib/notifications'; // ADDED MISSING IMPORT
@@ -2207,6 +2208,7 @@ export default function MenuPage() {
   return (
     <>
       <PWAInstallPrompt />
+      <PWAUpdateManager />
       {/* Mock Mode Indicator */}
       {process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_MPESA_MOCK_MODE === 'true' && (
         <div className="bg-yellow-400 text-yellow-900 px-4 py-2 text-center text-sm font-medium">
