@@ -680,18 +680,34 @@ export default function SettingsPage() {
   const handleSaveMpesaSettings = async () => {
     // Validate M-Pesa credentials
     if (mpesaSettings.mpesa_enabled) {
-      if (!mpesaSettings.mpesa_business_shortcode || 
-          !mpesaSettings.mpesa_consumer_key || 
-          !mpesaSettings.mpesa_consumer_secret || 
-          !mpesaSettings.mpesa_passkey) {
-        alert('❌ All M-Pesa credentials are required when M-Pesa is enabled.');
+      // Consumer Key and Secret are always required
+      if (!mpesaSettings.mpesa_consumer_key || !mpesaSettings.mpesa_consumer_secret) {
+        alert('❌ Consumer Key and Consumer Secret are required when M-Pesa is enabled.');
         return;
       }
 
-      // Validate business shortcode format
-      if (!/^\d{5,7}$/.test(mpesaSettings.mpesa_business_shortcode)) {
-        alert('❌ Business shortcode must be 5-7 digits.');
-        return;
+      // For production, all fields are required
+      if (mpesaSettings.mpesa_environment === 'production') {
+        if (!mpesaSettings.mpesa_business_shortcode || !mpesaSettings.mpesa_passkey) {
+          alert('❌ Business Shortcode and Passkey are required for production environment.');
+          return;
+        }
+
+        // Validate business shortcode format for production
+        if (!/^\d{5,7}$/.test(mpesaSettings.mpesa_business_shortcode)) {
+          alert('❌ Business shortcode must be 5-7 digits.');
+          return;
+        }
+      }
+
+      // For sandbox, business shortcode is optional (uses standard 174379 if empty)
+      // Passkey is optional (uses standard sandbox passkey if empty)
+      if (mpesaSettings.mpesa_environment === 'sandbox') {
+        // If business shortcode is provided, validate format
+        if (mpesaSettings.mpesa_business_shortcode && !/^\d{5,7}$/.test(mpesaSettings.mpesa_business_shortcode)) {
+          alert('❌ Business shortcode must be 5-7 digits if provided.');
+          return;
+        }
       }
     }
 
@@ -708,11 +724,19 @@ export default function SettingsPage() {
       const userBarId = user.user_metadata.bar_id;
 
       console.log('🔧 Saving M-Pesa settings for bar:', userBarId);
+      
+      // Auto-fill sandbox credentials if empty (but don't modify the UI state)
+      const settingsToSave = mpesaSettings.mpesa_environment === 'sandbox' ? {
+        ...mpesaSettings,
+        mpesa_business_shortcode: mpesaSettings.mpesa_business_shortcode || '174379',
+        mpesa_passkey: mpesaSettings.mpesa_passkey || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
+      } : mpesaSettings;
+      
       console.log('📝 Settings to save:', {
-        mpesa_enabled: mpesaSettings.mpesa_enabled,
-        mpesa_environment: mpesaSettings.mpesa_environment,
-        mpesa_business_shortcode: mpesaSettings.mpesa_business_shortcode,
-        hasCredentials: !!(mpesaSettings.mpesa_consumer_key && mpesaSettings.mpesa_consumer_secret && mpesaSettings.mpesa_passkey)
+        mpesa_enabled: settingsToSave.mpesa_enabled,
+        mpesa_environment: settingsToSave.mpesa_environment,
+        mpesa_business_shortcode: settingsToSave.mpesa_business_shortcode,
+        hasCredentials: !!(settingsToSave.mpesa_consumer_key && settingsToSave.mpesa_consumer_secret && settingsToSave.mpesa_passkey)
       });
 
       // Call API endpoint to save M-Pesa settings with server-side encryption
@@ -723,12 +747,12 @@ export default function SettingsPage() {
         },
         body: JSON.stringify({
           barId: userBarId,
-          mpesa_enabled: mpesaSettings.mpesa_enabled,
-          mpesa_environment: mpesaSettings.mpesa_environment,
-          mpesa_business_shortcode: mpesaSettings.mpesa_business_shortcode,
-          mpesa_consumer_key: mpesaSettings.mpesa_consumer_key,
-          mpesa_consumer_secret: mpesaSettings.mpesa_consumer_secret,
-          mpesa_passkey: mpesaSettings.mpesa_passkey
+          mpesa_enabled: settingsToSave.mpesa_enabled,
+          mpesa_environment: settingsToSave.mpesa_environment,
+          mpesa_business_shortcode: settingsToSave.mpesa_business_shortcode,
+          mpesa_consumer_key: settingsToSave.mpesa_consumer_key,
+          mpesa_consumer_secret: settingsToSave.mpesa_consumer_secret,
+          mpesa_passkey: settingsToSave.mpesa_passkey
         })
       });
 
@@ -760,8 +784,17 @@ export default function SettingsPage() {
   };
 
   const handleTestMpesa = async () => {
-    if (!mpesaSettings.mpesa_business_shortcode) {
+    // For production, business shortcode must be explicitly set
+    // For sandbox, it can be empty (will use standard 174379)
+    if (mpesaSettings.mpesa_environment === 'production' && !mpesaSettings.mpesa_business_shortcode) {
       alert('❌ Please save M-Pesa settings first.');
+      return;
+    }
+
+    // For sandbox, we just need consumer key and secret to be saved
+    if (mpesaSettings.mpesa_environment === 'sandbox' && 
+        (!mpesaSettings.mpesa_consumer_key || !mpesaSettings.mpesa_consumer_secret)) {
+      alert('❌ Please save your Consumer Key and Consumer Secret first.');
       return;
     }
 
@@ -1762,7 +1795,7 @@ export default function SettingsPage() {
                             : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-50'
                         }`}
                       >
-                        <span className="text-sm font-medium">Sandbox</span>
+                        <span className="text-sm font-medium">🏖️ Sandbox</span>
                         <p className="text-xs text-gray-500 mt-1">For testing</p>
                       </button>
                       
@@ -1774,27 +1807,61 @@ export default function SettingsPage() {
                             : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-50'
                         }`}
                       >
-                        <span className="text-sm font-medium">Production</span>
+                        <span className="text-sm font-medium">🚀 Production</span>
                         <p className="text-xs text-gray-500 mt-1">Live payments</p>
                       </button>
                     </div>
                   </div>
 
+                  {/* Sandbox Information */}
+                  {mpesaSettings.mpesa_environment === 'sandbox' && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                      <h4 className="font-medium text-orange-800 mb-3">🏖️ Sandbox Setup</h4>
+                      
+                      <div className="mb-4">
+                        <p className="text-sm text-orange-700 mb-2">
+                          Get your credentials from <a href="https://developer.safaricom.co.ke/MyApps" target="_blank" className="underline font-medium">Safaricom Developer Portal</a>
+                        </p>
+                        <p className="text-xs text-orange-600">
+                          Business shortcode and passkey are automatically configured for sandbox testing.
+                        </p>
+                      </div>
+                      
+                      {/* Test Phone Numbers */}
+                      <div className="border-t border-orange-200 pt-3">
+                        <h5 className="font-medium text-orange-700 mb-2">📱 Test Phone Numbers:</h5>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {['254708374149', '254711040400', '254711040401', '254711040402', '254711040403'].map((phone) => (
+                            <code key={phone} className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-mono">
+                              {phone}
+                            </code>
+                          ))}
+                        </div>
+                        <p className="text-xs text-orange-600">
+                          Use these official Safaricom test numbers for sandbox payments.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Credentials Form */}
                   <div className="grid grid-cols-1 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Business Shortcode <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={mpesaSettings.mpesa_business_shortcode}
-                        onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_business_shortcode: e.target.value})}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                        placeholder="e.g., 174379"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Your PayBill or Till number from Daraja</p>
-                    </div>
+                    {/* Business Shortcode - only show for production */}
+                    {mpesaSettings.mpesa_environment === 'production' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Business Shortcode <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={mpesaSettings.mpesa_business_shortcode}
+                          onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_business_shortcode: e.target.value})}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                          placeholder="e.g., 174379"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Your PayBill or Till number from Daraja</p>
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1808,10 +1875,14 @@ export default function SettingsPage() {
                           type="text"
                           value={mpesaSettings.mpesa_consumer_key}
                           onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_consumer_key: e.target.value})}
-                          className={`w-full px-4 py-3 border-2 rounded-lg focus:border-green-500 focus:outline-none ${
+                          className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none ${
+                            mpesaSettings.mpesa_environment === 'sandbox'
+                              ? 'border-orange-200 focus:border-orange-500'
+                              : 'border-gray-200 focus:border-green-500'
+                          } ${
                             mpesaSettings.mpesa_consumer_key === '••••••••••••••••' 
                               ? 'border-green-200 bg-green-50' 
-                              : 'border-gray-200'
+                              : ''
                           }`}
                           placeholder={mpesaSettings.mpesa_consumer_key === '••••••••••••••••' 
                             ? 'Credential saved securely' 
@@ -1841,10 +1912,14 @@ export default function SettingsPage() {
                           type="password"
                           value={mpesaSettings.mpesa_consumer_secret}
                           onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_consumer_secret: e.target.value})}
-                          className={`w-full px-4 py-3 border-2 rounded-lg focus:border-green-500 focus:outline-none ${
+                          className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none ${
+                            mpesaSettings.mpesa_environment === 'sandbox'
+                              ? 'border-orange-200 focus:border-orange-500'
+                              : 'border-gray-200 focus:border-green-500'
+                          } ${
                             mpesaSettings.mpesa_consumer_secret === '••••••••••••••••' 
                               ? 'border-green-200 bg-green-50' 
-                              : 'border-gray-200'
+                              : ''
                           }`}
                           placeholder={mpesaSettings.mpesa_consumer_secret === '••••••••••••••••' 
                             ? 'Credential saved securely' 
@@ -1862,38 +1937,41 @@ export default function SettingsPage() {
                       )}
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Passkey <span className="text-red-500">*</span>
+                    {/* Passkey - only show for production */}
+                    {mpesaSettings.mpesa_environment === 'production' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Passkey <span className="text-red-500">*</span>
+                          {mpesaSettings.mpesa_passkey === '••••••••••••••••' && (
+                            <span className="ml-2 text-xs text-green-600 font-medium">✓ Saved</span>
+                          )}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="password"
+                            value={mpesaSettings.mpesa_passkey}
+                            onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_passkey: e.target.value})}
+                            className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none border-gray-200 focus:border-green-500 ${
+                              mpesaSettings.mpesa_passkey === '••••••••••••••••' 
+                                ? 'border-green-200 bg-green-50' 
+                                : ''
+                            }`}
+                            placeholder={mpesaSettings.mpesa_passkey === '••••••••••••••••' 
+                              ? 'Credential saved securely' 
+                              : 'Enter your Daraja Passkey'
+                            }
+                          />
+                          {mpesaSettings.mpesa_passkey === '••••••••••••••••' && (
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                              <Check size={16} className="text-green-500" />
+                            </div>
+                          )}
+                        </div>
                         {mpesaSettings.mpesa_passkey === '••••••••••••••••' && (
-                          <span className="ml-2 text-xs text-green-600 font-medium">✓ Saved</span>
-                        )}
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="password"
-                          value={mpesaSettings.mpesa_passkey}
-                          onChange={(e) => setMpesaSettings({...mpesaSettings, mpesa_passkey: e.target.value})}
-                          className={`w-full px-4 py-3 border-2 rounded-lg focus:border-green-500 focus:outline-none ${
-                            mpesaSettings.mpesa_passkey === '••••••••••••••••' 
-                              ? 'border-green-200 bg-green-50' 
-                              : 'border-gray-200'
-                          }`}
-                          placeholder={mpesaSettings.mpesa_passkey === '••••••••••••••••' 
-                            ? 'Credential saved securely' 
-                            : 'Enter your Daraja Passkey'
-                          }
-                        />
-                        {mpesaSettings.mpesa_passkey === '••••••••••••••••' && (
-                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                            <Check size={16} className="text-green-500" />
-                          </div>
+                          <p className="text-xs text-green-600 mt-1">Credential is encrypted and stored securely</p>
                         )}
                       </div>
-                      {mpesaSettings.mpesa_passkey === '••••••••••••••••' && (
-                        <p className="text-xs text-green-600 mt-1">Credential is encrypted and stored securely</p>
-                      )}
-                    </div>
+                    )}
                   </div>
 
                   {/* Information Box */}
@@ -1924,7 +2002,8 @@ export default function SettingsPage() {
                       {savingMpesaSettings ? 'Saving...' : 'Save Credentials'}
                     </button>
                     
-                    {mpesaSettings.mpesa_business_shortcode && (
+                    {(mpesaSettings.mpesa_business_shortcode || 
+                      (mpesaSettings.mpesa_environment === 'sandbox' && mpesaSettings.mpesa_consumer_key && mpesaSettings.mpesa_consumer_secret)) && (
                       <button
                         onClick={handleTestMpesa}
                         disabled={testingMpesa}

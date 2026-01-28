@@ -52,11 +52,21 @@ export function loadMpesaConfigFromBar(barData: BarMpesaData): MpesaConfig {
   
   // Check for missing required fields
   if (!barData.mpesa_environment) missingFields.push('mpesa_environment');
+  if (!barData.mpesa_callback_url) missingFields.push('mpesa_callback_url');
+
+  // Validate environment
+  const environment = validateEnvironment(barData.mpesa_environment);
+
+  // For sandbox environment, use standard Safaricom test credentials if not provided
+  if (environment === 'sandbox') {
+    return loadSandboxConfig(barData, missingFields);
+  }
+
+  // For production, all credentials are required
   if (!barData.mpesa_business_shortcode) missingFields.push('mpesa_business_shortcode');
   if (!barData.mpesa_consumer_key_encrypted) missingFields.push('mpesa_consumer_key_encrypted');
   if (!barData.mpesa_consumer_secret_encrypted) missingFields.push('mpesa_consumer_secret_encrypted');
   if (!barData.mpesa_passkey_encrypted) missingFields.push('mpesa_passkey_encrypted');
-  if (!barData.mpesa_callback_url) missingFields.push('mpesa_callback_url');
 
   // Requirement 4.4: Return clear error messages for missing configuration
   if (missingFields.length > 0) {
@@ -65,9 +75,6 @@ export function loadMpesaConfigFromBar(barData: BarMpesaData): MpesaConfig {
       missingFields
     );
   }
-
-  // Validate environment
-  const environment = validateEnvironment(barData.mpesa_environment);
 
   // Decrypt credentials using KMS key
   const kmsKey = process.env.MPESA_KMS_KEY;
@@ -98,6 +105,95 @@ export function loadMpesaConfigFromBar(barData: BarMpesaData): MpesaConfig {
     consumerSecret,
     businessShortcode: barData.mpesa_business_shortcode,
     passkey,
+    callbackUrl: barData.mpesa_callback_url,
+    oauthUrl: urls.oauth,
+    stkPushUrl: urls.stkPush,
+    stkQueryUrl: urls.stkQuery,
+  };
+
+  // Requirement 4.5: Validate all required configuration
+  validateConfig(config);
+
+  return config;
+}
+
+/**
+ * Load sandbox configuration with standard Safaricom test credentials
+ * For sandbox: Business shortcode and passkey are standard (shared)
+ * Consumer key and secret are individual per tenant (from Safaricom Developer Portal)
+ * 
+ * IMPORTANT: Even though sandbox credentials are "standard", they must be stored
+ * encrypted in the database to pass validation. Empty values will cause errors.
+ */
+function loadSandboxConfig(barData: BarMpesaData, missingFields: string[]): MpesaConfig {
+  // For sandbox, we need individual consumer key and secret, but can use standard business shortcode and passkey
+  const sandboxMissingFields: string[] = [];
+  
+  if (!barData.mpesa_consumer_key_encrypted) sandboxMissingFields.push('mpesa_consumer_key_encrypted');
+  if (!barData.mpesa_consumer_secret_encrypted) sandboxMissingFields.push('mpesa_consumer_secret_encrypted');
+  
+  // Add any other missing fields from the original check
+  sandboxMissingFields.push(...missingFields);
+
+  // Requirement 4.4: Return clear error messages for missing configuration
+  if (sandboxMissingFields.length > 0) {
+    throw new MpesaConfigurationError(
+      `Missing required M-Pesa sandbox configuration: ${sandboxMissingFields.join(', ')}. ` +
+      `For sandbox testing, you need your own Consumer Key and Consumer Secret from https://developer.safaricom.co.ke/MyApps`,
+      sandboxMissingFields
+    );
+  }
+
+  // Standard Safaricom sandbox credentials (shared across all tenants)
+  const SANDBOX_SHARED_CREDENTIALS = {
+    businessShortcode: '174379', // Standard sandbox business shortcode
+    passkey: 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919' // Standard sandbox passkey
+  };
+
+  // Decrypt individual tenant credentials
+  const kmsKey = process.env.MPESA_KMS_KEY;
+  if (!kmsKey) {
+    throw new MpesaConfigurationError('MPESA_KMS_KEY environment variable is required for decryption');
+  }
+
+  let consumerKey: string;
+  let consumerSecret: string;
+
+  try {
+    consumerKey = decryptCredential(barData.mpesa_consumer_key_encrypted, kmsKey);
+    consumerSecret = decryptCredential(barData.mpesa_consumer_secret_encrypted, kmsKey);
+  } catch (error) {
+    throw new MpesaConfigurationError(
+      `Failed to decrypt M-Pesa sandbox credentials: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+      `Please ensure your Consumer Key and Consumer Secret are properly configured.`
+    );
+  }
+
+  // Use custom business shortcode if provided, otherwise use sandbox standard
+  const businessShortcode = barData.mpesa_business_shortcode || SANDBOX_SHARED_CREDENTIALS.businessShortcode;
+  
+  // Use custom passkey if provided, otherwise use sandbox standard
+  let passkey: string;
+  if (barData.mpesa_passkey_encrypted) {
+    try {
+      passkey = decryptCredential(barData.mpesa_passkey_encrypted, kmsKey);
+    } catch (error) {
+      // If decryption fails, fall back to standard sandbox passkey
+      passkey = SANDBOX_SHARED_CREDENTIALS.passkey;
+    }
+  } else {
+    passkey = SANDBOX_SHARED_CREDENTIALS.passkey;
+  }
+
+  // Get sandbox URLs
+  const urls = getEnvironmentUrls('sandbox');
+
+  const config: MpesaConfig = {
+    environment: 'sandbox',
+    consumerKey: consumerKey, // Individual per tenant
+    consumerSecret: consumerSecret, // Individual per tenant
+    businessShortcode: businessShortcode, // Standard sandbox or custom
+    passkey: passkey, // Standard sandbox or custom
     callbackUrl: barData.mpesa_callback_url,
     oauthUrl: urls.oauth,
     stkPushUrl: urls.stkPush,
@@ -252,6 +348,28 @@ function validateConfig(config: MpesaConfig): void {
 }
 
 /**
+ * Get standard Safaricom sandbox test phone numbers
+ * These are the official test numbers provided by Safaricom for sandbox testing
+ */
+export function getSandboxTestPhoneNumbers(): string[] {
+  return [
+    '254708374149', // Standard test number 1
+    '254711040400', // Standard test number 2  
+    '254711040401', // Standard test number 3
+    '254711040402', // Standard test number 4
+    '254711040403', // Standard test number 5
+  ];
+}
+
+/**
+ * Check if a phone number is a valid sandbox test number
+ */
+export function isSandboxTestPhoneNumber(phoneNumber: string): boolean {
+  const testNumbers = getSandboxTestPhoneNumbers();
+  return testNumbers.includes(phoneNumber);
+}
+
+/**
  * Check if M-Pesa is configured for a specific bar
  * Useful for conditional feature enablement
  */
@@ -262,6 +380,46 @@ export function isMpesaConfiguredForBar(barData: BarMpesaData): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Get sandbox configuration info for display in UI
+ */
+export function getSandboxConfigInfo() {
+  return {
+    businessShortcode: '174379',
+    passkey: 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
+    testPhoneNumbers: getSandboxTestPhoneNumbers(),
+    instructions: {
+      consumerKey: 'Get your individual Consumer Key from https://developer.safaricom.co.ke/MyApps',
+      consumerSecret: 'Get your individual Consumer Secret from https://developer.safaricom.co.ke/MyApps',
+      businessShortcode: 'Leave empty - system auto-fills 174379 on save',
+      passkey: 'Leave empty - system auto-fills sandbox passkey on save',
+      testNumbers: 'Use any of the provided test phone numbers for testing'
+    }
+  };
+}
+
+/**
+ * Auto-fill sandbox credentials for UI save operations
+ * This ensures empty sandbox fields get the standard values before database save
+ */
+export function autoFillSandboxCredentials(settings: {
+  mpesa_environment: string;
+  mpesa_business_shortcode: string;
+  mpesa_passkey: string;
+}) {
+  if (settings.mpesa_environment === 'sandbox') {
+    const sandboxInfo = getSandboxConfigInfo();
+    
+    return {
+      ...settings,
+      mpesa_business_shortcode: settings.mpesa_business_shortcode || sandboxInfo.businessShortcode,
+      mpesa_passkey: settings.mpesa_passkey || sandboxInfo.passkey
+    };
+  }
+  
+  return settings;
 }
 
 /**
