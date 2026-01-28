@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { encryptCredential } from '../../lib/mpesa-encryption'
+import { encryptCredential } from '../../../lib/mpesa-encryption'
 
 export const runtime = 'nodejs'
 
