@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     // 3. Initiate STK push
     const result = await sendSTKPush(
       {
-        phoneNumber: body.phone,
+        phoneNumber: body.phoneNumber,
         amount: body.amount,
         accountReference: body.accountReference ?? 'TABEZA',
         transactionDesc: body.transactionDesc ?? 'Payment',
