@@ -1873,10 +1873,10 @@ export default function MenuPage() {
         setIsProcessing(true);
         
         // Validate payment context first
-        const contextValidation = validatePaymentContext();
+        const contextValidation = await validatePaymentContext();
         if (!contextValidation.isValid) {
           console.error('Menu payment context validation failed:', contextValidation.error);
-          logPaymentDebugInfo();
+          await logPaymentDebugInfo();
           throw new Error(contextValidation.error || 'Unable to initialize payment. Please refresh and try again.');
         }
         
@@ -1886,7 +1886,7 @@ export default function MenuPage() {
         
         if (!identifierResult.success) {
           console.error('Failed to resolve customer identifier:', identifierResult.error);
-          logPaymentDebugInfo();
+          await logPaymentDebugInfo();
           throw new Error(identifierResult.error || 'Unable to find your active tab. Please refresh and try again.');
         }
         
@@ -1915,7 +1915,7 @@ export default function MenuPage() {
         // Final validation of all required fields
         if (!paymentData.barId || !paymentData.customerIdentifier || !paymentData.phoneNumber || !paymentData.amount) {
           console.error('Missing required payment fields:', paymentData);
-          logPaymentDebugInfo();
+          await logPaymentDebugInfo();
           throw new Error('Payment data incomplete. Please check all fields and try again.');
         }
         
@@ -1959,7 +1959,7 @@ export default function MenuPage() {
           
           // Log debug info for API errors
           if (response.status === 400 && data.error?.includes('Missing required fields')) {
-            logPaymentDebugInfo();
+            await logPaymentDebugInfo();
           }
           
           throw new Error(data.error || `Payment failed with status ${response.status}`);
