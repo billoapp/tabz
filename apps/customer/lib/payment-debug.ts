@@ -166,7 +166,7 @@ export async function collectPaymentDebugInfo(): Promise<PaymentDebugInfo> {
       deviceId
     },
     customerIdentifier: {
-      generated: customerIdentifier,
+      generated: customerIdentifier || null,
       isValid: customerIdentifierValid,
       format: customerIdentifier ? `${deviceId?.length || 0} chars + _ + ${(databaseResult?.barId || barId)?.length || 0} chars` : 'N/A',
       resolvedFromDatabase,
