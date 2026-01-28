@@ -159,7 +159,7 @@ const nextConfig = {
   reactStrictMode: true,
   
   // Performance optimizations for mobile
-  swcMinify: true,
+  // swcMinify is now enabled by default in Next.js 15+
   
   // Add service worker precache manifest
   generateBuildId: async () => {

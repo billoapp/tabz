@@ -67,7 +67,7 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
         // Strategy 3: Cross-format compatibility
         // Try to match different device ID formats
         const deviceIdParts = deviceId.split('_');
-        let alternativeSearches = [];
+        let alternativeSearches: string[] = [];
         
         if (deviceIdParts.length >= 3) {
           const timestamp = deviceIdParts[deviceIdParts.length - 2]; // Second to last part is usually timestamp
