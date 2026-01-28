@@ -51,8 +51,7 @@ next-env.d.ts
 Thumbs.db
 
 # Development Tools (keep structure but ignore content)
-dev-tools/scripts/*
-!dev-tools/scripts/.gitkeep
+
 dev-tools/tests/*
 !dev-tools/tests/.gitkeep
 dev-tools/docs/*

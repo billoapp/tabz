@@ -262,9 +262,64 @@ export function getDeviceId(): string | null {
 }
 
 /**
+ * Detect and repair corrupted tab data in session storage
+ * This fixes the common issue where tab data exists but has undefined fields
+ */
+function detectAndRepairCorruptedTabData(deviceId: string): CustomerIdentifierFromDB | null {
+  console.log('🔍 Checking for corrupted tab data...');
+  
+  try {
+    const currentTabData = sessionStorage.getItem('currentTab');
+    const currentBar = sessionStorage.getItem('Tabeza_current_bar');
+    
+    if (currentTabData && currentBar) {
+      const currentTab = JSON.parse(currentTabData);
+      
+      // Check if tab data exists but has corrupted fields
+      if (currentTab && currentTab.id && currentTab.tab_number) {
+        const hasCorruptedBarId = !currentTab.bar_id || currentTab.bar_id === 'undefined';
+        const hasCorruptedOwnerIdentifier = !currentTab.owner_identifier || currentTab.owner_identifier === 'undefined';
+        
+        if (hasCorruptedBarId || hasCorruptedOwnerIdentifier) {
+          console.log('🔧 Detected corrupted tab data, attempting repair...');
+          console.log(`   Corrupted bar_id: ${hasCorruptedBarId}`);
+          console.log(`   Corrupted owner_identifier: ${hasCorruptedOwnerIdentifier}`);
+          
+          // Repair the corrupted data
+          const repairedTab = {
+            ...currentTab,
+            bar_id: currentBar,
+            owner_identifier: `${deviceId}_${currentBar}`
+          };
+          
+          // Save the repaired data
+          sessionStorage.setItem('currentTab', JSON.stringify(repairedTab));
+          
+          console.log('✅ Tab data repaired successfully');
+          console.log(`   Fixed bar_id: ${repairedTab.bar_id}`);
+          console.log(`   Fixed owner_identifier: ${repairedTab.owner_identifier.substring(0, 30)}...`);
+          
+          return {
+            success: true,
+            customerIdentifier: repairedTab.owner_identifier,
+            barId: repairedTab.bar_id,
+            tabNumber: repairedTab.tab_number,
+            tabId: repairedTab.id
+          };
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Failed to check/repair corrupted tab data:', error);
+  }
+  
+  return null;
+}
+
+/**
  * Complete customer identifier resolution - database first approach
  * This replaces all the complex fallback logic with a simple database query
- * UPDATED: Enhanced fallback strategies and better error handling
+ * UPDATED: Enhanced fallback strategies, corruption detection, and better error handling
  */
 export async function resolveCustomerIdentifier(): Promise<CustomerIdentifierFromDB> {
   console.log('🔍 Starting customer identifier resolution...');
@@ -329,6 +384,13 @@ export async function resolveCustomerIdentifier(): Promise<CustomerIdentifierFro
   }
 
   console.log('📱 Device ID found:', deviceId.substring(0, 20) + '...');
+
+  // Step 1.5: Check for and repair corrupted tab data BEFORE database query
+  const repairedData = detectAndRepairCorruptedTabData(deviceId);
+  if (repairedData) {
+    console.log('✅ Customer identifier resolved from repaired session data');
+    return repairedData;
+  }
 
   // Step 2: Query database for customer identifier with enhanced search
   const result = await getCustomerIdentifierFromDatabase(deviceId);
