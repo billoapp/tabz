@@ -6,6 +6,7 @@ import { AlertCircle, Zap, DollarSign, Bell, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import Logo from '@/components/Logo';
+import PWAUpdateManager from '@/components/PWAUpdateManager';
 import { getAllOpenTabs, hasOpenTabAtBar, validateDeviceIntegrity, storeActiveTab } from '@/lib/device-identity';
 
 export default function LandingPage() {
@@ -475,6 +476,9 @@ function LandingContent() {
           </div>
         </div>
       )}
+      
+      {/* PWA Update Manager */}
+      <PWAUpdateManager />
     </div>
   );
 }
