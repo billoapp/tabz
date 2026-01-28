@@ -264,9 +264,11 @@ export function getDeviceId(): string | null {
 /**
  * Complete customer identifier resolution - database first approach
  * This replaces all the complex fallback logic with a simple database query
- * UPDATED: Added fallback strategies for when device ID resolution fails
+ * UPDATED: Enhanced fallback strategies and better error handling
  */
 export async function resolveCustomerIdentifier(): Promise<CustomerIdentifierFromDB> {
+  console.log('🔍 Starting customer identifier resolution...');
+  
   // Step 1: Get device ID
   const deviceId = getDeviceId();
   
@@ -326,10 +328,14 @@ export async function resolveCustomerIdentifier(): Promise<CustomerIdentifierFro
     };
   }
 
-  // Step 2: Query database for customer identifier
+  console.log('📱 Device ID found:', deviceId.substring(0, 20) + '...');
+
+  // Step 2: Query database for customer identifier with enhanced search
   const result = await getCustomerIdentifierFromDatabase(deviceId);
   
   if (result.success && result.customerIdentifier && result.barId) {
+    console.log('✅ Customer identifier resolved successfully');
+    
     // Step 3: Update local cache for performance (optional)
     try {
       const tabData = {
@@ -347,7 +353,69 @@ export async function resolveCustomerIdentifier(): Promise<CustomerIdentifierFro
       // Cache update failure is not critical
       console.warn('⚠️ Failed to update cache, but payment can proceed:', cacheError);
     }
+    
+    return result;
   }
 
-  return result;
+  // Step 4: Enhanced fallback - try to find tab by partial device ID match
+  if (!result.success) {
+    console.log('⚠️ Primary resolution failed, trying enhanced fallback...');
+    
+    try {
+      // Extract timestamp from device ID for partial matching
+      const deviceIdParts = deviceId.split('_');
+      if (deviceIdParts.length >= 2) {
+        const timestamp = deviceIdParts[deviceIdParts.length - 2]; // Second to last part
+        
+        console.log('🔍 Trying partial match with timestamp:', timestamp);
+        
+        const { data: partialMatch, error: partialError } = await supabase
+          .from('tabs')
+          .select('id, bar_id, owner_identifier, tab_number, status, opened_at')
+          .like('owner_identifier', `%${timestamp}%`)
+          .in('status', ['open', 'overdue'])
+          .order('opened_at', { ascending: false })
+          .limit(1);
+
+        if (!partialError && partialMatch && partialMatch.length > 0) {
+          const tab = partialMatch[0];
+          console.log('✅ Found tab using partial timestamp match');
+          console.log(`   Tab #${tab.tab_number} - ${tab.owner_identifier?.substring(0, 30)}...`);
+          
+          // Update cache with found tab
+          try {
+            const tabData = {
+              id: tab.id,
+              bar_id: tab.bar_id,
+              tab_number: tab.tab_number,
+              owner_identifier: tab.owner_identifier
+            };
+            
+            sessionStorage.setItem('currentTab', JSON.stringify(tabData));
+            sessionStorage.setItem('Tabeza_current_bar', tab.bar_id);
+          } catch (cacheError) {
+            console.warn('⚠️ Failed to update cache:', cacheError);
+          }
+          
+          return {
+            success: true,
+            customerIdentifier: tab.owner_identifier,
+            barId: tab.bar_id,
+            tabNumber: tab.tab_number,
+            tabId: tab.id
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Enhanced fallback failed:', error);
+    }
+  }
+
+  // Step 5: Final fallback - provide helpful error message
+  console.log('❌ All resolution strategies failed');
+  
+  return {
+    success: false,
+    error: result.error || 'Unable to find your tab. Please scan the QR code again or refresh the page.'
+  };
 }
