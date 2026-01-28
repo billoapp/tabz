@@ -6,15 +6,21 @@ const withPWA = require('next-pwa')({
   skipWaiting: true,
   disable: false, // Enable PWA in both development and production for testing
   sw: 'sw.js', // Explicitly specify the service worker file
+  // Exclude problematic Next.js 15 manifest files that cause precaching errors
   buildExcludes: [
     /middleware-manifest\.json$/,
-    /app-build-manifest\.json$/, // Exclude the problematic Next.js 15 manifest
+    /app-build-manifest\.json$/, // Next.js 15 app build manifest
     /build-manifest\.json$/,
     /_buildManifest\.js$/,
     /_ssgManifest\.js$/,
     /\.map$/,
-    /^manifest.*\.js$/
+    /^manifest.*\.js$/,
+    /app-build-manifest\.json$/, // Duplicate to ensure exclusion
+    /_next\/app-build-manifest\.json$/ // Full path exclusion
   ],
+  // Force clean service worker generation
+  cacheOnFrontEndNav: true,
+  reloadOnOnline: true,
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/app\.tabeza\.co\.ke\/_next\/static\//,
@@ -169,9 +175,10 @@ const nextConfig = {
   // Performance optimizations for mobile
   // swcMinify is now enabled by default in Next.js 15+
   
-  // Add service worker precache manifest
+  // Add service worker precache manifest with unique build ID to force regeneration
   generateBuildId: async () => {
-    return `tabeza-customer-${Date.now()}`;
+    // Force new service worker generation by including timestamp
+    return `tabeza-customer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   },
   
   // Ensure static assets are properly cached
