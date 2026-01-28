@@ -57,24 +57,71 @@ export function getDeviceId(): string {
   
   // Generate new device ID if missing
   if (!deviceId) {
-    deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem(storageKey, deviceId);
-    localStorage.setItem(createdKey, new Date().toISOString());
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 9);
+    
+    // Check if running in PWA mode
+    const isPWA = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    
+    if (isPWA && isAndroid) {
+      // Android PWA specific format - more robust
+      deviceId = `pwa_android_${timestamp}_${random}`;
+      console.log('📱 Generated Android PWA device ID');
+    } else if (isPWA) {
+      // Other PWA format
+      deviceId = `pwa_${timestamp}_${random}`;
+      console.log('📱 Generated PWA device ID');
+    } else {
+      // Standard web format (keep existing format for compatibility)
+      deviceId = `device_${timestamp}_${random}`;
+      console.log('🌐 Generated web device ID');
+    }
+    
+    try {
+      localStorage.setItem(storageKey, deviceId);
+      localStorage.setItem(createdKey, new Date().toISOString());
+      console.log('✅ Device ID stored successfully:', deviceId.substring(0, 20) + '...');
+    } catch (error) {
+      console.error('❌ Failed to store device ID in localStorage:', error);
+      // Fallback: use sessionStorage for this session
+      try {
+        sessionStorage.setItem(storageKey, deviceId);
+        sessionStorage.setItem(createdKey, new Date().toISOString());
+        console.log('⚠️ Using sessionStorage fallback for device ID');
+      } catch (sessionError) {
+        console.error('❌ Failed to store device ID in sessionStorage:', sessionError);
+        // Last resort: return generated ID without storage
+        console.log('⚠️ Using in-memory device ID (will not persist)');
+      }
+    }
+  } else {
+    console.log('✅ Retrieved existing device ID:', deviceId.substring(0, 20) + '...');
   }
   
   // Generate/validate fingerprint
-  const currentFingerprint = getBrowserFingerprint();
-  if (!fingerprint) {
-    localStorage.setItem(fingerprintKey, currentFingerprint);
-    fingerprint = currentFingerprint;
-  } else if (fingerprint !== currentFingerprint) {
-    console.warn('⚠️ Device fingerprint changed - possible device ID manipulation');
-    // Don't immediately invalidate - fingerprints can change slightly
-    // Instead, log for monitoring
+  try {
+    const currentFingerprint = getBrowserFingerprint();
+    if (!fingerprint) {
+      localStorage.setItem(fingerprintKey, currentFingerprint);
+      fingerprint = currentFingerprint;
+    } else if (fingerprint !== currentFingerprint) {
+      console.warn('⚠️ Device fingerprint changed - possible device ID manipulation');
+      // Don't immediately invalidate - fingerprints can change slightly
+      // Instead, log for monitoring
+    }
+  } catch (fingerprintError) {
+    console.warn('⚠️ Failed to generate/validate fingerprint:', fingerprintError);
+    // Continue without fingerprint validation
   }
   
   // Update last seen
-  localStorage.setItem('Tabeza_last_seen', new Date().toISOString());
+  try {
+    localStorage.setItem('Tabeza_last_seen', new Date().toISOString());
+  } catch (error) {
+    // Non-critical, continue
+    console.warn('⚠️ Failed to update last seen timestamp:', error);
+  }
   
   return deviceId;
 }

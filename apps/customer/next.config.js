@@ -4,7 +4,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development', // Enable in production only
+  disable: false, // Enable PWA in both development and production for testing
   sw: 'sw.js', // Explicitly specify the service worker file
   buildExcludes: [/middleware-manifest\.json$/],
   runtimeCaching: [

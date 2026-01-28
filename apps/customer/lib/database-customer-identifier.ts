@@ -17,7 +17,7 @@ export interface CustomerIdentifierFromDB {
 /**
  * Get customer identifier directly from database using device ID
  * This is the PROPER way - database has the customer identifier as owner_identifier
- * UPDATED: Handle both old and new device ID formats
+ * UPDATED: Handle PWA device ID formats and Android PWA compatibility
  */
 export async function getCustomerIdentifierFromDatabase(deviceId: string): Promise<CustomerIdentifierFromDB> {
   try {
@@ -35,11 +35,11 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
     let error = null;
     let matchStrategy = 'none';
 
-    // Strategy 1: Exact prefix match (new format)
+    // Strategy 1: Exact prefix match (handles all formats: device_, pwa_, pwa_android_)
     const { data: exactMatch, error: exactError } = await supabase
       .from('tabs')
       .select('id, bar_id, owner_identifier, tab_number, status, opened_at')
-      .like('owner_identifier', `${deviceId}%`)
+      .like('owner_identifier', `${deviceId}_%`)
       .in('status', ['open', 'overdue'])
       .order('opened_at', { ascending: false })
       .limit(1);
@@ -64,24 +64,45 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
         matchStrategy = 'embedded';
         console.log('✅ Found tab using embedded device ID match');
       } else {
-        // Strategy 3: Try old format compatibility
-        // Extract timestamp from new format device ID and search old format
+        // Strategy 3: Cross-format compatibility
+        // Try to match different device ID formats
         const deviceIdParts = deviceId.split('_');
-        if (deviceIdParts.length >= 2 && deviceIdParts[0] === 'dev') {
-          const timestamp = deviceIdParts[1];
+        let alternativeSearches = [];
+        
+        if (deviceIdParts.length >= 3) {
+          const timestamp = deviceIdParts[deviceIdParts.length - 2]; // Second to last part is usually timestamp
+          const random = deviceIdParts[deviceIdParts.length - 1]; // Last part is usually random
           
-          const { data: legacyMatch, error: legacyError } = await supabase
+          // Try different format combinations
+          alternativeSearches = [
+            `device_${timestamp}_${random}`,     // Standard web format
+            `pwa_${timestamp}_${random}`,        // PWA format
+            `pwa_android_${timestamp}_${random}` // Android PWA format
+          ];
+        }
+        
+        // Also try legacy timestamp matching for old format compatibility
+        if (deviceIdParts.length >= 2) {
+          const timestamp = deviceIdParts[1];
+          alternativeSearches.push(`%${timestamp}%`);
+        }
+        
+        for (const searchPattern of alternativeSearches) {
+          if (searchPattern === deviceId) continue; // Skip if same as original
+          
+          const { data: altMatch, error: altError } = await supabase
             .from('tabs')
             .select('id, bar_id, owner_identifier, tab_number, status, opened_at')
-            .like('owner_identifier', `%${timestamp}%`)
+            .like('owner_identifier', searchPattern.includes('%') ? searchPattern : `${searchPattern}_%`)
             .in('status', ['open', 'overdue'])
             .order('opened_at', { ascending: false })
             .limit(1);
 
-          if (!legacyError && legacyMatch && legacyMatch.length > 0) {
-            tabs = legacyMatch;
-            matchStrategy = 'legacy';
-            console.log('✅ Found tab using legacy timestamp match');
+          if (!altError && altMatch && altMatch.length > 0) {
+            tabs = altMatch;
+            matchStrategy = 'cross-format';
+            console.log('✅ Found tab using cross-format compatibility:', searchPattern);
+            break;
           }
         }
 
@@ -159,31 +180,78 @@ export async function getCustomerIdentifierFromDatabase(deviceId: string): Promi
 
 /**
  * Get device ID from localStorage with validation
- * UPDATED: Handle multiple device ID formats and storage locations
+ * UPDATED: Handle multiple device ID formats, storage locations, and PWA compatibility
  */
 export function getDeviceId(): string | null {
   try {
     // Try multiple storage locations and formats
     const possibleKeys = [
-      'tabeza_device_id_v2',  // New format
-      'Tabeza_device_id',     // Legacy format
-      'device_id',            // Alternative format
+      'Tabeza_device_id',         // Primary key (current)
+      'tabeza_device_id_v2',      // Alternative format
+      'device_id',                // Legacy format
     ];
     
     let deviceId = null;
+    let foundInKey = null;
     
+    // First try localStorage
     for (const key of possibleKeys) {
-      const stored = localStorage.getItem(key);
-      if (stored && typeof stored === 'string' && stored.length >= 10) {
-        deviceId = stored;
-        console.log(`📱 Found device ID in ${key}:`, deviceId.substring(0, 12) + '...');
-        break;
+      try {
+        const stored = localStorage.getItem(key);
+        if (stored && typeof stored === 'string' && stored.length >= 10) {
+          deviceId = stored;
+          foundInKey = key;
+          console.log(`📱 Found device ID in localStorage[${key}]:`, deviceId.substring(0, 12) + '...');
+          break;
+        }
+      } catch (error) {
+        console.warn(`⚠️ Failed to read from localStorage[${key}]:`, error);
+      }
+    }
+    
+    // If not found in localStorage, try sessionStorage (PWA fallback)
+    if (!deviceId) {
+      for (const key of possibleKeys) {
+        try {
+          const stored = sessionStorage.getItem(key);
+          if (stored && typeof stored === 'string' && stored.length >= 10) {
+            deviceId = stored;
+            foundInKey = key;
+            console.log(`📱 Found device ID in sessionStorage[${key}]:`, deviceId.substring(0, 12) + '...');
+            
+            // Try to migrate to localStorage if possible
+            try {
+              localStorage.setItem('Tabeza_device_id', deviceId);
+              console.log('✅ Migrated device ID from sessionStorage to localStorage');
+            } catch (migrateError) {
+              console.warn('⚠️ Could not migrate device ID to localStorage:', migrateError);
+            }
+            break;
+          }
+        } catch (error) {
+          console.warn(`⚠️ Failed to read from sessionStorage[${key}]:`, error);
+        }
       }
     }
     
     if (!deviceId) {
       console.log('❌ No device ID found in any storage location');
       return null;
+    }
+    
+    // Validate device ID format
+    const validFormats = [
+      /^device_\d+_[a-z0-9]+$/,           // Standard: device_1234567890_abc123
+      /^pwa_\d+_[a-z0-9]+$/,              // PWA: pwa_1234567890_abc123
+      /^pwa_android_\d+_[a-z0-9]+$/,      // Android PWA: pwa_android_1234567890_abc123
+      /^dev_\d+_[a-z0-9]+$/,              // Legacy: dev_1234567890_abc123
+    ];
+    
+    const isValidFormat = validFormats.some(pattern => pattern.test(deviceId));
+    
+    if (!isValidFormat) {
+      console.warn('⚠️ Device ID has unexpected format:', deviceId.substring(0, 20) + '...');
+      // Don't reject it - might be a valid legacy format
     }
     
     return deviceId;
