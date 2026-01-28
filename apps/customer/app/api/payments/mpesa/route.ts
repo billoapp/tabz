@@ -145,25 +145,42 @@ export async function POST(request: NextRequest): Promise<NextResponse<MpesaPaym
     const barData = tabWithBar.bars[0] as BarMpesaData;
     let mpesaConfig;
     
-    try {
-      mpesaConfig = loadMpesaConfigFromBar(barData);
-    } catch (error) {
-      console.error('M-Pesa configuration error for bar:', { 
-        barId: tabWithBar.bar_id, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      });
-      
-      if (error instanceof MpesaConfigurationError) {
+    // Check if mock mode is enabled BEFORE trying to load real config
+    if (process.env.MPESA_MOCK_MODE === 'true') {
+      console.log('🧪 M-Pesa Mock Mode: Skipping real configuration loading');
+      // Create a mock config to satisfy the interface
+      mpesaConfig = {
+        environment: 'sandbox',
+        businessShortcode: 'mock_shortcode',
+        consumerKey: 'mock_key',
+        consumerSecret: 'mock_secret',
+        passkey: 'mock_passkey',
+        callbackUrl: 'http://localhost:3002/api/mpesa/callback',
+        oauthUrl: 'mock_oauth_url',
+        stkPushUrl: 'mock_stk_url'
+      };
+    } else {
+      // Only load real config if not in mock mode
+      try {
+        mpesaConfig = loadMpesaConfigFromBar(barData);
+      } catch (error) {
+        console.error('M-Pesa configuration error for bar:', { 
+          barId: tabWithBar.bar_id, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+        
+        if (error instanceof MpesaConfigurationError) {
+          return NextResponse.json(
+            { success: false, error: 'M-Pesa payment not available for this location' },
+            { status: 503 }
+          );
+        }
+        
         return NextResponse.json(
-          { success: false, error: 'M-Pesa payment not available for this location' },
+          { success: false, error: 'Payment service temporarily unavailable' },
           { status: 503 }
         );
       }
-      
-      return NextResponse.json(
-        { success: false, error: 'Payment service temporarily unavailable' },
-        { status: 503 }
-      );
     }
 
     // Requirement 1.1: Create pending payment record in tab_payments table
@@ -188,43 +205,43 @@ export async function POST(request: NextRequest): Promise<NextResponse<MpesaPaym
 
     console.log('Payment record created:', { paymentId: payment.id, tabId, amount });
 
-    // Check if mock mode is enabled
-    if (process.env.MPESA_MOCK_MODE === 'true') {
-      console.log('🧪 M-Pesa Mock Mode: Simulating successful payment');
-      
-      // Generate mock checkout request ID
-      const mockCheckoutRequestId = `mock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Update payment record with mock checkout request ID
-      const { error: updateError } = await supabase
-        .from('tab_payments')
-        .update({ 
-          reference: mockCheckoutRequestId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', payment.id);
+    try {
+      // Handle mock mode
+      if (process.env.MPESA_MOCK_MODE === 'true') {
+        console.log('🧪 M-Pesa Mock Mode: Simulating successful payment');
+        
+        // Generate mock checkout request ID
+        const mockCheckoutRequestId = `mock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Update payment record with mock checkout request ID
+        const { error: updateError } = await supabase
+          .from('tab_payments')
+          .update({ 
+            reference: mockCheckoutRequestId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', payment.id);
 
-      if (updateError) {
-        console.error('Failed to update payment with mock checkout request ID:', updateError);
+        if (updateError) {
+          console.error('Failed to update payment with mock checkout request ID:', updateError);
+        }
+
+        // Simulate successful STK push response
+        const responseTime = Date.now() - startTime;
+        console.log('🧪 Mock M-Pesa payment initiated successfully:', {
+          paymentId: payment.id,
+          checkoutRequestId: mockCheckoutRequestId,
+          responseTime: `${responseTime}ms`,
+          mockMode: true
+        });
+
+        return NextResponse.json({
+          success: true,
+          checkoutRequestId: mockCheckoutRequestId,
+          mockMode: true // Indicate this is a mock response
+        });
       }
 
-      // Simulate successful STK push response
-      const responseTime = Date.now() - startTime;
-      console.log('🧪 Mock M-Pesa payment initiated successfully:', {
-        paymentId: payment.id,
-        checkoutRequestId: mockCheckoutRequestId,
-        responseTime: `${responseTime}ms`,
-        mockMode: true
-      });
-
-      return NextResponse.json({
-        success: true,
-        checkoutRequestId: mockCheckoutRequestId,
-        mockMode: true // Indicate this is a mock response
-      });
-    }
-
-    try {
       // Requirement 2.1: Send STK Push request to Safaricom
       const stkResponse = await sendSTKPush({
         phoneNumber: normalizedPhoneNumber,
